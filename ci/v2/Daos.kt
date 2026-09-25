@@ -16,6 +16,15 @@ interface MaterialDao {
 }
 
 @Dao
+interface SizePriceDao {
+    @Query("SELECT * FROM size_prices WHERE materialId = :materialId AND enabled = 1 ORDER BY widthCm, heightCm, pieceCount") fun observeFor(materialId: String): Flow<List<SizePriceEntity>>
+    @Query("SELECT * FROM size_prices WHERE materialId = :materialId AND enabled = 1 ORDER BY widthCm, heightCm, pieceCount") suspend fun getFor(materialId: String): List<SizePriceEntity>
+    @Query("SELECT * FROM size_prices WHERE enabled = 1") suspend fun getAll(): List<SizePriceEntity>
+    @Upsert suspend fun upsert(entity: SizePriceEntity)
+    @Query("DELETE FROM size_prices WHERE id = :id") suspend fun delete(id: String)
+}
+
+@Dao
 interface ProductDao {
     @Transaction @Query("SELECT * FROM products WHERE deleted = 0 ORDER BY updatedAt DESC") fun observeAll(): Flow<List<ProductWithDetails>>
     @Transaction @Query("SELECT * FROM products WHERE deleted = 0 ORDER BY updatedAt DESC") suspend fun getAll(): List<ProductWithDetails>
@@ -64,6 +73,7 @@ interface SettingsDao {
 interface BackupDao {
     @Query("SELECT * FROM materials") suspend fun materials(): List<MaterialEntity>
     @Query("SELECT * FROM products") suspend fun products(): List<ProductEntity>
+    @Query("SELECT * FROM size_prices") suspend fun sizePrices(): List<SizePriceEntity>
     @Query("SELECT * FROM product_pieces") suspend fun pieces(): List<ProductPieceEntity>
     @Query("SELECT * FROM product_variables") suspend fun variables(): List<ProductVariableEntity>
     @Query("SELECT * FROM profit_rules") suspend fun profits(): List<ProfitRuleEntity>
@@ -78,12 +88,14 @@ interface BackupDao {
     @Query("DELETE FROM product_variables") suspend fun clearVariables()
     @Query("DELETE FROM product_pieces") suspend fun clearPieces()
     @Query("DELETE FROM products") suspend fun clearProducts()
+    @Query("DELETE FROM size_prices") suspend fun clearSizePrices()
     @Query("DELETE FROM materials") suspend fun clearMaterials()
     @Query("DELETE FROM profit_rules") suspend fun clearProfits()
     @Query("DELETE FROM app_settings") suspend fun clearSettings()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putMaterials(v: List<MaterialEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putProducts(v: List<ProductEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putSizePrices(v: List<SizePriceEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putPieces(v: List<ProductPieceEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putVariables(v: List<ProductVariableEntity>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putProfits(v: List<ProfitRuleEntity>)

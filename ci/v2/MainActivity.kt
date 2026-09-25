@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -81,7 +82,7 @@ private val bottomItems=listOf(
             TopAppBar(
                 title={
                     Row(verticalAlignment=Alignment.CenterVertically){
-                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)))
+                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(36.dp).clip(CircleShape))
                         Spacer(Modifier.width(10.dp))
                         Column{
                             Text("tablodecori",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)

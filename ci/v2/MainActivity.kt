@@ -82,9 +82,9 @@ private val bottomItems=listOf(
             TopAppBar(
                 title={
                     Row(verticalAlignment=Alignment.CenterVertically){
-                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(36.dp).clip(CircleShape))
-                        Spacer(Modifier.width(10.dp))
-                        Column{
+                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(40.dp).clip(CircleShape))
+                        Spacer(Modifier.width(9.dp))
+                        Column(verticalArrangement=Arrangement.spacedBy(1.dp)){
                             Text("tablodecori",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
                             Text(titleFor(route),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -99,7 +99,7 @@ private val bottomItems=listOf(
             )
         },
         bottomBar={
-            NavigationBar(tonalElevation=2.dp){
+            NavigationBar(containerColor=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.42f),tonalElevation=0.dp){
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,

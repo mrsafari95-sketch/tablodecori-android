@@ -32,10 +32,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             val vm:MainViewModel=viewModel(factory=MainViewModelFactory(app.repository))
             val settings by vm.settings.collectAsState()
-            TablodecoriTheme(darkMode=settings?.darkMode){CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl){
-                var splash by remember{mutableStateOf(true)};LaunchedEffect(Unit){delay(650);splash=false}
-                if(splash) Splash() else MainShell(vm)
-            }}
+            TablodecoriTheme(darkMode = settings?.darkMode) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                    var splash by remember { mutableStateOf(true) }
+                    LaunchedEffect(Unit) {
+                        delay(650)
+                        splash = false
+                    }
+                    if (splash) Splash() else MainShell(vm)
+                }
+            }
         }
     }
 }

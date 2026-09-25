@@ -23,7 +23,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun saveMaterial(e: MaterialEntity)=launch { val n=repo.saveMaterial(e); _message.emit(if(n>0) "قیمت تغییر کرد؛ $n محصول تحت تأثیر قرار گرفت." else "متغیر ذخیره شد.") }
     fun toggleMaterial(id:String,on:Boolean)=launch { repo.toggleMaterial(id,on) }
     fun deleteMaterial(id:String)=launch { val n=repo.deleteMaterial(id); _message.emit(if(n>0) "متغیر غیرفعال شد؛ در $n محصول استفاده شده بود." else "متغیر حذف شد.") }
-    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true)=launch { repo.saveProduct(id,name,pieces,ids,active); _message.emit("محصول ذخیره شد.") }
+    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="")=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula); _message.emit("محصول ذخیره شد.") }
     fun duplicateProduct(id:String)=launch { repo.duplicateProduct(id); _message.emit("یک کپی از محصول ساخته شد.") }
     fun toggleProduct(id:String,on:Boolean)=launch { repo.toggleProduct(id,on) }
     fun deleteProduct(id:String)=launch { repo.deleteProduct(id); _message.emit("محصول حذف شد.") }

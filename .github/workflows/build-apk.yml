@@ -44,6 +44,26 @@ jobs:
             sed -i 's/room-runtime:2.8.5/room-runtime:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/room-ktx:2.8.5/room-ktx:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
+            # Apply V2 interface overrides maintained in the repository.
+            cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
+            cp ci/v2/Components.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/Components.kt"
+            cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
+            python3 - "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt" <<'PY'
+import sys
+from pathlib import Path
+p=Path(sys.argv[1]); s=p.read_text()
+a=s.index("@Composable fun HomeScreen")
+b=s.index("@Composable fun VariablesScreen")
+s=s[:a]+s[b:]
+s=s.replace('SectionTitle("متغیرها و متریال‌ها","قیمت، پرت، فرمول و روشن/خاموش")','SectionTitle("متریال‌ها و هزینه‌ها","قیمت، پرت، روش محاسبه و وضعیت فعال")')
+s=s.replace('SectionTitle("ست‌ها و محصولات","هر تعداد تابلو با هر ابعاد")','SectionTitle("محصولات و ست‌ها","ترکیب تابلوها با قیمت‌گذاری زنده")')
+s=s.replace('SectionTitle("محاسبه سریع ست","بدون نیاز به ذخیره محصول")','SectionTitle("محاسبه سریع","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول")')
+p.write_text(s)
+PY
+            cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
+            sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,
             # so convert it to a List before calling takeLast().
             sed -i 's/by.entries.takeLast(12)/by.entries.toList().takeLast(12)/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"

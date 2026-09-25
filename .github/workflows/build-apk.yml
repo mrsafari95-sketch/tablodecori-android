@@ -60,7 +60,9 @@ jobs:
             base64 -d ci/v2/tablodecori_logo.b64 > "$PROJECT_DIR/app/src/main/res/drawable-nodpi/tablodecori_logo.webp"
             cp ci/v2/Daos.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/Daos.kt"
             cp ci/v2/AppDatabase.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/AppDatabase.kt"
-            python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("android:icon=\"@drawable/tablodecori_logo\"", "android:icon=\"@drawable/tablodecori_logo\"\\n        android:roundIcon=\"@drawable/tablodecori_logo\""); p.write_text(s)' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }", "db.materialDao().setEnabled(id, enabled, System.currentTimeMillis())"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
+            sed -i '/android:roundIcon=/d' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            sed -i '/android:icon="@drawable\/tablodecori_logo"/a\        android:roundIcon="@drawable/tablodecori_logo"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,

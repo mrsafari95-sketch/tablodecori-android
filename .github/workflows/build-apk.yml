@@ -15,15 +15,17 @@ jobs:
       - name: Prepare project
         shell: bash
         run: |
-          set -e
-          if [ -f tablodecori-android-source.zip ]; then
+          set -euo pipefail
+          ZIP_FILE="$(find . -maxdepth 1 -type f -name 'tablodecori-android-source*.zip' | head -n 1 || true)"
+          if [ -n "$ZIP_FILE" ]; then
             mkdir -p project
-            unzip -q tablodecori-android-source.zip -d project
+            unzip -q "$ZIP_FILE" -d project
             echo "PROJECT_DIR=project" >> "$GITHUB_ENV"
+            echo "Using source archive: $ZIP_FILE"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else
-            echo "Upload tablodecori-android-source.zip to the repository root."
+            echo "No tablodecori Android source archive or app/build.gradle.kts found."
             exit 1
           fi
 

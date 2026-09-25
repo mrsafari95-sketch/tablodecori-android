@@ -36,6 +36,13 @@ jobs:
             # The Java target is already 17; remove the obsolete line and let
             # Kotlin use the modern toolchain/compiler defaults for this build.
             sed -i '/kotlinOptions { jvmTarget = "17" }/d' "$PROJECT_DIR/app/build.gradle.kts"
+            # Current AndroidX dependencies require AGP 9.1+.
+            sed -i 's/id("com.android.application") version "8.13.2"/id("com.android.application") version "9.1.1"/' "$PROJECT_DIR/build.gradle.kts"
+            # Keep the existing external Kotlin Android plugin during this build.
+            {
+              echo 'android.builtInKotlin=false'
+              echo 'android.newDsl=false'
+            } >> "$PROJECT_DIR/gradle.properties"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else
@@ -57,7 +64,7 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '9.3.1'
 
       - name: Build debug APK
         shell: bash

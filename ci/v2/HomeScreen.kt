@@ -61,28 +61,7 @@ import com.tablodecori.app.util.money
                 }
             }
         }
-        item{
-            Surface(
-                onClick={onNavigate.bind("quick")},
-                shape=MaterialTheme.shapes.large,
-                color=MaterialTheme.colorScheme.primaryContainer,
-                contentColor=MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier=Modifier.fillMaxWidth()
-            ){
-                Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){
-                    Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primary,modifier=Modifier.size(52.dp)){
-                        Box(contentAlignment=Alignment.Center){Icon(Icons.Rounded.Calculate,null,tint=MaterialTheme.colorScheme.onPrimary,modifier=Modifier.size(27.dp))}
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)){
-                        Text("محاسبه سریع قیمت",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
-                        Text("ابعاد و تعداد را وارد کن و همان لحظه قیمت بگیر",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Icon(Icons.Rounded.ChevronLeft,null,tint=MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-        item{SectionTitle("دسترسی سریع","ابزارهای اصلی کارگاه")}
+        item{SectionTitle("کارهای اصلی","همه چیز در چند لمس")}
         val tiles=listOf(
             HomeTile("variables",Icons.Rounded.Inventory2,"متریال‌ها","قیمت و هزینه‌ها"),
             HomeTile("products",Icons.Rounded.Widgets,"محصولات","ست‌ها و قیمت زنده"),
@@ -97,7 +76,7 @@ import com.tablodecori.app.util.money
                 if(row.size==1)Spacer(Modifier.weight(1f))
             }
         }
-        item{SectionTitle("نمای کلی","خلاصه وضعیت ثبت‌شده")}
+        item{SectionTitle("خلاصه کارگاه","اطلاعات این نسخه روی همین دستگاه ذخیره می‌شود")}
         item{
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
                 OverviewCard(Icons.Rounded.Tune,"متریال فعال",activeMaterials.toString(),Modifier.weight(1f))
@@ -122,7 +101,6 @@ import com.tablodecori.app.util.money
     }
 }
 
-private fun ((String)->Unit).bind(route:String):()->Unit = { this(route) }
 private data class HomeTile(val route:String,val icon:ImageVector,val title:String,val subtitle:String)
 
 @Composable private fun DashboardKpi(icon:ImageVector,label:String,value:String,modifier:Modifier){

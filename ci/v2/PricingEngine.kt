@@ -79,7 +79,6 @@ class PricingEngine {
             }
         }
 
-        val dimensionPricedIds = sizePrices.map { it.materialId }.toSet()
         regularMaterials.filter { it.id in dimensionPricedIds }.forEach { m ->
             val rules=sizePrices.filter{it.materialId==m.id&&it.enabled}
             val candidates=pieces.flatMap { p -> rules.filter { rule ->

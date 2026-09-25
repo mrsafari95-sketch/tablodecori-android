@@ -54,6 +54,18 @@ jobs:
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            # Export the source files we need to maintain from the uploaded archive.
+            # These are committed back only when they do not exist yet, then future builds
+            # use the repository-owned overrides below.
+            if [ ! -f ci/v2/CoreScreens.kt ]; then
+              cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt" ci/v2/CoreScreens.kt
+            fi
+            if [ ! -f ci/v2/MainViewModel.kt ]; then
+              cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt" ci/v2/MainViewModel.kt
+            fi
+            if [ ! -f ci/v2/WorkshopRepository.kt ]; then
+              cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt" ci/v2/WorkshopRepository.kt
+            fi
             mkdir -p "$PROJECT_DIR/app/src/main/res/drawable-nodpi"
             rm -f "$PROJECT_DIR/app/src/main/res/drawable/tablodecori_logo.xml" "$PROJECT_DIR/app/src/main/res/drawable/tablodecori_logo.png" "$PROJECT_DIR/app/src/main/res/drawable/tablodecori_logo.webp"
             rm -f "$PROJECT_DIR/app/src/main/res/drawable-nodpi/tablodecori_logo.xml" "$PROJECT_DIR/app/src/main/res/drawable-nodpi/tablodecori_logo.png" "$PROJECT_DIR/app/src/main/res/drawable-nodpi/tablodecori_logo.webp"

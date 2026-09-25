@@ -20,6 +20,19 @@ data class MaterialEntity(
     val customFormula: String = "",
 )
 
+@Entity(tableName = "size_prices", indices = [Index("materialId")])
+data class SizePriceEntity(
+    @PrimaryKey val id: String,
+    val materialId: String,
+    val widthCm: Int,
+    val heightCm: Int,
+    val pieceCount: Int = 0,
+    val priceToman: Long = 0L,
+    val enabled: Boolean = true,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
 @Entity(tableName = "products", indices = [Index("name")])
 data class ProductEntity(
     @PrimaryKey val id: String,

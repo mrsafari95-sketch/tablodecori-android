@@ -87,13 +87,14 @@ private val AppShapes = Shapes(
 )
 
 @Composable
-fun TablodecoriTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colors = if (darkTheme) DarkColors else LightColors
+fun TablodecoriTheme(darkMode: Boolean? = null, content: @Composable () -> Unit) {
+    val useDarkTheme = darkMode ?: isSystemInDarkTheme()
+    val colors = if (useDarkTheme) DarkColors else LightColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         val window = (view.context as Activity).window
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-        WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !useDarkTheme
+        WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !useDarkTheme
     }
     MaterialTheme(colorScheme = colors, typography = AppTypography, shapes = AppShapes, content = content)
 }

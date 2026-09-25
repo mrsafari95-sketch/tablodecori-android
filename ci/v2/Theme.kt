@@ -41,4 +41,15 @@ private val AppShapes=Shapes(
     large=androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
     extraLarge=androidx.compose.foundation.shape.RoundedCornerShape(30.dp)
 )
-@Composable fun TablodecoriTheme(darkMode:Boolean?=null,content:@Composable()->Unit){MaterialTheme(colorScheme=if(darkMode?:isSystemInDarkTheme())Dark else Light,typography=AppTypography,shapes=AppShapes,content=content)}
+@Composable
+fun TablodecoriTheme(
+    darkMode: Boolean? = null,
+    content: @Composable () -> Unit
+) {
+    MaterialTheme(
+        colorScheme = if (darkMode ?: isSystemInDarkTheme()) Dark else Light,
+        typography = AppTypography,
+        shapes = AppShapes,
+        content = content
+    )
+}

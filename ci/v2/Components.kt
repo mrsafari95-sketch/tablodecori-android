@@ -19,7 +19,7 @@ fun AppCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content) }
 }

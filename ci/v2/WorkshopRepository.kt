@@ -21,7 +21,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         sizes.forEach { key ->
             val id = "photo_$key"
             if (db.materialDao().get(id) == null) {
-                db.materialDao().upsert(MaterialEntity(id, "عکس " + key.replace("x","×"), "PRODUCTION", "PER_PIECE", 0L, 0, 0, true, "GENERIC", false, now, now))
+                db.materialDao().upsert(MaterialEntity(id=id, name="عکس " + key.replace("x","×"), category="PRODUCTION", calculationType="PER_PIECE", priceToman=0L, enabled=true, createdAt=now, updatedAt=now))
             }
         }
     }
@@ -32,7 +32,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding)) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty())) }.getOrNull()
         }
     }
 
@@ -40,7 +40,8 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val ms = db.materialDao().getAll().map { it.toPricing() }
         val profits = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
         val st = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
-        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman)
+        val entities=db.materialDao().getAll()
+        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "")
     }
 
     suspend fun saveMaterial(entity: MaterialEntity): Int {
@@ -72,14 +73,16 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         return usage
     }
 
-    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true): String {
+    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = ""): String {
         require(name.isNotBlank()) { "نام محصول الزامی است." }
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
+        require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
+        if(profitMode=="FORMULA") FormulaEvaluator.evaluate(profitFormula,mapOf("count" to java.math.BigDecimal.ONE,"area" to java.math.BigDecimal.ONE,"perimeter" to java.math.BigDecimal.ONE,"cost" to java.math.BigDecimal.ONE))
         val now = System.currentTimeMillis()
         val productId = id ?: UUID.randomUUID().toString()
         val old = id?.let { db.productDao().get(it)?.product }
         db.withTransaction {
-            db.productDao().upsert(ProductEntity(productId, name, active, false, old?.createdAt ?: now, now))
+            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
             db.productDao().deletePieces(productId)
             db.productDao().deleteVariables(productId)
             db.productDao().insertPieces(pieces.mapIndexed { i, p -> ProductPieceEntity(productId=productId,widthCm=p.widthCm,heightCm=p.heightCm,quantity=p.quantity,sortOrder=i) })
@@ -91,7 +94,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     suspend fun duplicateProduct(id: String): String? {
         val p = db.productDao().get(id) ?: return null
         val m = p.toModel()
-        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active)
+        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula)
     }
 
     suspend fun toggleProduct(id: String, active: Boolean) {

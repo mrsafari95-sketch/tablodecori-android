@@ -62,9 +62,8 @@ private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("variables",Icons.Rounded.Inventory2,"متریال"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
-    NavItem("quick",Icons.Rounded.Calculate,"سریع"),
-    NavItem("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت"),
-    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
+    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها"),
+    NavItem("settings",Icons.Rounded.Settings,"تنظیمات")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +92,7 @@ private val bottomItems=listOf(
             )
         },
         bottomBar={
-            NavigationBar(tonalElevation=4.dp){
+            NavigationBar(tonalElevation=2.dp){
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,

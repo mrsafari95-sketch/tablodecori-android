@@ -68,7 +68,7 @@ class PricingEngine {
             if (size.size == 2) {
                 val qty = pieces.filter { (it.widthCm == size[0] && it.heightCm == size[1]) || (it.widthCm == size[1] && it.heightCm == size[0]) }.sumOf { it.quantity }
                 if (qty > 0) {
-                    val rounded = BigDecimal(m.priceToman).multiply(BigDecimal(qty)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+                    val matched=pieces.filter { (it.widthCm == size[0] && it.heightCm == size[1]) || (it.widthCm == size[1] && it.heightCm == size[0]) };val custom=customFormulas[m.id].orEmpty();val exactPhoto=if(custom.isBlank())BigDecimal(m.priceToman).multiply(BigDecimal(qty)) else matched.fold(BigDecimal.ZERO){acc,p->acc+FormulaEvaluator.evaluate(custom,mapOf("width" to BigDecimal(p.widthCm),"height" to BigDecimal(p.heightCm),"qty" to BigDecimal(p.quantity),"unitPrice" to BigDecimal(m.priceToman),"area" to BigDecimal(p.widthCm*p.heightCm).divide(tenThousand),"perimeter" to BigDecimal(2*(p.widthCm+p.heightCm)+20).divide(hundred),"count" to BigDecimal(count),"subtotal" to subtotalExact))};val rounded = exactPhoto.setScale(0, RoundingMode.HALF_UP).longValueExact()
                     subtotalExact += BigDecimal(rounded); production += rounded
                     lines += CostLine(m.id, "عکس ${size[0]}×${size[1]}", m.category, rounded)
                 }

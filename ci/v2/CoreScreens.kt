@@ -82,15 +82,28 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 
 @Composable private fun SizePricingDialog(vm:MainViewModel,material:MaterialEntity,onDismiss:()->Unit){
     val prices by vm.sizePrices(material.id).collectAsState(initial=emptyList())
+    val isPhoto=material.id=="photo_lab"
     var w by remember{mutableStateOf("")};var h by remember{mutableStateOf("")};var count by remember{mutableStateOf("")};var price by remember{mutableStateOf("")}
-    AlertDialog(onDismissRequest=onDismiss,title={Text(if(material.id.startsWith("photo_"))"قیمت عکس بر اساس ابعاد" else "قیمت "+material.name+" بر اساس ابعاد ست")},text={
-        Column(Modifier.fillMaxWidth().heightIn(max=520.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Text("ابعاد سانتی‌متر و قیمت تومان است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedTextField(w,{w=it.filter(Char::isDigit)},label={Text("عرض")},modifier=Modifier.weight(1f));OutlinedTextField(h,{h=it.filter(Char::isDigit)},label={Text("ارتفاع")},modifier=Modifier.weight(1f))}
-            if(!material.id.startsWith("photo_"))OutlinedTextField(count,{count=it.filter(Char::isDigit)},label={Text("تعداد تابلو در ست؛ خالی = همه")},modifier=Modifier.fillMaxWidth())
-            OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت تومان")},modifier=Modifier.fillMaxWidth())
-            Button(onClick={val now=System.currentTimeMillis();val ww=w.toIntOrNull()?:0;val hh=h.toIntOrNull()?:0;vm.saveSizePrice(SizePriceEntity(id=material.id+"_"+ww+"x"+hh+"_"+(count.toIntOrNull()?:0),materialId=material.id,widthCm=ww,heightCm=hh,pieceCount=count.toIntOrNull()?:0,priceToman=price.toLongOrNull()?:0,createdAt=now,updatedAt=now));w="";h="";count="";price=""},enabled=w.toIntOrNull()?.let{it>0}==true&&h.toIntOrNull()?.let{it>0}==true&&price.toLongOrNull()!=null,modifier=Modifier.fillMaxWidth()){Text("افزودن / به‌روزرسانی")}
-            prices.forEach{r->Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.weight(1f),fontWeight=FontWeight.Bold);Text(r.priceToman.toString()+" تومان");IconButton(onClick={vm.deleteSizePrice(r.id)}){Icon(Icons.Rounded.Delete,"حذف")}}}
+    AlertDialog(onDismissRequest=onDismiss,title={Text(if(isPhoto)"قیمت عکس لابراتوار" else "جدول ابعاد "+material.name)},text={
+        Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
+            if(isPhoto){
+                Text("ابعاد عکس ثابت هستند؛ فقط قیمت خرید لابراتوار را برای هر سایز وارد کنید.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }else{
+                Text("برای هر اندازه بسته‌بندی، قیمت این جزء را تعریف کنید. تعداد تکه باعث می‌شود مثلاً ست ۳ تکه با ست ۵ تکه قیمت متفاوت داشته باشد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedTextField(w,{w=it.filter(Char::isDigit)},label={Text("عرض")},modifier=Modifier.weight(1f));OutlinedTextField(h,{h=it.filter(Char::isDigit)},label={Text("ارتفاع")},modifier=Modifier.weight(1f))}
+                OutlinedTextField(count,{count=it.filter(Char::isDigit)},label={Text("تعداد تابلو در ست؛ خالی = همه")},modifier=Modifier.fillMaxWidth())
+                OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت تومان")},modifier=Modifier.fillMaxWidth())
+                Button(onClick={val now=System.currentTimeMillis();val ww=w.toIntOrNull()?:0;val hh=h.toIntOrNull()?:0;val cc=count.toIntOrNull()?:0;vm.saveSizePrice(SizePriceEntity(id=material.id+"_"+ww+"x"+hh+"_"+cc,materialId=material.id,widthCm=ww,heightCm=hh,pieceCount=cc,priceToman=price.toLongOrNull()?:0,createdAt=now,updatedAt=now));w="";h="";count="";price=""},enabled=w.toIntOrNull()?.let{it>0}==true&&h.toIntOrNull()?.let{it>0}==true&&price.toLongOrNull()!=null,modifier=Modifier.fillMaxWidth()){Text("افزودن قیمت")}
+            }
+            prices.forEach{r->
+                var rowPrice by remember(r.id,r.priceToman){mutableStateOf(if(r.priceToman==0L)"" else r.priceToman.toString())}
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.width(105.dp),fontWeight=FontWeight.Bold)
+                    OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,modifier=Modifier.weight(1f))
+                    TextButton(onClick={vm.saveSizePrice(r.copy(priceToman=rowPrice.toLongOrNull()?:0L,updatedAt=System.currentTimeMillis()))}){Text("ثبت")}
+                    if(!isPhoto)IconButton(onClick={vm.deleteSizePrice(r.id)}){Icon(Icons.Rounded.Delete,"حذف")}
+                }
+            }
         }
     },confirmButton={Button(onClick=onDismiss){Text("بستن")}})
 }

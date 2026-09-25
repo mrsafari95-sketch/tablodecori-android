@@ -13,6 +13,9 @@ class PricingEngine {
         enabledMaterialIds: Set<String> = materials.filter { it.enabled }.map { it.id }.toSet(),
         profitByPieceCount: Map<Int, Long>,
         roundingStepToman: Long = 10_000L,
+        customFormulas: Map<String,String> = emptyMap(),
+        manualProfitToman: Long? = null,
+        profitFormula: String = "",
     ): PricingResult {
         require(pieces.isNotEmpty()) { "حداقل یک سایز لازم است." }
         require(pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
@@ -40,7 +43,8 @@ class PricingEngine {
         regularMaterials.filter { it.calculationType != CalculationType.PERCENT_OF_COST }.forEach { m ->
             val wasteFactor = BigDecimal(10_000 + m.wasteBasisPoints).divide(tenThousand)
             val basePrice = BigDecimal(m.priceToman)
-            val raw = when (m.calculationType) {
+            val custom = customFormulas[m.id].orEmpty()
+            val raw = if(custom.isNotBlank()) pieces.fold(BigDecimal.ZERO){acc,p -> acc + FormulaEvaluator.evaluate(custom,mapOf("width" to BigDecimal(p.widthCm),"height" to BigDecimal(p.heightCm),"qty" to BigDecimal(p.quantity),"unitPrice" to basePrice,"area" to BigDecimal(p.widthCm*p.heightCm).divide(tenThousand),"perimeter" to BigDecimal(2*(p.widthCm+p.heightCm)+20).divide(hundred),"count" to BigDecimal(count),"subtotal" to subtotalExact))} else when (m.calculationType) {
                 CalculationType.PER_SQUARE_METER -> area.multiply(basePrice)
                 CalculationType.PER_LINEAR_METER -> perimeter.multiply(basePrice)
                 CalculationType.PER_PIECE -> BigDecimal(count).multiply(basePrice)
@@ -81,7 +85,12 @@ class PricingEngine {
         }
 
         val cost = subtotalExact.setScale(0, RoundingMode.HALF_UP).longValueExact()
-        val profit = profitForCount(count, profitByPieceCount)
+        val profit = when {
+            profitFormula.isNotBlank() -> FormulaEvaluator.evaluate(profitFormula,mapOf("count" to BigDecimal(count),"area" to area,"perimeter" to perimeter,"cost" to BigDecimal(cost))).setScale(0,RoundingMode.HALF_UP).longValueExact()
+            manualProfitToman != null -> manualProfitToman
+            else -> 0L
+        }
+        require(profit >= 0) { "سود نمی‌تواند منفی باشد." }
         val rawSale = Math.addExact(cost, profit)
         val finalSale = roundUp(rawSale, roundingStepToman.coerceAtLeast(1L))
         return PricingResult(count, area, perimeter, production, packaging, overhead, cost, profit, finalSale, lines)

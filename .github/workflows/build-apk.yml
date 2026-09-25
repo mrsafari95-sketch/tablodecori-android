@@ -28,6 +28,10 @@ jobs:
             echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
             echo "Using source archive: $ZIP_FILE"
             echo "Android project root: $PROJECT_DIR"
+            # The uploaded archive contains a bootstrap wrapper JAR that is not
+            # needed here because setup-gradle installs Gradle 8.13 directly.
+            # Remove it so GitHub's wrapper-integrity check does not reject it.
+            rm -f "$PROJECT_DIR/gradle/wrapper/gradle-wrapper.jar"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else

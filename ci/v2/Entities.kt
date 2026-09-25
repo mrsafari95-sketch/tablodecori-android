@@ -13,11 +13,11 @@ data class MaterialEntity(
     val wasteBasisPoints: Int = 0,
     val enabled: Boolean = true,
     val smartKind: String = "GENERIC",
-    val formulaMode: String = "STANDARD",
-    val customFormula: String = "",
     val deleted: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
+    val formulaMode: String = "STANDARD",
+    val customFormula: String = "",
 )
 
 @Entity(tableName = "products", indices = [Index("name")])
@@ -25,12 +25,12 @@ data class ProductEntity(
     @PrimaryKey val id: String,
     val name: String,
     val active: Boolean = true,
-    val manualProfitToman: Long = 0L,
-    val profitMode: String = "MANUAL",
-    val profitFormula: String = "",
     val deleted: Boolean = false,
     val createdAt: Long,
     val updatedAt: Long,
+    val manualProfitToman: Long = 0L,
+    val profitMode: String = "MANUAL",
+    val profitFormula: String = "",
 )
 
 @Entity(

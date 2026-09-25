@@ -20,8 +20,14 @@ jobs:
           if [ -n "$ZIP_FILE" ]; then
             mkdir -p project
             unzip -q "$ZIP_FILE" -d project
-            echo "PROJECT_DIR=project" >> "$GITHUB_ENV"
+            PROJECT_DIR="$(dirname "$(find project -type f -name 'settings.gradle.kts' -print -quit)")"
+            if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
+              echo "Android project root was not found inside $ZIP_FILE"
+              exit 1
+            fi
+            echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
             echo "Using source archive: $ZIP_FILE"
+            echo "Android project root: $PROJECT_DIR"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else

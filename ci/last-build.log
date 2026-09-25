@@ -11,16 +11,19 @@ Daemon will be stopped at the end of the build
 > Task :app:compileDebugNavigationResources
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
-
-> Task :app:mergeDebugResources FAILED
-ERROR: [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.webp [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.png: Resource and asset merger: Duplicate resources
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790318519817.json
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:mergeDebugResources
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest FAILED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790319317213.json
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':app:mergeDebugResources'.
-> [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.webp	[drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.png: Error: Duplicate resources
+Execution failed for task ':app:processDebugMainManifest'.
+> com.android.manifmerger.ManifestMerger2$MergeFailureException: Error parsing /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/AndroidManifest.xml
 
 * Try:
 > Run with --stacktrace option to get the stack trace.
@@ -28,5 +31,5 @@ Execution failed for task ':app:mergeDebugResources'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 14s
-8 actionable tasks: 8 executed
+BUILD FAILED in 15s
+13 actionable tasks: 13 executed

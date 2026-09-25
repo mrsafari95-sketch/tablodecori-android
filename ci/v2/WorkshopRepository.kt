@@ -14,6 +14,9 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     val orders: Flow<List<OrderWithCosts>> = db.orderDao().observeAll()
     val history: Flow<List<PriceChangeHistoryEntity>> = db.historyDao().observeAll()
     val settings: Flow<AppSettingsEntity?> = db.settingsDao().observe()
+    fun sizePrices(materialId:String): Flow<List<SizePriceEntity>> = db.sizePriceDao().observeFor(materialId)
+    suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
+    suspend fun deleteSizePrice(id:String)=db.sizePriceDao().delete(id)
 
     suspend fun ensurePhotoPrices() {
         val sizes = listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x50","50x70","50x100","60x60","60x90","70x70","70x100","76x120","76x140")

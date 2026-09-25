@@ -32,7 +32,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         material("photo_lab","عکس لابراتوار","PRODUCTION","PER_SET",0,0,"PHOTO_TABLE")
         material("packaging_bundle","بسته‌بندی","PACKAGING","PER_SET",0,0,"PACKAGE_BUNDLE")
         material("unexpected_cost","هزینه پیش‌بینی نشده","OVERHEAD","PERCENT_OF_COST",0,200)
-        material("inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100)
+        material("inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,200)
 
         val allowed=setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation","pack_foam","pack_carton","pack_tape","pack_labor")
         db.materialDao().getAll().filter{it.id !in allowed}.forEach{db.materialDao().softDelete(it.id,now)}
@@ -65,7 +65,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val defaults=mapOf("frame_pvc" to 110000L,"glass" to 330000L,"backboard_3mm" to 820000L,"frame_supplies" to 50000L,"production_labor" to 30000L,"pack_tape" to 30000L,"pack_labor" to 60000L)
         defaults.forEach{(id,p)->db.materialDao().get(id)?.let{db.materialDao().upsert(it.copy(priceToman=p,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}}
         db.materialDao().get("unexpected_cost")?.let{db.materialDao().upsert(it.copy(rateBasisPoints=200,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}
-        db.materialDao().get("inflation")?.let{db.materialDao().upsert(it.copy(rateBasisPoints=100,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}
+        db.materialDao().get("inflation")?.let{db.materialDao().upsert(it.copy(rateBasisPoints=200,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}
         val photos=mapOf("10x15" to 24000L,"13x18" to 42000L,"16x21" to 49000L,"20x30" to 88000L,"30x30" to 165000L,"30x40" to 190000L,"30x45" to 210000L,"30x50" to 216000L,"30x60" to 250000L,"30x70" to 345000L,"30x80" to 345000L,"40x60" to 440000L,"40x70" to 640000L,"40x80" to 900000L,"50x50" to 640000L,"50x70" to 640000L,"50x100" to 1200000L,"60x60" to 970000L,"60x90" to 970000L,"70x100" to 1250000L,"76x120" to 1500000L,"76x140" to 1780000L)
         photos.forEach{(k,p)->val wh=k.split("x").map{it.toInt()};db.sizePriceDao().upsert(SizePriceEntity("photo_lab_$k","photo_lab",wh[0],wh[1],0,p,true,now,now))}
         listOf(Triple(40,60,70000L to 120000L),Triple(50,70,200000L to 130000L),Triple(60,90,200000L to 230000L),Triple(70,100,300000L to 230000L)).forEach{(w,h,c)->db.sizePriceDao().upsert(SizePriceEntity("pack_foam_"+w+"x"+h,"pack_foam",w,h,0,c.first,true,now,now));db.sizePriceDao().upsert(SizePriceEntity("pack_carton_"+w+"x"+h,"pack_carton",w,h,0,c.second,true,now,now))}

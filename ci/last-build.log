@@ -11,53 +11,16 @@ Daemon will be stopped at the end of the build
 > Task :app:compileDebugNavigationResources
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
-> Task :app:packageDebugResources
-> Task :app:createDebugCompatibleScreenManifests
-> Task :app:extractDeepLinksDebug
-> Task :app:mergeDebugResources
-> Task :app:parseDebugLocalResources
-> Task :app:processDebugMainManifest
-> Task :app:processDebugManifest
-> Task :app:javaPreCompileDebug
-> Task :app:mergeDebugShaders
-> Task :app:compileDebugShaders NO-SOURCE
-> Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeDebugAssets
-> Task :app:compressDebugAssets
-> Task :app:desugarDebugFileDependencies
-> Task :app:mergeDebugJniLibFolders
-> Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugNativeLibs
-> Task :app:processDebugManifestForPackage
-> Task :app:mergeExtDexDebug
-> Task :app:mergeLibDexDebug
 
-> Task :app:stripDebugDebugSymbols
-Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so. Run with --info option to learn more.
-
-> Task :app:processDebugResources
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
-> Task :app:kspDebugKotlin
-
-> Task :app:compileDebugKotlin
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/MainActivity.kt:35:30 No value passed for parameter 'content'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/MainActivity.kt:35:59 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt:44:65 Syntax error: Incomplete code.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt:44:78 Syntax error: Type expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt:44:80 Syntax error: Expecting comma or ')'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt:44:80 An explicit type is required on a value parameter.
-
-> Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790317540554.json
+> Task :app:mergeDebugResources FAILED
+ERROR: [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.webp [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.png: Resource and asset merger: Duplicate resources
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790318519817.json
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
+Execution failed for task ':app:mergeDebugResources'.
+> [drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.webp	[drawable-nodpi-v4/tablodecori_logo] /home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/res/drawable-nodpi/tablodecori_logo.png: Error: Duplicate resources
 
 * Try:
 > Run with --stacktrace option to get the stack trace.
@@ -65,5 +28,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 1m 19s
-32 actionable tasks: 32 executed
+BUILD FAILED in 14s
+8 actionable tasks: 8 executed

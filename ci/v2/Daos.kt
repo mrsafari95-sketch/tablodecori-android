@@ -11,6 +11,7 @@ interface MaterialDao {
     @Upsert suspend fun upsert(entity: MaterialEntity)
     @Upsert suspend fun upsertAll(entities: List<MaterialEntity>)
     @Query("SELECT COUNT(*) FROM product_variables WHERE materialId = :materialId") suspend fun usageCount(materialId: String): Int
+    @Query("UPDATE materials SET enabled = :enabled, updatedAt = :now WHERE id = :id") suspend fun setEnabled(id: String, enabled: Boolean, now: Long)
     @Query("UPDATE materials SET deleted = 1, enabled = 0, updatedAt = :now WHERE id = :id") suspend fun softDelete(id: String, now: Long)
 }
 

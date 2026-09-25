@@ -62,8 +62,9 @@ private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("variables",Icons.Rounded.Inventory2,"متریال"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
-    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها"),
-    NavItem("settings",Icons.Rounded.Settings,"تنظیمات")
+    NavItem("quick",Icons.Rounded.Calculate,"سریع"),
+    NavItem("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت"),
+    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

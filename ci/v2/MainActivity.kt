@@ -111,8 +111,15 @@ private val bottomItems=listOf(
                                 }
                             }
                         },
-                        icon={Icon(i.icon,i.label)},
-                        label={Text(i.label,maxLines=1)}
+                        icon={Icon(i.icon,i.label,Modifier.size(21.dp))},
+                        label={Text(i.label,maxLines=1,style=MaterialTheme.typography.labelSmall)},
+                        colors=NavigationBarItemDefaults.colors(
+                            selectedIconColor=MaterialTheme.colorScheme.primary,
+                            selectedTextColor=MaterialTheme.colorScheme.primary,
+                            indicatorColor=MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor=MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor=MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }

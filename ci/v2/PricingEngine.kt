@@ -35,8 +35,10 @@ class PricingEngine {
         val maxArea = pieces.maxOf { BigDecimal(it.widthCm).multiply(BigDecimal(it.heightCm)).divide(tenThousand) }
 
         val active = materials.filter { it.enabled && it.id in enabledMaterialIds }
-        val photoMaterials = active.filter { it.id.startsWith("photo_") }
-        val regularMaterials = active.filterNot { it.id.startsWith("photo_") || (it.name.trim() == "عکس" && it.calculationType == CalculationType.PER_SQUARE_METER) }
+        val photoParent = active.firstOrNull { it.id == "photo_lab" }
+        val packagingParent = active.firstOrNull { it.id == "packaging_bundle" }
+        val packagingComponents = materials.filter { it.enabled && it.id.startsWith("pack_") }
+        val regularMaterials = active.filterNot { it.id.startsWith("photo_") || it.id=="photo_lab" || it.id=="packaging_bundle" || it.id.startsWith("pack_") || (it.name.trim() == "عکس" && it.calculationType == CalculationType.PER_SQUARE_METER) }
         val lines = mutableListOf<CostLine>()
         var subtotalExact = BigDecimal.ZERO
         var production = 0L
@@ -67,16 +69,14 @@ class PricingEngine {
             }
         }
 
-        photoMaterials.forEach { m ->
-            val size = m.id.removePrefix("photo_").split("x").mapNotNull { it.toIntOrNull() }
-            if (size.size == 2) {
-                val qty = pieces.filter { (it.widthCm == size[0] && it.heightCm == size[1]) || (it.widthCm == size[1] && it.heightCm == size[0]) }.sumOf { it.quantity }
-                if (qty > 0) {
-                    val matched=pieces.filter { (it.widthCm == size[0] && it.heightCm == size[1]) || (it.widthCm == size[1] && it.heightCm == size[0]) };val custom=customFormulas[m.id].orEmpty();val exactPhoto=if(custom.isBlank())BigDecimal(m.priceToman).multiply(BigDecimal(qty)) else matched.fold(BigDecimal.ZERO){acc,p->acc+FormulaEvaluator.evaluate(custom,mapOf("width" to BigDecimal(p.widthCm),"height" to BigDecimal(p.heightCm),"qty" to BigDecimal(p.quantity),"unitPrice" to BigDecimal(m.priceToman),"area" to BigDecimal(p.widthCm*p.heightCm).divide(tenThousand),"perimeter" to BigDecimal(2*(p.widthCm+p.heightCm)+20).divide(hundred),"count" to BigDecimal(count),"subtotal" to subtotalExact))};val rounded = exactPhoto.setScale(0, RoundingMode.HALF_UP).longValueExact()
-                    subtotalExact += BigDecimal(rounded); production += rounded
-                    lines += CostLine(m.id, "عکس ${size[0]}×${size[1]}", m.category, rounded)
-                }
+        photoParent?.let { m ->
+            val rules=sizePrices.filter{it.materialId=="photo_lab"&&it.enabled}
+            var photoTotal=0L
+            pieces.forEach{p->
+                val rule=rules.firstOrNull{r->(p.widthCm==r.widthCm&&p.heightCm==r.heightCm)||(p.widthCm==r.heightCm&&p.heightCm==r.widthCm)}
+                if(rule!=null) photoTotal=Math.addExact(photoTotal,Math.multiplyExact(rule.priceToman,p.quantity.toLong()))
             }
+            if(photoTotal>0L){subtotalExact+=BigDecimal(photoTotal);production+=photoTotal;lines+=CostLine(m.id,m.name,m.category,photoTotal)}
         }
 
         regularMaterials.filter { it.id in dimensionPricedIds }.forEach { m ->
@@ -92,6 +92,18 @@ class PricingEngine {
                 lines+=CostLine(m.id,m.name,m.category,amount)
                 when(m.category){MaterialCategory.PRODUCTION->production+=amount;MaterialCategory.PACKAGING->packaging+=amount;MaterialCategory.OVERHEAD->overhead+=amount}
             }
+        }
+
+        packagingParent?.let { parent ->
+            val largest=pieces.maxByOrNull{it.widthCm*it.heightCm}
+            var packageTotal=0L
+            packagingComponents.forEach{component->
+                val rules=sizePrices.filter{it.materialId==component.id&&it.enabled}
+                val rule=largest?.let{p->rules.filter{r->((p.widthCm==r.widthCm&&p.heightCm==r.heightCm)||(p.widthCm==r.heightCm&&p.heightCm==r.widthCm))&&(r.pieceCount==0||r.pieceCount==count)}.sortedWith(compareByDescending<SizePriceEntity>{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull()}
+                val amount=rule?.priceToman?:component.priceToman
+                packageTotal=Math.addExact(packageTotal,amount)
+            }
+            if(packageTotal>0L){subtotalExact+=BigDecimal(packageTotal);packaging+=packageTotal;lines+=CostLine(parent.id,parent.name,parent.category,packageTotal)}
         }
 
         // Percentage overheads are intentionally sequential, matching the supplied prototype.

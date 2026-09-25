@@ -35,7 +35,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty())) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), db.sizePriceDao().getAll())) }.getOrNull()
         }
     }
 
@@ -44,7 +44,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val profits = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
         val st = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
         val entities=db.materialDao().getAll()
-        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "")
+        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "", db.sizePriceDao().getAll())
     }
 
     suspend fun saveMaterial(entity: MaterialEntity): Int {

@@ -7,6 +7,9 @@ data class ProductModel(
     val id: String,
     val name: String,
     val active: Boolean,
+    val manualProfitToman: Long,
+    val profitMode: String,
+    val profitFormula: String,
     val pieces: List<PieceInput>,
     val enabledMaterialIds: Set<String>,
 )
@@ -30,7 +33,7 @@ fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(
 )
 
 fun ProductWithDetails.toModel(): ProductModel = ProductModel(
-    product.id, product.name, product.active,
+    product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula,
     pieces.sortedBy { it.sortOrder }.map { PieceInput(it.widthCm, it.heightCm, it.quantity) },
     materials.filter { !it.deleted }.map { it.id }.toSet()
 )

@@ -16,6 +16,7 @@ class PricingEngine {
         customFormulas: Map<String,String> = emptyMap(),
         manualProfitToman: Long? = null,
         profitFormula: String = "",
+        sizePrices: List<SizePriceEntity> = emptyList(),
     ): PricingResult {
         require(pieces.isNotEmpty()) { "حداقل یک سایز لازم است." }
         require(pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
@@ -72,6 +73,14 @@ class PricingEngine {
                     subtotalExact += BigDecimal(rounded); production += rounded
                     lines += CostLine(m.id, "عکس ${size[0]}×${size[1]}", m.category, rounded)
                 }
+            }
+        }
+
+        regularMaterials.filter { it.calculationType == CalculationType.PER_SET }.forEach { m ->
+            val rules=sizePrices.filter{it.materialId==m.id&&it.enabled}
+            if(rules.isNotEmpty()){
+                val match=rules.firstOrNull{rule-> pieces.size==1 && ((pieces[0].widthCm==rule.widthCm&&pieces[0].heightCm==rule.heightCm)||(pieces[0].widthCm==rule.heightCm&&pieces[0].heightCm==rule.widthCm)) && (rule.pieceCount==0||rule.pieceCount==count)}
+                if(match!=null){subtotalExact+=BigDecimal(match.priceToman);production+=match.priceToman;lines+=CostLine(m.id,m.name,m.category,match.priceToman)}
             }
         }
 

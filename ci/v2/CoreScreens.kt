@@ -169,7 +169,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         item{AppCard{
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("یک بسته‌بندی برای کل ست انتخاب کنید.",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={packageOpen=!packageOpen}){Text(if(packageOpen)"بستن" else "انتخاب")}}
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                listOf(40 to 60,50 to 70,60 to 90,70 to 100).forEach{(w,h)->val key=w+"x"+h;FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
+                listOf(40 to 60,50 to 70,60 to 90,70 to 100).forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
             }
             val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L
             val tape=vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L

@@ -18,33 +18,56 @@ Daemon will be stopped at the end of the build
 > Task :app:parseDebugLocalResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
-> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
-> Task :app:processDebugResources
 > Task :app:desugarDebugFileDependencies
 > Task :app:mergeDebugJniLibFolders
 > Task :app:checkDebugDuplicateClasses
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugNativeLibs
-> Task :app:validateSigningDebug
+> Task :app:processDebugResources
 > Task :app:mergeLibDexDebug
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so. Run with --info option to learn more.
 
+> Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
-> Task :app:kspDebugKotlin
 > Task :app:mergeExtDexDebug
+> Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt:182:113 Too many arguments for 'fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: Modifier): Unit'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt:183:115 Too many arguments for 'fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: Modifier): Unit'.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1790334475830.json
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:33:180 Argument type mismatch: actual type is 'Boolean', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:33:196 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:33:214 Argument type mismatch: actual type is 'Long', but 'Boolean' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:33:214 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:33:214 No value passed for parameter 'updatedAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:34:100 Argument type mismatch: actual type is 'Boolean', but 'Long' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:34:116 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:34:134 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:34:134 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:34:134 No value passed for parameter 'updatedAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:24:145 Argument type mismatch: actual type is 'Boolean', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:24:152 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:24:157 Argument type mismatch: actual type is 'Long', but 'Boolean' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:24:157 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:24:157 No value passed for parameter 'updatedAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:82:75 Argument type mismatch: actual type is 'Boolean', but 'Long' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:82:82 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:82:105 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:82:105 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:82:105 No value passed for parameter 'updatedAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:41:1694 Argument type mismatch: actual type is 'Boolean', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:41:1700 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:41:1724 Argument type mismatch: actual type is 'Long', but 'Boolean' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:41:1724 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:41:1724 No value passed for parameter 'updatedAt'.
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790344115957.json
 
 FAILURE: Build failed with an exception.
 
@@ -59,5 +82,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 49s
+BUILD FAILED in 47s
 32 actionable tasks: 32 executed

@@ -23,19 +23,21 @@ class PricingEngine {
             sum + BigDecimal(p.widthCm).multiply(BigDecimal(p.heightCm)).multiply(BigDecimal(p.quantity)).divide(tenThousand)
         }
         val perimeter = pieces.fold(BigDecimal.ZERO) { sum, p ->
-            val one = BigDecimal(2).multiply(BigDecimal(p.widthCm + p.heightCm)).divide(hundred)
+            val one = BigDecimal(2).multiply(BigDecimal(p.widthCm + p.heightCm)).add(BigDecimal(20)).divide(hundred)
             sum + one.multiply(BigDecimal(p.quantity))
         }
         val maxArea = pieces.maxOf { BigDecimal(it.widthCm).multiply(BigDecimal(it.heightCm)).divide(tenThousand) }
 
         val active = materials.filter { it.enabled && it.id in enabledMaterialIds }
+        val photoMaterials = active.filter { it.id.startsWith("photo_") }
+        val regularMaterials = active.filterNot { it.id.startsWith("photo_") || (it.name.trim() == "عکس" && it.calculationType == CalculationType.PER_SQUARE_METER) }
         val lines = mutableListOf<CostLine>()
         var subtotalExact = BigDecimal.ZERO
         var production = 0L
         var packaging = 0L
         var overhead = 0L
 
-        active.filter { it.calculationType != CalculationType.PERCENT_OF_COST }.forEach { m ->
+        regularMaterials.filter { it.calculationType != CalculationType.PERCENT_OF_COST }.forEach { m ->
             val wasteFactor = BigDecimal(10_000 + m.wasteBasisPoints).divide(tenThousand)
             val basePrice = BigDecimal(m.priceToman)
             val raw = when (m.calculationType) {
@@ -57,8 +59,20 @@ class PricingEngine {
             }
         }
 
+        photoMaterials.forEach { m ->
+            val size = m.id.removePrefix("photo_").split("x").mapNotNull { it.toIntOrNull() }
+            if (size.size == 2) {
+                val qty = pieces.filter { (it.widthCm == size[0] && it.heightCm == size[1]) || (it.widthCm == size[1] && it.heightCm == size[0]) }.sumOf { it.quantity }
+                if (qty > 0) {
+                    val rounded = BigDecimal(m.priceToman).multiply(BigDecimal(qty)).setScale(0, RoundingMode.HALF_UP).longValueExact()
+                    subtotalExact += BigDecimal(rounded); production += rounded
+                    lines += CostLine(m.id, "عکس ${size[0]}×${size[1]}", m.category, rounded)
+                }
+            }
+        }
+
         // Percentage overheads are intentionally sequential, matching the supplied prototype.
-        active.filter { it.calculationType == CalculationType.PERCENT_OF_COST }.forEach { m ->
+        regularMaterials.filter { it.calculationType == CalculationType.PERCENT_OF_COST }.forEach { m ->
             val exact = subtotalExact.multiply(BigDecimal(m.rateBasisPoints)).divide(tenThousand, 8, RoundingMode.HALF_UP)
             val rounded = exact.setScale(0, RoundingMode.HALF_UP).longValueExact()
             subtotalExact += exact

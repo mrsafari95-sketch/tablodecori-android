@@ -135,7 +135,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 }
 
 @Composable
-private fun HomeHero(activeProducts: Int, orderCount: Int) {
+private fun HomeHero(activeProducts: Int, orderCount: Int, onNavigate: (String) -> Unit = {}) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -179,8 +179,8 @@ private fun HomeHero(activeProducts: Int, orderCount: Int) {
             )
             Spacer(Modifier.height(20.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeroKpi(Icons.Rounded.Inventory2, "محصول فعال", activeProducts.toString(), Modifier.weight(1f))
-                HeroKpi(Icons.Rounded.LocalShipping, "سفارش ثبت‌شده", orderCount.toString(), Modifier.weight(1f))
+                HeroKpi(Icons.Rounded.Inventory2, "محصول فعال", activeProducts.toString(), Modifier.weight(1f)) { onNavigate("products") }
+                HeroKpi(Icons.Rounded.LocalShipping, "سفارش ثبت‌شده", orderCount.toString(), Modifier.weight(1f)) { onNavigate("orders") }
             }
         }
     }
@@ -240,8 +240,8 @@ private fun HomeActionCard(
         colors = CardDefaults.elevatedCardColors(containerColor = background),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = CircleShape, color = accent.copy(alpha = .09f)) {
                     Icon(Icons.Rounded.ChevronLeft, null, Modifier.padding(8.dp).size(19.dp), tint = accent)
                 }

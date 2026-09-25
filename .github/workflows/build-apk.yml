@@ -58,6 +58,7 @@ jobs:
             cp ci/v2/MainViewModel.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt"
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
+            cp ci/v2/FormulaEvaluator.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/FormulaEvaluator.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
             if [ ! -f ci/v2/PricingEngine.kt ]; then
               PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"

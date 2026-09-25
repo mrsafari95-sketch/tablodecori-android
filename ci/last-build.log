@@ -12,9 +12,9 @@ Daemon will be stopped at the end of the build
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
+> Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
-> Task :app:mergeDebugResources
 > Task :app:parseDebugLocalResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
@@ -25,95 +25,30 @@ Daemon will be stopped at the end of the build
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
 > Task :app:desugarDebugFileDependencies
-> Task :app:mergeDebugJniLibFolders
-> Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugNativeLibs
 > Task :app:processDebugManifestForPackage
+> Task :app:checkDebugDuplicateClasses
+> Task :app:processDebugResources
+> Task :app:mergeDebugJniLibFolders
 > Task :app:mergeLibDexDebug
+> Task :app:mergeDebugNativeLibs
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so. Run with --info option to learn more.
 
-> Task :app:processDebugResources
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
 > Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
 
-> Task :app:compileDebugKotlin
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:19:26 Unresolved reference 'SizePriceEntity'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:19:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:13 Conflicting declarations:
-local val dimensionPricedIds: Set<??? (Unknown type for type parameter T)>
-local val dimensionPricedIds: Set<??? (Unknown type for type parameter T)>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:45 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:45 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:49 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:54 Unresolved reference 'materialId'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:44:67 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:13 Conflicting declarations:
-local val dimensionPricedIds: Set<??? (Unknown type for type parameter T)>
-local val dimensionPricedIds: Set<??? (Unknown type for type parameter T)>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:45 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:45 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:45 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:49 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:54 Unresolved reference 'materialId'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:80:67 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:34 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:34 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
-fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:40 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:44 Unresolved reference 'materialId'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:65 Unresolved reference 'enabled'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:83:35 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:83:56 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:83:65 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:84:35 Unresolved reference 'widthCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:84:61 Unresolved reference 'heightCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:84:89 Unresolved reference 'heightCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:84:116 Unresolved reference 'widthCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:85:23 Unresolved reference 'pieceCount'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:85:45 Unresolved reference 'pieceCount'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:34 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:65 Unresolved reference 'SizePriceEntity'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:81 Argument type mismatch: actual type is '(uninferred T (of fun <T> compareByDescending)) -> Comparable<*>?', but '(uninferred T (of fun <T> compareByDescending)) -> Comparable<*>?' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:81 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:85 Unresolved reference 'pieceCount'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:104 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:120 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:124 Unresolved reference 'updatedAt'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:87:136 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:89:34 Unresolved reference 'priceToman'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:29:477 Unresolved reference 'sizePricingMaterial'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:29:585 Unresolved reference 'sizePricingMaterial'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:29:695 Unresolved reference 'sizePricingMaterial'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:16 Property delegate must have a 'getValue(Nothing?, KProperty0<??? (Unknown type for type parameter T)>)' method. None of the following functions is applicable:
-fun <T> State<T>.getValue(thisObj: Any?, property: KProperty<*>): T
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:19 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:22 Unresolved reference 'sizePrices'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:46 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:46 Cannot infer type for type parameter 'R'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:40:69 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:48:119 Unresolved reference 'saveSizePrice'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:48:133 Unresolved reference 'SizePriceEntity'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:28 Cannot infer type for value parameter 'r'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:31 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:112 Unresolved reference 'widthCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:137 Unresolved reference 'heightCm'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:152 Unresolved reference 'pieceCount'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:173 Unresolved reference 'pieceCount'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:255 Unresolved reference 'priceToman'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:310 Unresolved reference 'deleteSizePrice'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:328 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:49:339 Unresolved reference 'Icons'.
-
 > Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790346884067.json
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:46:13 Conflicting declarations:
+local val dimensionPricedIds: Set<String>
+local val dimensionPricedIds: Set<String>
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:13 Conflicting declarations:
+local val dimensionPricedIds: Set<String>
+local val dimensionPricedIds: Set<String>
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790347078206.json
 
 FAILURE: Build failed with an exception.
 
@@ -128,5 +63,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 48s
+BUILD FAILED in 38s
 32 actionable tasks: 32 executed

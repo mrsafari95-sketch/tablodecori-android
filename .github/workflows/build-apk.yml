@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -94,7 +97,21 @@ PY
         shell: bash
         run: |
           cd "$PROJECT_DIR"
-          gradle --no-daemon assembleDebug
+          set -o pipefail
+          gradle --no-daemon assembleDebug 2>&1 | tee build-output.log
+
+      - name: Save failed build log
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f "$PROJECT_DIR/build-output.log" ]; then
+            cp "$PROJECT_DIR/build-output.log" ci/last-build.log
+            git config user.name "github-actions"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add ci/last-build.log
+            git commit -m "Save latest failed build log [skip ci]" || exit 0
+            git push
+          fi
 
       - name: Collect APK
         shell: bash

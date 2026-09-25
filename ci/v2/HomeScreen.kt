@@ -35,15 +35,30 @@ import com.tablodecori.app.util.money
         verticalArrangement=Arrangement.spacedBy(20.dp)
     ){
         item{
-            Column(verticalArrangement=Arrangement.spacedBy(5.dp)){
-                Text("مدیریت کارگاه",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-                Text("وضعیت امروز و دسترسی سریع به کارهای اصلی",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        item{
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
-                DashboardKpi(Icons.Rounded.Widgets,"محصول فعال",activeProducts.toString(),Modifier.weight(1f))
-                DashboardKpi(Icons.Rounded.LocalShipping,"سفارش",orders.size.toString(),Modifier.weight(1f))
+            Surface(
+                modifier=Modifier.fillMaxWidth(),
+                shape=MaterialTheme.shapes.extraLarge,
+                color=MaterialTheme.colorScheme.primary,
+                contentColor=MaterialTheme.colorScheme.onPrimary
+            ){
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=22.dp),
+                    horizontalAlignment=Alignment.CenterHorizontally,
+                    verticalArrangement=Arrangement.spacedBy(10.dp)
+                ){
+                    Text("قیمت‌گذاری، بدون حساب‌وکتاب دوباره",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+                    Text(
+                        "قیمت یک متریال را تغییر بده؛ هزینه ساخت محصولات مرتبط همان لحظه به‌روزرسانی می‌شود.",
+                        style=MaterialTheme.typography.bodyMedium,
+                        color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.82f),
+                        textAlign=TextAlign.Center
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                        HeroStat("محصول فعال",activeProducts.toString(),Modifier.weight(1f))
+                        HeroStat("سفارش ثبت‌شده",orders.size.toString(),Modifier.weight(1f))
+                    }
+                }
             }
         }
         item{
@@ -94,6 +109,15 @@ import com.tablodecori.app.util.money
                 OverviewCard(Icons.Rounded.TrendingUp,"سود ثبت‌شده",money(profit),Modifier.weight(1f))
                 OverviewCard(Icons.Rounded.History,"تغییر قیمت",history.size.toString(),Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable private fun HeroStat(label:String,value:String,modifier:Modifier){
+    Surface(modifier,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.09f)){
+        Column(Modifier.padding(11.dp),horizontalAlignment=Alignment.CenterHorizontally){
+            Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onPrimary)
+            Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.80f),textAlign=TextAlign.Center)
         }
     }
 }

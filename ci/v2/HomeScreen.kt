@@ -99,7 +99,7 @@ import com.tablodecori.app.util.money
 }
 
 @Composable private fun HeroStat(label:String,value:String,modifier:Modifier){
-    Surface(modifier,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.09f)){
+    Surface(modifier,shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.surface.copy(alpha=.94f),border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)){
         Column(Modifier.padding(11.dp),horizontalAlignment=Alignment.CenterHorizontally){
             Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onSurface)
             Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
@@ -139,23 +139,47 @@ private data class HomeTile(val route:String,val icon:ImageVector,val title:Stri
 
 @Composable private fun OverviewCard(icon:ImageVector,label:String,value:String,modifier:Modifier){
     Card(
-        modifier=modifier,
+        modifier=modifier.height(82.dp),
         shape=MaterialTheme.shapes.large,
-        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.55f)),
-        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
+        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),
+        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant),
+        elevation=CardDefaults.cardElevation(defaultElevation=1.dp)
     ){
         Row(
-            Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=13.dp),
+            Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=10.dp),
             verticalAlignment=Alignment.CenterVertically,
-            horizontalArrangement=Arrangement.spacedBy(11.dp)
+            horizontalArrangement=Arrangement.spacedBy(10.dp)
         ){
-            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(42.dp)){
+            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.78f),modifier=Modifier.size(42.dp)){
                 Box(contentAlignment=Alignment.Center){Icon(icon,label,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(22.dp))}
             }
-            Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)){
+            Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
                 Text(value,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge,maxLines=1,textAlign=TextAlign.Center)
-                Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
+                Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center,maxLines=1)
             }
+            MiniTrend(icon)
+        }
+    }
+}
+
+@Composable private fun MiniTrend(icon:ImageVector){
+    val bars=when(icon){
+        Icons.Rounded.Tune -> listOf(7,12,17,24)
+        Icons.Rounded.TrendingUp -> listOf(8,10,7,16)
+        Icons.Rounded.History -> listOf(5,8,12,9)
+        else -> listOf(5,7,9,12)
+    }
+    Row(
+        Modifier.width(32.dp).height(28.dp),
+        horizontalArrangement=Arrangement.spacedBy(2.dp),
+        verticalAlignment=Alignment.Bottom
+    ){
+        bars.forEach{h->
+            Surface(
+                modifier=Modifier.weight(1f).height(h.dp),
+                shape=CircleShape,
+                color=MaterialTheme.colorScheme.primary.copy(alpha=.62f)
+            ){}
         }
     }
 }

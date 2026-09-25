@@ -12,43 +12,56 @@ Daemon will be stopped at the end of the build
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
-> Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
-> Task :app:desugarDebugFileDependencies
-> Task :app:processDebugManifestForPackage
-> Task :app:checkDebugDuplicateClasses
 > Task :app:processDebugResources
+> Task :app:desugarDebugFileDependencies
 > Task :app:mergeDebugJniLibFolders
-> Task :app:mergeLibDexDebug
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugNativeLibs
 > Task :app:validateSigningDebug
+> Task :app:mergeLibDexDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so. Run with --info option to learn more.
 
-> Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
+> Task :app:mergeExtDexDebug
 
 > Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:46:13 Conflicting declarations:
-local val dimensionPricedIds: Set<String>
-local val dimensionPricedIds: Set<String>
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt:82:13 Conflicting declarations:
-local val dimensionPricedIds: Set<String>
-local val dimensionPricedIds: Set<String>
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790347078206.json
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:172:86 None of the following candidates is applicable:
+
+fun plus(other: Byte): Int:
+  Argument type mismatch: actual type is 'String', but 'Byte' was expected.
+
+fun plus(other: Short): Int:
+  Argument type mismatch: actual type is 'String', but 'Short' was expected.
+
+fun plus(other: Int): Int:
+  Argument type mismatch: actual type is 'String', but 'Int' was expected.
+
+fun plus(other: Long): Long:
+  Argument type mismatch: actual type is 'String', but 'Long' was expected.
+
+fun plus(other: Float): Float:
+  Argument type mismatch: actual type is 'String', but 'Float' was expected.
+
+fun plus(other: Double): Double:
+  Argument type mismatch: actual type is 'String', but 'Double' was expected.
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790359445078.json
 
 FAILURE: Build failed with an exception.
 
@@ -63,5 +76,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 38s
+BUILD FAILED in 48s
 32 actionable tasks: 32 executed

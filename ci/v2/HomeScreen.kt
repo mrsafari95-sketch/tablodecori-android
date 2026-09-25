@@ -46,7 +46,8 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
         item {
             HomeHero(
                 activeProducts = activeProducts,
-                orderCount = orders.size
+                orderCount = orders.size,
+                onNavigate = onNavigate
             )
         }
 
@@ -111,7 +112,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
 }
 
 @Composable
-private fun HomeHero(activeProducts: Int, orderCount: Int, onNavigate: (String) -> Unit = {}) {
+private fun HomeHero(activeProducts: Int, orderCount: Int, onNavigate: (String) -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -171,18 +172,17 @@ private fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: M
         color = MaterialTheme.colorScheme.surface.copy(alpha = .94f),
         shadowElevation = 1.dp
     ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 13.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = .09f)) {
-                Icon(icon, null, Modifier.padding(9.dp).size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(icon, label, Modifier.padding(9.dp).size(22.dp), tint = MaterialTheme.colorScheme.primary)
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f)) {
-                Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            }
+            Spacer(Modifier.height(5.dp))
+            Text(value, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+            Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
     }
 }
@@ -212,24 +212,22 @@ private fun HomeActionCard(
 ) {
     ElevatedCard(
         onClick = onClick,
-        modifier = modifier.height(116.dp),
+        modifier = modifier.height(126.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = background),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = CircleShape, color = accent.copy(alpha = .09f)) {
-                    Icon(Icons.Rounded.ChevronLeft, null, Modifier.padding(8.dp).size(19.dp), tint = accent)
-                }
-                Surface(shape = RoundedCornerShape(15.dp), color = accent.copy(alpha = .09f)) {
-                    Icon(icon, title, Modifier.padding(9.dp).size(24.dp), tint = accent)
-                }
+        Column(
+            Modifier.fillMaxSize().padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(shape = RoundedCornerShape(16.dp), color = accent.copy(alpha = .09f)) {
+                Icon(icon, title, Modifier.padding(10.dp).size(25.dp), tint = accent)
             }
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, textAlign = TextAlign.End)
-            }
+            Spacer(Modifier.height(7.dp))
+            Text(title, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+            Text(subtitle, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, textAlign = TextAlign.Center)
         }
     }
 }
@@ -238,23 +236,22 @@ private fun HomeActionCard(
 private fun OverviewCard(icon: ImageVector, label: String, value: String, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     ElevatedCard(
         onClick = onClick,
-        modifier = modifier.height(92.dp),
+        modifier = modifier.height(112.dp),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Surface(shape = CircleShape, color = accent.copy(alpha = .10f)) {
-                Icon(icon, label, Modifier.padding(10.dp).size(23.dp), tint = accent)
+                Icon(icon, label, Modifier.padding(9.dp).size(22.dp), tint = accent)
             }
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
-                Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.End)
-                Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End)
-            }
+            Spacer(Modifier.height(5.dp))
+            Text(value, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+            Text(label, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         }
     }
 }

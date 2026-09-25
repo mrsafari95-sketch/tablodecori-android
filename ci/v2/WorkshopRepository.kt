@@ -42,7 +42,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), db.sizePriceDao().getAll())) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty())) }.getOrNull()
         }
     }
 

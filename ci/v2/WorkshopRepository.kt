@@ -47,6 +47,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     suspend fun saveMaterial(entity: MaterialEntity): Int {
         require(entity.name.isNotBlank()) { "نام متغیر الزامی است." }
         require(entity.priceToman >= 0 && entity.rateBasisPoints in 0..100_000 && entity.wasteBasisPoints in 0..100_000) { "قیمت یا درصد نامعتبر است." }
+        if(entity.formulaMode=="CUSTOM") FormulaEvaluator.evaluate(entity.customFormula,mapOf("width" to java.math.BigDecimal(40),"height" to java.math.BigDecimal(60),"qty" to java.math.BigDecimal.ONE,"unitPrice" to java.math.BigDecimal(entity.priceToman),"area" to java.math.BigDecimal("0.24"),"perimeter" to java.math.BigDecimal("2.2"),"count" to java.math.BigDecimal.ONE,"subtotal" to java.math.BigDecimal(100000)))
         val old = db.materialDao().get(entity.id)
         val affected = if (old != null) db.productDao().affectedCount(entity.id) else 0
         db.withTransaction {
@@ -77,7 +78,8 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         require(name.isNotBlank()) { "نام محصول الزامی است." }
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
-        if(profitMode=="FORMULA") FormulaEvaluator.evaluate(profitFormula,mapOf("count" to java.math.BigDecimal.ONE,"area" to java.math.BigDecimal.ONE,"perimeter" to java.math.BigDecimal.ONE,"cost" to java.math.BigDecimal.ONE))
+        require(profitMode=="MANUAL" || profitMode=="FORMULA") { "روش محاسبه سود نامعتبر است." }
+        if(profitMode=="FORMULA") require(profitFormula.isNotBlank()) { "فرمول سود خالی است." }
         val now = System.currentTimeMillis()
         val productId = id ?: UUID.randomUUID().toString()
         val old = id?.let { db.productDao().get(it)?.product }

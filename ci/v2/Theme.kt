@@ -12,16 +12,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
-val BrandGreen = Color(0xFF006B55)
-val BrandGreenDark = Color(0xFF004E3F)
-val Mint = Color(0xFFE2F5EE)
-val MintStrong = Color(0xFFCBEDE1)
-val WarmGold = Color(0xFFFFD978)
-val SoftGold = Color(0xFFFFF0C6)
-val AppBackground = Color(0xFFF9FAF8)
-val Ink = Color(0xFF12211E)
-val MutedInk = Color(0xFF64716E)
-val LavenderSurface = Color(0xFFF8F4FC)
+val BrandGreen = Color(0xFF174C3E)
+val BrandGreenDark = Color(0xFF102F28)
+val Mint = Color(0xFFE8F2EE)
+val MintStrong = Color(0xFFD9E9E3)
+val WarmGold = Color(0xFFB8923D)
+val SoftGold = Color(0xFFF7F0DF)
+val AppBackground = Color(0xFFF4F5F2)
+val Ink = Color(0xFF18231F)
+val MutedInk = Color(0xFF77827C)
+val LavenderSurface = Color(0xFFF5F7F5)
 val DangerSoft = Color(0xFFFFE8E8)
 
 private val LightColors = lightColorScheme(
@@ -43,8 +43,8 @@ private val LightColors = lightColorScheme(
     onSurface = Ink,
     surfaceVariant = LavenderSurface,
     onSurfaceVariant = MutedInk,
-    outline = Color(0xFFD5DEDA),
-    outlineVariant = Color(0xFFE7ECE9),
+    outline = Color(0xFFD8DDDA),
+    outlineVariant = Color(0xFFE6E9E5),
     error = Color(0xFFB3261E),
     errorContainer = DangerSoft
 )

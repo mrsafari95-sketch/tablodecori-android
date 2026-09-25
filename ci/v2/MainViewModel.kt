@@ -35,6 +35,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     }
     fun saveSettings(rounding:Long,shipping:Long,dark:Boolean)=launch { repo.updateSettings(rounding,shipping,dark); _message.emit("تنظیمات ذخیره شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
+    fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
     suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null): PricingResult = repo.calculate(pieces,ids)
     fun notify(text:String){ _message.tryEmit(text) }
     private fun launch(block:suspend()->Unit)=viewModelScope.launch { try { block() } catch (t: Throwable) { _message.emit(t.message ?: "خطای نامشخص") } }

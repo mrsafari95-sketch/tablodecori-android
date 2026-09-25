@@ -41,7 +41,8 @@ class PricingEngine {
         var packaging = 0L
         var overhead = 0L
 
-        regularMaterials.filter { it.calculationType != CalculationType.PERCENT_OF_COST }.forEach { m ->
+        val dimensionPricedIds = sizePrices.map { it.materialId }.toSet()
+        regularMaterials.filter { it.calculationType != CalculationType.PERCENT_OF_COST && it.id !in dimensionPricedIds }.forEach { m ->
             val wasteFactor = BigDecimal(10_000 + m.wasteBasisPoints).divide(tenThousand)
             val basePrice = BigDecimal(m.priceToman)
             val custom = customFormulas[m.id].orEmpty()
@@ -76,11 +77,19 @@ class PricingEngine {
             }
         }
 
-        regularMaterials.filter { it.calculationType == CalculationType.PER_SET }.forEach { m ->
+        val dimensionPricedIds = sizePrices.map { it.materialId }.toSet()
+        regularMaterials.filter { it.id in dimensionPricedIds }.forEach { m ->
             val rules=sizePrices.filter{it.materialId==m.id&&it.enabled}
-            if(rules.isNotEmpty()){
-                val match=rules.firstOrNull{rule-> pieces.size==1 && ((pieces[0].widthCm==rule.widthCm&&pieces[0].heightCm==rule.heightCm)||(pieces[0].widthCm==rule.heightCm&&pieces[0].heightCm==rule.widthCm)) && (rule.pieceCount==0||rule.pieceCount==count)}
-                if(match!=null){subtotalExact+=BigDecimal(match.priceToman);production+=match.priceToman;lines+=CostLine(m.id,m.name,m.category,match.priceToman)}
+            val candidates=pieces.flatMap { p -> rules.filter { rule ->
+                ((p.widthCm==rule.widthCm&&p.heightCm==rule.heightCm)||(p.widthCm==rule.heightCm&&p.heightCm==rule.widthCm)) &&
+                (rule.pieceCount==0 || rule.pieceCount==count)
+            }}
+            val match=candidates.sortedWith(compareByDescending<SizePriceEntity>{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull()
+            if(match!=null){
+                val amount=match.priceToman
+                subtotalExact+=BigDecimal(amount)
+                lines+=CostLine(m.id,m.name,m.category,amount)
+                when(m.category){MaterialCategory.PRODUCTION->production+=amount;MaterialCategory.PACKAGING->packaging+=amount;MaterialCategory.OVERHEAD->overhead+=amount}
             }
         }
 

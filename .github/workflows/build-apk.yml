@@ -36,6 +36,8 @@ jobs:
             # The Java target is already 17; remove the obsolete line and let
             # Kotlin use the modern toolchain/compiler defaults for this build.
             sed -i '/kotlinOptions { jvmTarget = "17" }/d' "$PROJECT_DIR/app/build.gradle.kts"
+            # Current Compose/AndroidX releases require Android 17 / API 37 for compilation.
+            sed -i 's/compileSdk = 36/compileSdk = 37/' "$PROJECT_DIR/app/build.gradle.kts"
             # Current AndroidX dependencies require AGP 9.1+.
             sed -i 's/id("com.android.application") version "8.13.2"/id("com.android.application") version "9.1.1"/' "$PROJECT_DIR/build.gradle.kts"
             # Keep the existing external Kotlin Android plugin during this build.
@@ -59,8 +61,11 @@ jobs:
         shell: bash
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          test -d "$ANDROID_HOME/platforms/android-36"
           test -d "$ANDROID_HOME/build-tools/36.0.0"
+          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
+            yes | sdkmanager "platforms;android-37" || true
+          fi
+          test -d "$ANDROID_HOME/platforms/android-37"
 
       - uses: gradle/actions/setup-gradle@v4
         with:

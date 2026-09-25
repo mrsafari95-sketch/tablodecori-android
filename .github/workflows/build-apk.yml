@@ -92,6 +92,19 @@ jobs:
             exit 1
           fi
 
+      - name: Persist maintainable source exports
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci/v2/CoreScreens.kt ci/v2/MainViewModel.kt ci/v2/WorkshopRepository.kt 2>/dev/null || true
+          if [ -f ci/v2/PricingEngine.kt ]; then git add ci/v2/PricingEngine.kt; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "Export maintainable pricing sources [skip ci]"
+            git push
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -98,36 +98,12 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OverviewCard(
-                        Icons.Rounded.Tune,
-                        "متریال فعال",
-                        materials.count { it.enabled }.toString(),
-                        MaterialTheme.colorScheme.primary,
-                        Modifier.weight(1f)
-                    )
-                    OverviewCard(
-                        Icons.Rounded.PhotoSizeSelectLarge,
-                        "تابلو ارسالی",
-                        orders.sumOf { it.order.pieceCountSnapshot }.toString(),
-                        Color(0xFF4D9B87),
-                        Modifier.weight(1f)
-                    )
+                    OverviewCard(Icons.Rounded.Tune, "متریال فعال", materials.count { it.enabled }.toString(), MaterialTheme.colorScheme.primary, Modifier.weight(1f)) { onNavigate("variables") }
+                    OverviewCard(Icons.Rounded.PhotoSizeSelectLarge, "تابلو ارسالی", orders.sumOf { it.order.pieceCountSnapshot }.toString(), Color(0xFF4D9B87), Modifier.weight(1f)) { onNavigate("orders") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OverviewCard(
-                        Icons.Rounded.TrendingUp,
-                        "سود ثبت‌شده",
-                        money(orders.sumOf { maxOf(0, it.order.actualProfitToman) }),
-                        HomeGold,
-                        Modifier.weight(1f)
-                    )
-                    OverviewCard(
-                        Icons.Rounded.History,
-                        "تغییر قیمت",
-                        history.size.toString(),
-                        QuickAccent,
-                        Modifier.weight(1f)
-                    )
+                    OverviewCard(Icons.Rounded.TrendingUp, "سود ثبت‌شده", money(orders.sumOf { maxOf(0, it.order.actualProfitToman) }), HomeGold, Modifier.weight(1f)) { onNavigate("reports") }
+                    OverviewCard(Icons.Rounded.History, "تغییر قیمت", history.size.toString(), QuickAccent, Modifier.weight(1f)) { onNavigate("reports") }
                 }
             }
         }

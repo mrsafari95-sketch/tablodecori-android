@@ -100,15 +100,27 @@ private data class HomeTile(val route:String,val icon:ImageVector,val title:Stri
 }
 
 @Composable private fun HomeActionCard(tile:HomeTile,modifier:Modifier,onClick:()->Unit){
-    ElevatedCard(onClick=onClick,modifier=modifier.height(142.dp),shape=RoundedCornerShape(24.dp),elevation=CardDefaults.elevatedCardElevation(defaultElevation=1.dp)){
-        Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.SpaceBetween){
-            Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.primaryContainer){
-                Icon(tile.icon,tile.title,Modifier.padding(9.dp).size(23.dp),tint=MaterialTheme.colorScheme.primary)
+    ElevatedCard(
+        onClick=onClick,
+        modifier=modifier.height(148.dp),
+        shape=RoundedCornerShape(24.dp),
+        colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface),
+        elevation=CardDefaults.elevatedCardElevation(defaultElevation=1.dp)
+    ){
+        Column(
+            Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=13.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.Center
+        ){
+            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(52.dp)){
+                Box(contentAlignment=Alignment.Center){
+                    Icon(tile.icon,tile.title,Modifier.size(27.dp),tint=MaterialTheme.colorScheme.primary)
+                }
             }
-            Column{
-                Text(tile.title,fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleMedium)
-                Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2)
-            }
+            Spacer(Modifier.height(10.dp))
+            Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center)
+            Spacer(Modifier.height(2.dp))
+            Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=2,textAlign=TextAlign.Center)
         }
     }
 }

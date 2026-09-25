@@ -18,7 +18,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     val profitRules = repo.profitRules.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val settings = repo.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     private val _message=MutableSharedFlow<String>(extraBufferCapacity=8); val messages=_message.asSharedFlow()
-    init { viewModelScope.launch { repo.ensurePhotoPrices(); repo.ensurePackagingMaterials() } }
+    init { viewModelScope.launch { repo.ensurePricingStructure() } }
 
     fun saveMaterial(e: MaterialEntity)=launch { val n=repo.saveMaterial(e); _message.emit(if(n>0) "قیمت تغییر کرد؛ $n محصول تحت تأثیر قرار گرفت." else "متغیر ذخیره شد.") }
     fun sizePrices(id:String)=repo.sizePrices(id)

@@ -62,9 +62,8 @@ private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("variables",Icons.Rounded.Inventory2,"متریال"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
-    NavItem("quick",Icons.Rounded.Calculate,"سریع"),
-    NavItem("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت"),
-    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
+    NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها"),
+    NavItem("more",Icons.Rounded.GridView,"بیشتر")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,8 +91,15 @@ private val bottomItems=listOf(
                 actions={IconButton(onClick={nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات")}}
             )
         },
+        floatingActionButton={
+            if(route=="home") ExtendedFloatingActionButton(
+                onClick={nav.navigate("quick"){launchSingleTop=true}},
+                icon={Icon(Icons.Rounded.Calculate,null)},
+                text={Text("محاسبه سریع")}
+            )
+        },
         bottomBar={
-            NavigationBar(tonalElevation=4.dp){
+            NavigationBar(tonalElevation=2.dp){
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,
@@ -122,6 +128,7 @@ private val bottomItems=listOf(
             composable("orders"){OrdersScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
             composable("settings"){SettingsScreen(vm)}
+            composable("more"){MoreScreen{target->nav.navigate(target){launchSingleTop=true}}}
         }
     }
 }
@@ -134,5 +141,50 @@ private fun titleFor(r:String)=when(r){
     "orders"->"سفارش‌ها"
     "reports"->"گزارش‌ها"
     "settings"->"تنظیمات"
+    "more"->"دسترسی‌ها"
     else->"مدیریت کارگاه"
+}
+
+
+private data class MoreAction(val route:String,val icon:ImageVector,val title:String,val subtitle:String)
+
+@Composable
+private fun MoreScreen(onNavigate:(String)->Unit){
+    val actions=listOf(
+        MoreAction("quick",Icons.Rounded.Calculate,"محاسبه سریع","قیمت‌گیری فوری بدون ذخیره"),
+        MoreAction("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت","قیمت زنده محصولات"),
+        MoreAction("reports",Icons.Rounded.BarChart,"گزارش‌ها","عملکرد و تغییرات قیمت"),
+        MoreAction("settings",Icons.Rounded.Settings,"تنظیمات","ظاهر، قیمت‌گذاری و داده‌ها")
+    )
+    androidx.compose.foundation.lazy.LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding=PaddingValues(16.dp),
+        verticalArrangement=Arrangement.spacedBy(12.dp)
+    ){
+        item{
+            Text("دسترسی‌های بیشتر",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
+            Text("ابزارهای مدیریتی و تنظیمات برنامه",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        items(actions.size){index->
+            val action=actions[index]
+            Card(
+                onClick={onNavigate(action.route)},
+                shape=MaterialTheme.shapes.large,
+                colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),
+                border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
+            ){
+                Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+                    Surface(shape=androidx.compose.foundation.shape.CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(48.dp)){
+                        Box(contentAlignment=Alignment.Center){Icon(action.icon,null,tint=MaterialTheme.colorScheme.primary)}
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)){
+                        Text(action.title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                        Text(action.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Rounded.ChevronLeft,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
 }

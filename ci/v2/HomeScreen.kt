@@ -165,6 +165,7 @@ private fun HomeHero(activeProducts: Int, orderCount: Int, onNavigate: (String) 
 @Composable
 private fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: Modifier, onClick: () -> Unit) {
     Surface(
+        onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface.copy(alpha = .94f),
@@ -236,6 +237,7 @@ private fun HomeActionCard(
 @Composable
 private fun OverviewCard(icon: ImageVector, label: String, value: String, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     ElevatedCard(
+        onClick = onClick,
         modifier = modifier.height(92.dp),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),

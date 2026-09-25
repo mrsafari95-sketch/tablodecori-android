@@ -29,18 +29,18 @@ import com.tablodecori.app.util.money
     val profit=orders.sumOf{maxOf(0,it.order.actualProfitToman)}
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding=PaddingValues(start=16.dp,end=16.dp,top=12.dp,bottom=28.dp),
-        verticalArrangement=Arrangement.spacedBy(20.dp)
+        contentPadding=PaddingValues(start=16.dp,end=16.dp,top=12.dp,bottom=24.dp),
+        verticalArrangement=Arrangement.spacedBy(18.dp)
     ){
         item{
             Surface(
                 modifier=Modifier.fillMaxWidth(),
                 shape=MaterialTheme.shapes.extraLarge,
-                color=MaterialTheme.colorScheme.primary,
-                contentColor=MaterialTheme.colorScheme.onPrimary
+                color=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.78f),
+                contentColor=MaterialTheme.colorScheme.onSurface
             ){
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=22.dp),
+                    Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=20.dp),
                     horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(10.dp)
                 ){
@@ -51,7 +51,7 @@ import com.tablodecori.app.util.money
                     Text(
                         "قیمت متریال را یک‌بار تغییر بده؛\nقیمت همه محصولات مرتبط لحظه‌ای دوباره محاسبه می‌شود.",
                         style=MaterialTheme.typography.bodyMedium,
-                        color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.82f),
+                        color=MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign=TextAlign.Center
                     )
                     Spacer(Modifier.height(2.dp))
@@ -101,8 +101,8 @@ import com.tablodecori.app.util.money
 @Composable private fun HeroStat(label:String,value:String,modifier:Modifier){
     Surface(modifier,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.09f)){
         Column(Modifier.padding(11.dp),horizontalAlignment=Alignment.CenterHorizontally){
-            Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onPrimary)
-            Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.80f),textAlign=TextAlign.Center)
+            Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onSurface)
+            Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
         }
     }
 }
@@ -112,9 +112,14 @@ private data class HomeTile(val route:String,val icon:ImageVector,val title:Stri
 @Composable private fun HomeActionCard(tile:HomeTile,modifier:Modifier,onClick:()->Unit){
     Card(
         onClick=onClick,
-        modifier=modifier.height(118.dp),
+        modifier=modifier.height(112.dp),
         shape=MaterialTheme.shapes.large,
-        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),
+        colors=CardDefaults.cardColors(containerColor=when(tile.route){
+            "variables"->MaterialTheme.colorScheme.primaryContainer.copy(alpha=.52f)
+            "products"->MaterialTheme.colorScheme.secondaryContainer.copy(alpha=.42f)
+            "quick"->MaterialTheme.colorScheme.tertiaryContainer.copy(alpha=.42f)
+            else->MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.58f)
+        }),
         border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
     ){
         Column(

@@ -32,6 +32,10 @@ jobs:
             # needed here because setup-gradle installs Gradle 8.13 directly.
             # Remove it so GitHub's wrapper-integrity check does not reject it.
             rm -f "$PROJECT_DIR/gradle/wrapper/gradle-wrapper.jar"
+            # Kotlin 2.3 rejects the legacy android.kotlinOptions jvmTarget DSL.
+            # The Java target is already 17; remove the obsolete line and let
+            # Kotlin use the modern toolchain/compiler defaults for this build.
+            sed -i '/kotlinOptions { jvmTarget = "17" }/d' "$PROJECT_DIR/app/build.gradle.kts"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else

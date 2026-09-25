@@ -32,19 +32,18 @@ jobs:
             # needed here because setup-gradle installs Gradle 8.13 directly.
             # Remove it so GitHub's wrapper-integrity check does not reject it.
             rm -f "$PROJECT_DIR/gradle/wrapper/gradle-wrapper.jar"
-            # Kotlin 2.3 rejects the legacy android.kotlinOptions jvmTarget DSL.
-            # The Java target is already 17; remove the obsolete line and let
-            # Kotlin use the modern toolchain/compiler defaults for this build.
+            # Keep the project on the widely available Android API 36 toolchain.
+            # Pin AndroidX/Compose to the September 2025 API-36-compatible set.
             sed -i '/kotlinOptions { jvmTarget = "17" }/d' "$PROJECT_DIR/app/build.gradle.kts"
-            # Current Compose/AndroidX releases require Android 17 / API 37 for compilation.
-            sed -i 's/compileSdk = 36/compileSdk = 37/' "$PROJECT_DIR/app/build.gradle.kts"
-            # Current AndroidX dependencies require AGP 9.1+.
-            sed -i 's/id("com.android.application") version "8.13.2"/id("com.android.application") version "9.1.1"/' "$PROJECT_DIR/build.gradle.kts"
-            # Keep the existing external Kotlin Android plugin during this build.
-            {
-              echo 'android.builtInKotlin=false'
-              echo 'android.newDsl=false'
-            } >> "$PROJECT_DIR/gradle.properties"
+            sed -i 's/compose-bom:2026.09.00/compose-bom:2025.09.00/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/core-ktx:1.19.1/core-ktx:1.17.0/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/activity-compose:1.13.0/activity-compose:1.11.0/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/lifecycle-runtime-ktx:2.11.0/lifecycle-runtime-ktx:2.9.4/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/lifecycle-viewmodel-compose:2.11.0/lifecycle-viewmodel-compose:2.9.4/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/navigation-compose:2.10.2/navigation-compose:2.9.4/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/room-runtime:2.8.5/room-runtime:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/room-ktx:2.8.5/room-ktx:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
           elif [ -f app/build.gradle.kts ]; then
             echo "PROJECT_DIR=." >> "$GITHUB_ENV"
           else
@@ -61,15 +60,12 @@ jobs:
         shell: bash
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME/platforms/android-36"
           test -d "$ANDROID_HOME/build-tools/36.0.0"
-          if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37"
-          fi
-          test -d "$ANDROID_HOME/platforms/android-37"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.3.1'
+          gradle-version: '8.13'
 
       - name: Build debug APK
         shell: bash

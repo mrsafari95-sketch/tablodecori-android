@@ -79,11 +79,16 @@ private val bottomItems=listOf(
         snackbarHost={SnackbarHost(snackbar)},
         topBar={
             CenterAlignedTopAppBar(
-                title={
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center){
-                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)))
-                        Spacer(Modifier.width(9.dp))
-                        Column(horizontalAlignment=Alignment.CenterHorizontally){
+                title={},
+                navigationIcon={
+                    Row(
+                        modifier=Modifier.padding(start=12.dp),
+                        verticalAlignment=Alignment.CenterVertically,
+                        horizontalArrangement=Arrangement.Start
+                    ){
+                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)))
+                        Spacer(Modifier.width(10.dp))
+                        Column(horizontalAlignment=Alignment.Start){
                             Text("tablodecori",fontWeight=FontWeight.ExtraBold)
                             Text(titleFor(route),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }

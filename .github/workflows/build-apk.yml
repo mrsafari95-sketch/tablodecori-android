@@ -54,6 +54,11 @@ jobs:
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            # Export pricing sources from the archive once so frame math can be maintained safely.
+            if [ ! -f ci/v2/PricingEngine.kt ]; then
+              PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"
+              if [ -n "$PRICING_FILE" ]; then cp "$PRICING_FILE" ci/v2/PricingEngine.kt; fi
+            fi
             # Export the source files we need to maintain from the uploaded archive.
             # These are committed back only when they do not exist yet, then future builds
             # use the repository-owned overrides below.

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -64,10 +65,10 @@ import com.tablodecori.app.util.money
         }
         item{HomeSectionHeader("دسترسی سریع","کارهای روزمره کارگاه، یکجا و در دسترس")}
         val tiles=listOf(
-            HomeTile("variables",Icons.Rounded.Inventory2,"متریال‌ها","قیمت، پرت و فرمول ساخت"),
-            HomeTile("products",Icons.Rounded.Widgets,"محصولات","ست‌ها و قیمت زنده"),
-            HomeTile("quick",Icons.Rounded.Calculate,"محاسبه سریع","قیمت‌گیری بدون ذخیره"),
-            HomeTile("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت","قیمت نهایی محصولات")
+            HomeTile("variables",Icons.Rounded.Inventory2,"متریال‌ها","قیمت، پرت و فرمول ساخت",TileTone.Mint),
+            HomeTile("products",Icons.Rounded.Widgets,"محصولات","ست‌ها و قیمت زنده",TileTone.Gold),
+            HomeTile("quick",Icons.Rounded.Calculate,"محاسبه سریع","قیمت‌گیری بدون ذخیره",TileTone.Blue),
+            HomeTile("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت","قیمت نهایی محصولات",TileTone.Lilac)
         )
         items(tiles.chunked(2)){row->
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
@@ -107,32 +108,44 @@ import com.tablodecori.app.util.money
     }
 }
 
-private data class HomeTile(val route:String,val icon:ImageVector,val title:String,val subtitle:String)
+private enum class TileTone{Mint,Gold,Blue,Lilac}
+private data class HomeTile(val route:String,val icon:ImageVector,val title:String,val subtitle:String,val tone:TileTone)
 
 @Composable private fun HomeActionCard(tile:HomeTile,modifier:Modifier,onClick:()->Unit){
+    val bg=when(tile.tone){
+        TileTone.Mint->MaterialTheme.colorScheme.primaryContainer.copy(alpha=.62f)
+        TileTone.Gold->MaterialTheme.colorScheme.tertiaryContainer.copy(alpha=.46f)
+        TileTone.Blue->MaterialTheme.colorScheme.secondaryContainer.copy(alpha=.48f)
+        TileTone.Lilac->MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.72f)
+    }
     Card(
         onClick=onClick,
         modifier=modifier.height(112.dp),
         shape=MaterialTheme.shapes.large,
-        colors=CardDefaults.cardColors(containerColor=when(tile.route){
-            "variables"->MaterialTheme.colorScheme.primaryContainer.copy(alpha=.52f)
-            "products"->MaterialTheme.colorScheme.secondaryContainer.copy(alpha=.42f)
-            "quick"->MaterialTheme.colorScheme.tertiaryContainer.copy(alpha=.42f)
-            else->MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.58f)
-        }),
-        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
+        colors=CardDefaults.cardColors(containerColor=bg),
+        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant),
+        elevation=CardDefaults.cardElevation(defaultElevation=1.dp)
     ){
-        Column(
-            Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=11.dp),
-            horizontalAlignment=Alignment.CenterHorizontally,
-            verticalArrangement=Arrangement.Center
-        ){
-            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(42.dp)){
-                Box(contentAlignment=Alignment.Center){Icon(tile.icon,tile.title,Modifier.size(23.dp),tint=MaterialTheme.colorScheme.primary)}
+        Box(Modifier.fillMaxSize().padding(12.dp)){
+            Surface(
+                shape=CircleShape,
+                color=MaterialTheme.colorScheme.surface.copy(alpha=.72f),
+                modifier=Modifier.size(30.dp).align(Alignment.TopStart)
+            ){
+                Box(contentAlignment=Alignment.Center){Icon(Icons.Rounded.ChevronLeft,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.primary)}
             }
-            Spacer(Modifier.height(6.dp))
-            Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center)
-            Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,textAlign=TextAlign.Center)
+            Column(
+                Modifier.fillMaxSize(),
+                horizontalAlignment=Alignment.CenterHorizontally,
+                verticalArrangement=Arrangement.Center
+            ){
+                Surface(shape=RoundedCornerShape(14.dp),color=MaterialTheme.colorScheme.surface.copy(alpha=.68f),modifier=Modifier.size(42.dp)){
+                    Box(contentAlignment=Alignment.Center){Icon(tile.icon,tile.title,Modifier.size(23.dp),tint=MaterialTheme.colorScheme.primary)}
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center)
+                Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,textAlign=TextAlign.Center)
+            }
         }
     }
 }

@@ -80,9 +80,10 @@ private val bottomItems=listOf(
         snackbarHost={SnackbarHost(snackbar)},
         topBar={
             TopAppBar(
+                modifier=Modifier.height(64.dp),
                 title={
                     Row(verticalAlignment=Alignment.CenterVertically){
-                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(40.dp).clip(CircleShape))
+                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(36.dp).clip(CircleShape))
                         Spacer(Modifier.width(9.dp))
                         Column(verticalArrangement=Arrangement.spacedBy(1.dp)){
                             Text("tablodecori",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)

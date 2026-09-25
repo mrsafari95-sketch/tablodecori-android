@@ -163,7 +163,7 @@ private fun HomeHero(activeProducts: Int, orderCount: Int, onNavigate: (String) 
 }
 
 @Composable
-private fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: Modifier) {
+private fun HeroKpi(icon: ImageVector, label: String, value: String, modifier: Modifier, onClick: () -> Unit) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
@@ -234,7 +234,7 @@ private fun HomeActionCard(
 }
 
 @Composable
-private fun OverviewCard(icon: ImageVector, label: String, value: String, accent: Color, modifier: Modifier) {
+private fun OverviewCard(icon: ImageVector, label: String, value: String, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     ElevatedCard(
         modifier = modifier.height(92.dp),
         shape = RoundedCornerShape(22.dp),

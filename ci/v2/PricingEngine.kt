@@ -1,5 +1,7 @@
 package com.tablodecori.app.pricing
 
+import com.tablodecori.app.data.db.SizePriceEntity
+
 import java.math.BigDecimal
 import java.math.RoundingMode
 

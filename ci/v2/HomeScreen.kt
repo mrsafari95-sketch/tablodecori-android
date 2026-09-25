@@ -121,14 +121,17 @@ private data class HomeTile(val route:String,val icon:ImageVector,val title:Stri
         colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),
         border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
     ){
-        Column(Modifier.fillMaxSize().padding(14.dp),verticalArrangement=Arrangement.SpaceBetween){
-            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(42.dp)){
-                Box(contentAlignment=Alignment.Center){Icon(tile.icon,tile.title,Modifier.size(22.dp),tint=MaterialTheme.colorScheme.primary)}
+        Column(
+            Modifier.fillMaxSize().padding(14.dp),
+            horizontalAlignment=Alignment.CenterHorizontally,
+            verticalArrangement=Arrangement.Center
+        ){
+            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(44.dp)){
+                Box(contentAlignment=Alignment.Center){Icon(tile.icon,tile.title,Modifier.size(23.dp),tint=MaterialTheme.colorScheme.primary)}
             }
-            Column{
-                Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-                Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1)
-            }
+            Spacer(Modifier.height(9.dp))
+            Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center)
+            Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,textAlign=TextAlign.Center)
         }
     }
 }

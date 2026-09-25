@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.*
 import com.tablodecori.app.data.db.MaterialEntity
+import com.tablodecori.app.data.db.SizePriceEntity
 import com.tablodecori.app.pricing.*
 import com.tablodecori.app.ui.*
 import com.tablodecori.app.util.*
@@ -23,7 +26,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable fun VariablesScreen(vm:MainViewModel){
-    val vars by vm.materials.collectAsState(); var editing by remember{mutableStateOf<MaterialEntity?>(null)}; var creating by remember{mutableStateOf(false)}; var deleting by remember{mutableStateOf<MaterialEntity?>(null)}
+    val vars by vm.materials.collectAsState(); var editing by remember{mutableStateOf<MaterialEntity?>(null)}; var creating by remember{mutableStateOf(false)}; var deleting by remember{mutableStateOf<MaterialEntity?>(null)}; var sizePricingMaterial by remember{mutableStateOf<MaterialEntity?>(null)}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("متریال‌ها و هزینه‌ها","قیمت، پرت، روش محاسبه و وضعیت فعال"){Button(onClick={creating=true}){Text("+ متغیر")}}}
         item{AppCard{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("قیمت‌گذاری بر اساس ابعاد",fontWeight=FontWeight.Bold);Text("عکس لابراتوار، فوم و کارتن را بدون شلوغ کردن این صفحه مدیریت کنید.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){vars.firstOrNull{it.id.startsWith("photo_")}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("عکس")}};vars.firstOrNull{it.id=="foam_packaging"}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("فوم")}};vars.firstOrNull{it.id=="carton_packaging"}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("کارتن")}}}}}}
@@ -33,6 +36,7 @@ import java.util.UUID
     }
     if(creating||editing!=null) MaterialDialog(initial=editing,onDismiss={creating=false;editing=null},onSave={vm.saveMaterial(it);creating=false;editing=null})
     deleting?.let{m->AlertDialog(onDismissRequest={deleting=null},title={Text("حذف متغیر")},text={Text("اگر این متغیر در محصولی استفاده شده باشد، به‌صورت امن غیرفعال می‌شود. ادامه می‌دهید؟")},confirmButton={Button(onClick={vm.deleteMaterial(m.id);deleting=null}){Text("حذف")}},dismissButton={TextButton(onClick={deleting=null}){Text("انصراف")}})}
+    sizePricingMaterial?.let{m->SizePricingDialog(vm,m){sizePricingMaterial=null}}
 }
 private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"PER_LINEAR_METER"->"متر طول";"PER_PIECE"->"هر تابلو";"PER_SET"->"هر ست";"PERCENT_OF_COST"->"درصد از هزینه";else->"بسته‌بندی هوشمند"}
 

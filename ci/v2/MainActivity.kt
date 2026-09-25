@@ -78,18 +78,23 @@ private val bottomItems=listOf(
         containerColor=MaterialTheme.colorScheme.background,
         snackbarHost={SnackbarHost(snackbar)},
         topBar={
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title={
-                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.Center){
-                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)))
-                        Spacer(Modifier.width(9.dp))
-                        Column(horizontalAlignment=Alignment.CenterHorizontally){
-                            Text("tablodecori",fontWeight=FontWeight.ExtraBold)
+                    Row(verticalAlignment=Alignment.CenterVertically){
+                        Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)))
+                        Spacer(Modifier.width(10.dp))
+                        Column{
+                            Text("tablodecori",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
                             Text(titleFor(route),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 },
-                actions={IconButton(onClick={nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات")}}
+                actions={
+                    IconButton(onClick={nav.navigate("settings"){launchSingleTop=true}}){
+                        Icon(Icons.Rounded.Settings,"تنظیمات")
+                    }
+                },
+                colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background)
             )
         },
         bottomBar={

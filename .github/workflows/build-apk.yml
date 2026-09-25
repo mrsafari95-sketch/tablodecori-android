@@ -63,7 +63,7 @@ jobs:
           echo "ANDROID_HOME=$ANDROID_HOME"
           test -d "$ANDROID_HOME/build-tools/36.0.0"
           if [ ! -d "$ANDROID_HOME/platforms/android-37" ]; then
-            yes | sdkmanager "platforms;android-37" || true
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37"
           fi
           test -d "$ANDROID_HOME/platforms/android-37"
 

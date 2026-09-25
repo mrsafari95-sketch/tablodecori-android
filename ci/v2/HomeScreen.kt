@@ -1,7 +1,6 @@
 package com.tablodecori.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tablodecori.app.MainViewModel
-import com.tablodecori.app.ui.SectionTitle
 import com.tablodecori.app.util.money
 
 @Composable fun HomeScreen(vm:MainViewModel,onNavigate:(String)->Unit){
@@ -46,9 +44,12 @@ import com.tablodecori.app.util.money
                     horizontalAlignment=Alignment.CenterHorizontally,
                     verticalArrangement=Arrangement.spacedBy(10.dp)
                 ){
-                    Text("قیمت‌گذاری، بدون حساب‌وکتاب دوباره",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+                    Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer.copy(alpha=.72f),modifier=Modifier.size(54.dp)){
+                        Box(contentAlignment=Alignment.Center){Icon(Icons.Rounded.AutoAwesome,null,Modifier.size(28.dp),tint=MaterialTheme.colorScheme.primary)}
+                    }
+                    Text("قیمت‌ها همیشه به‌روز،\nکارگاه همیشه مرتب",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
                     Text(
-                        "قیمت یک متریال را تغییر بده؛ هزینه ساخت محصولات مرتبط همان لحظه به‌روزرسانی می‌شود.",
+                        "قیمت متریال را یک‌بار تغییر بده؛\nقیمت همه محصولات مرتبط لحظه‌ای دوباره محاسبه می‌شود.",
                         style=MaterialTheme.typography.bodyMedium,
                         color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.82f),
                         textAlign=TextAlign.Center
@@ -61,14 +62,12 @@ import com.tablodecori.app.util.money
                 }
             }
         }
-        item{SectionTitle("کارهای اصلی","همه چیز در چند لمس")}
+        item{HomeSectionHeader("دسترسی سریع","کارهای روزمره کارگاه، یکجا و در دسترس")}
         val tiles=listOf(
-            HomeTile("variables",Icons.Rounded.Inventory2,"متریال‌ها","قیمت و هزینه‌ها"),
+            HomeTile("variables",Icons.Rounded.Inventory2,"متریال‌ها","قیمت، پرت و فرمول ساخت"),
             HomeTile("products",Icons.Rounded.Widgets,"محصولات","ست‌ها و قیمت زنده"),
-            HomeTile("orders",Icons.Rounded.LocalShipping,"سفارش‌ها","ارسال، هزینه و سود"),
-            HomeTile("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت","قیمت نهایی محصولات"),
-            HomeTile("reports",Icons.Rounded.BarChart,"گزارش‌ها","عملکرد و تغییرات"),
-            HomeTile("settings",Icons.Rounded.Settings,"تنظیمات","قیمت‌گذاری و داده‌ها")
+            HomeTile("quick",Icons.Rounded.Calculate,"محاسبه سریع","قیمت‌گیری بدون ذخیره"),
+            HomeTile("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت","قیمت نهایی محصولات")
         )
         items(tiles.chunked(2)){row->
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
@@ -76,7 +75,7 @@ import com.tablodecori.app.util.money
                 if(row.size==1)Spacer(Modifier.weight(1f))
             }
         }
-        item{SectionTitle("خلاصه کارگاه","اطلاعات این نسخه روی همین دستگاه ذخیره می‌شود")}
+        item{HomeSectionHeader("نمای کلی کارگاه","خلاصه‌ای از وضعیت فعلی")}
         item{
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
                 OverviewCard(Icons.Rounded.Tune,"متریال فعال",activeMaterials.toString(),Modifier.weight(1f))
@@ -92,6 +91,13 @@ import com.tablodecori.app.util.money
     }
 }
 
+@Composable private fun HomeSectionHeader(title:String,subtitle:String){
+    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(3.dp)){
+        Text(title,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+        Text(subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
+    }
+}
+
 @Composable private fun HeroStat(label:String,value:String,modifier:Modifier){
     Surface(modifier,shape=MaterialTheme.shapes.medium,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.09f)){
         Column(Modifier.padding(11.dp),horizontalAlignment=Alignment.CenterHorizontally){
@@ -103,35 +109,23 @@ import com.tablodecori.app.util.money
 
 private data class HomeTile(val route:String,val icon:ImageVector,val title:String,val subtitle:String)
 
-@Composable private fun DashboardKpi(icon:ImageVector,label:String,value:String,modifier:Modifier){
-    Card(modifier,shape=MaterialTheme.shapes.large,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)){
-        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(38.dp)){
-                Box(contentAlignment=Alignment.Center){Icon(icon,null,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(20.dp))}
-            }
-            Text(value,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onSurface)
-            Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
 @Composable private fun HomeActionCard(tile:HomeTile,modifier:Modifier,onClick:()->Unit){
     Card(
         onClick=onClick,
-        modifier=modifier.height(132.dp),
+        modifier=modifier.height(118.dp),
         shape=MaterialTheme.shapes.large,
         colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),
         border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
     ){
         Column(
-            Modifier.fillMaxSize().padding(14.dp),
+            Modifier.fillMaxSize().padding(horizontal=12.dp,vertical=11.dp),
             horizontalAlignment=Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.Center
         ){
-            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(44.dp)){
+            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(42.dp)){
                 Box(contentAlignment=Alignment.Center){Icon(tile.icon,tile.title,Modifier.size(23.dp),tint=MaterialTheme.colorScheme.primary)}
             }
-            Spacer(Modifier.height(9.dp))
+            Spacer(Modifier.height(6.dp))
             Text(tile.title,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center)
             Text(tile.subtitle,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,textAlign=TextAlign.Center)
         }
@@ -139,11 +133,24 @@ private data class HomeTile(val route:String,val icon:ImageVector,val title:Stri
 }
 
 @Composable private fun OverviewCard(icon:ImageVector,label:String,value:String,modifier:Modifier){
-    Card(modifier,shape=MaterialTheme.shapes.large,colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.55f))){
-        Column(Modifier.padding(15.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
-            Icon(icon,label,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(21.dp))
-            Text(value,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium,maxLines=1)
-            Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    Card(
+        modifier,
+        shape=MaterialTheme.shapes.large,
+        colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surfaceVariant.copy(alpha=.55f)),
+        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant)
+    ){
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=13.dp),
+            verticalAlignment=Alignment.CenterVertically,
+            horizontalArrangement=Arrangement.spacedBy(11.dp)
+        ){
+            Surface(shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer,modifier=Modifier.size(42.dp)){
+                Box(contentAlignment=Alignment.Center){Icon(icon,label,tint=MaterialTheme.colorScheme.primary,modifier=Modifier.size(22.dp))}
+            }
+            Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)){
+                Text(value,fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleLarge,maxLines=1,textAlign=TextAlign.Center)
+                Text(label,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
+            }
         }
     }
 }

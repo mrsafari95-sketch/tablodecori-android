@@ -149,37 +149,39 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 @Composable fun QuickScreen(vm:MainViewModel){
     val vars by vm.materials.collectAsState()
     val photoPrices by vm.sizePrices("photo_lab").collectAsState(initial=emptyList())
-    val scope=rememberCoroutineScope()
-    val pieces=remember{mutableStateListOf(PieceInput(40,60,1))}
-    val ids=remember{mutableStateMapOf<String,Boolean>()}
-    var result by remember{mutableStateOf<PricingResult?>(null)}
-    var saveDialog by remember{mutableStateOf(false)}
+    val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
+    val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
+    val scope=rememberCoroutineScope();val pieces=remember{mutableStateListOf(PieceInput(40,60,1))};val ids=remember{mutableStateMapOf<String,Boolean>()}
+    var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by remember{mutableStateOf(false)};var photoOpen by remember{mutableStateOf(false)};var packageOpen by remember{mutableStateOf(false)}
     val selectable=vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}
     LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled}}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}}}
-    LaunchedEffect(pieces.toList(),ids.toMap(),vars,photoPrices){if(vars.isNotEmpty())recalc()}
+    LaunchedEffect(pieces.toList(),ids.toMap(),vars,photoPrices,foamPrices,cartonPrices){if(vars.isNotEmpty())recalc()}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
-        item{SectionTitle("محاسبه سریع","ست را وارد کنید؛ متغیرهای فعال متریال مستقیماً در محاسبه استفاده می‌شوند.")}
+        item{SectionTitle("محاسبه سریع","متغیرهای تعریف‌شده در متریال‌ها مستقیماً اینجا قابل مشاهده و استفاده‌اند.")}
+        item{AppCard{Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold);pieces.forEachIndexed{i,p->PieceEditorRow(p,{pieces[i]=it;recalc()},{if(pieces.size>1){pieces.removeAt(i);recalc()}})};OutlinedButton(onClick={pieces.add(PieceInput(20,30,1));recalc()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}}}
         item{AppCard{
-            Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold)
-            pieces.forEachIndexed{i,p->
-                PieceEditorRow(p,{pieces[i]=it;recalc()},{if(pieces.size>1){pieces.removeAt(i);recalc()}})
-                val photo=photoPrices.firstOrNull{r->(p.widthCm==r.widthCm&&p.heightCm==r.heightCm)||(p.widthCm==r.heightCm&&p.heightCm==r.widthCm)}
-                if(ids["photo_lab"]==true) Text(if(photo!=null)"عکس لابراتوار: "+money(photo.priceToman)+" × "+p.quantity else "برای این ابعاد قیمت عکس ثبت نشده",style=MaterialTheme.typography.bodySmall,color=if(photo!=null)MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
-            }
-            OutlinedButton(onClick={pieces.add(PieceInput(20,30,1));recalc()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("عکس لابراتوار",fontWeight=FontWeight.Bold);Text("انتخاب سریع از ابعاد و قیمت‌های ثبت‌شده",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={photoOpen=!photoOpen}){Text(if(photoOpen)"بستن" else "نمایش ابعاد")}}
+            if(photoOpen) photoPrices.forEach{r->TextButton(onClick={val idx=pieces.indexOfFirst{p->(p.widthCm==r.widthCm&&p.heightCm==r.heightCm)||(p.widthCm==r.heightCm&&p.heightCm==r.widthCm)};if(idx<0)pieces.add(PieceInput(r.widthCm,r.heightCm,1));ids["photo_lab"]=true;recalc()},modifier=Modifier.fillMaxWidth()){Text(r.widthCm.toString()+"×"+r.heightCm+"   —   "+money(r.priceToman))}}
         }}
         item{AppCard{
-            Text("متغیرهای قیمت",fontWeight=FontWeight.Bold)
-            Text("هر متغیری که در متریال‌ها اضافه و فعال کنید، اینجا قابل انتخاب است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            selectable.forEach{m->
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
-                    Column(Modifier.weight(1f)){Text(m.name);Text(when(m.id){"photo_lab"->"قیمت ثابت بر اساس ابعاد عکس";"packaging_bundle"->"یک‌بار برای کل ست";else->calcLabel(m.calculationType)},style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                    Switch(ids[m.id]?:false,{ids[m.id]=it;recalc()})
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("پکیج‌های قابل استفاده؛ مجموع فوم + کارتن + چسب + لیبل + دستمزد",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={packageOpen=!packageOpen}){Text(if(packageOpen)"بستن" else "نمایش پکیج‌ها")}}
+            if(packageOpen){
+                val keys=(foamPrices+cartonPrices).map{Triple(it.widthCm,it.heightCm,it.pieceCount)}.distinct().sortedWith(compareBy({it.first},{it.second},{it.third}))
+                val parts=vars.filter{it.id in setOf("pack_tape","pack_label","pack_labor")}.sumOf{it.priceToman}
+                keys.forEach{(w,h,c)->
+                    val foam=foamPrices.firstOrNull{it.widthCm==w&&it.heightCm==h&&it.pieceCount==c}?.priceToman?:0L
+                    val carton=cartonPrices.firstOrNull{it.widthCm==w&&it.heightCm==h&&it.pieceCount==c}?.priceToman?:0L
+                    val total=foam+carton+parts
+                    Text((if(c>0)"بسته‌بندی "+c+" تکه " else "بسته‌بندی ") + w+"×"+h+"   —   "+money(total),modifier=Modifier.fillMaxWidth().padding(vertical=7.dp),fontWeight=FontWeight.SemiBold)
+                    Text("فوم "+money(foam)+" + کارتن "+money(carton)+" + سایر "+money(parts),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }}
+        item{AppCard{Text("متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(when(m.id){"photo_lab"->"جدول قیمت ثابت عکس";"packaging_bundle"->"یک پکیج برای کل ست";else->calcLabel(m.calculationType)},style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{ids[m.id]=it;recalc()})}}}}
         result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")}}}}
     }
     if(saveDialog){var name by remember{mutableStateOf("ست جدید")};AlertDialog(onDismissRequest={saveDialog=false},title={Text("ذخیره محصول")},text={OutlinedTextField(name,{name=it},label={Text("نام محصول")})},confirmButton={Button(onClick={vm.saveProduct(null,name,pieces.toList(),ids.filterValues{it}.keys);saveDialog=false}){Text("ذخیره")}},dismissButton={TextButton(onClick={saveDialog=false}){Text("انصراف")}})}
 }
+
+

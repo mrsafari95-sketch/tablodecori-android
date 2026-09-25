@@ -103,7 +103,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
                 var rowPrice by remember(r.id,r.priceToman){mutableStateOf(if(r.priceToman==0L)"" else r.priceToman.toString())}
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)){
                     Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.width(105.dp),fontWeight=FontWeight.Bold)
-                    OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,modifier=Modifier.weight(1f))
+                    OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.width(170.dp))
                     TextButton(onClick={vm.saveSizePrice(r.copy(priceToman=rowPrice.toLongOrNull()?:0L,updatedAt=System.currentTimeMillis()))}){Text("ثبت")}
                     if(!isPhoto)IconButton(onClick={vm.deleteSizePrice(r.id)}){Icon(Icons.Rounded.Delete,"حذف")}
                 }
@@ -129,7 +129,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 @Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String)->Unit){
     var name by remember{mutableStateOf(initial?.name?:"")};var manualProfit by remember{mutableStateOf(if((initial?.manualProfitToman?:0L)==0L) "" else initial!!.manualProfitToman.toString())};var profitMode by remember{mutableStateOf(initial?.profitMode?:"MANUAL")};var profitFormula by remember{mutableStateOf(initial?.profitFormula?:"")}
     val pieces=remember{mutableStateListOf<PieceInput>().apply{addAll(initial?.pieces?:listOf(PieceInput(40,60,1)))}}
-    val ids=remember{mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{put(it.id,initial?.enabledMaterialIds?.contains(it.id)?:it.enabled)}}}
+    val ids=remember{mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{put(it.id,initial?.enabledMaterialIds?.contains(it.id)?:true)}}}
     var preview by remember{mutableStateOf<PricingResult?>(null)}
     LaunchedEffect(pieces.toList(),ids.toMap(),vars){
         if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}
@@ -155,10 +155,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
     val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
     val scope=rememberCoroutineScope()
-    val pieces=rememberSaveable(saver=listSaver(save={list->list.flatMap{listOf(it.widthCm,it.heightCm,it.quantity)}},restore={raw->mutableStateListOf<PieceInput>().apply{raw.chunked(3).forEach{add(PieceInput(it[0],it[1],it[2]))}}})){mutableStateListOf(PieceInput(40,60,1))}
-    val ids=rememberSaveable{mutableStateMapOf<String,Boolean>()}
+    val pieces=remember{mutableStateListOf(PieceInput(40,60,1))}
+    val ids=remember{mutableStateMapOf<String,Boolean>()}
     var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by remember{mutableStateOf(false)}
-    var packageOpen by rememberSaveable{mutableStateOf(false)};var selectedPackage by rememberSaveable{mutableStateOf("40x60")}
+    var packageOpen by remember{mutableStateOf(false)};var selectedPackage by remember{mutableStateOf("40x60")}
     val selectable=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","unexpected_cost","inflation")}
     LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled};ids["packaging_bundle"]=true}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}}}

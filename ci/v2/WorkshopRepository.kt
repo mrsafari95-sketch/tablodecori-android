@@ -16,7 +16,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     val settings: Flow<AppSettingsEntity?> = db.settingsDao().observe()
 
     suspend fun ensurePhotoPrices() {
-        val sizes = listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x70","50x100","60x90","70x100","76x120","76x140")
+        val sizes = listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x50","50x70","50x100","60x60","60x90","70x70","70x100","76x120","76x140")
         val now = System.currentTimeMillis()
         sizes.forEach { key ->
             val id = "photo_$key"

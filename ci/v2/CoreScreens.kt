@@ -35,8 +35,8 @@ import java.util.UUID
     var deleting by remember{mutableStateOf<MaterialEntity?>(null)}
     var sizePricingMaterial by remember{mutableStateOf<MaterialEntity?>(null)}
     var packagingOpen by remember{mutableStateOf(false)}
-    val visible=vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}
-    val packageParts=vars.filter{it.id in setOf("pack_foam","pack_carton","pack_tape","pack_label","pack_labor")}
+    val visible=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation")}
+    val packageParts=vars.filter{it.id in setOf("pack_foam","pack_carton","pack_tape","pack_labor")}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("متریال‌ها و هزینه‌ها","متغیرهای اصلی قیمت؛ جزئیات عکس و بسته‌بندی داخل خودشان قرار دارد"){Button(onClick={creating=true}){Text("+ متغیر")}}}
         listOf("PRODUCTION" to "ساخت تابلو","PACKAGING" to "بسته‌بندی","OVERHEAD" to "هزینه عمومی").forEach{(cat,title)->
@@ -48,7 +48,7 @@ import java.util.UUID
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                             Column(Modifier.weight(1f)){
                                 Text(m.name,fontWeight=FontWeight.Bold)
-                                val sub=when(m.id){"photo_lab"->"۲۳ سایز ثابت؛ قیمت هر سایز مستقل";"packaging_bundle"->"یک هزینه برای کل ست؛ شامل فوم، کارتن، چسب، لیبل و دستمزد";else->if(m.calculationType=="PERCENT_OF_COST")percentFromBasisPoints(m.rateBasisPoints) else money(m.priceToman)}
+                                val sub=when(m.id){"photo_lab"->"۲۲ سایز ثابت؛ قیمت هر سایز مستقل";"packaging_bundle"->"یک هزینه برای کل ست؛ شامل فوم، کارتن، چسب، لیبل و دستمزد";else->if(m.calculationType=="PERCENT_OF_COST")percentFromBasisPoints(m.rateBasisPoints) else money(m.priceToman)}
                                 Text(sub,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             when(m.id){

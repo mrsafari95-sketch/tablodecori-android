@@ -18,31 +18,43 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
     suspend fun deleteSizePrice(id:String)=db.sizePriceDao().delete(id)
 
-    suspend fun ensurePackagingMaterials() {
+    suspend fun ensurePricingStructure() {
         val now=System.currentTimeMillis()
-        listOf("foam_packaging" to "فوم","carton_packaging" to "کارتن").forEach { (id,name) ->
-            if(db.materialDao().get(id)==null) db.materialDao().upsert(MaterialEntity(id=id,name=name,category="PACKAGING",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind=if(id.startsWith("foam"))"FOAM" else "CARTON",createdAt=now,updatedAt=now))
+        val photoId="photo_lab"
+        if(db.materialDao().get(photoId)==null) db.materialDao().upsert(MaterialEntity(id=photoId,name="عکس لابراتوار",category="PRODUCTION",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind="PHOTO_TABLE",createdAt=now,updatedAt=now))
+        val sizes=listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x50","50x70","50x100","60x60","60x90","70x70","70x100","76x120","76x140")
+        val currentPhoto=db.sizePriceDao().getFor(photoId).associateBy{it.id}
+        sizes.forEach{key->
+            val wh=key.split("x").map{it.toInt()}
+            val legacy=db.materialDao().get("photo_$key")
+            val id="photo_lab_$key"
+            if(currentPhoto[id]==null) db.sizePriceDao().upsert(SizePriceEntity(id=id,materialId=photoId,widthCm=wh[0],heightCm=wh[1],priceToman=legacy?.priceToman?:0L,createdAt=now,updatedAt=now))
+            legacy?.let{db.materialDao().softDelete(it.id,now)}
+        }
+        val parentId="packaging_bundle"
+        if(db.materialDao().get(parentId)==null) db.materialDao().upsert(MaterialEntity(id=parentId,name="بسته‌بندی",category="PACKAGING",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind="PACKAGE_BUNDLE",createdAt=now,updatedAt=now))
+        val components=listOf(
+            Triple("pack_foam","فوم بسته‌بندی","FOAM"),
+            Triple("pack_carton","کارتن","CARTON"),
+            Triple("pack_tape","چسب","TAPE"),
+            Triple("pack_label","لیبل","LABEL"),
+            Triple("pack_labor","دستمزد بسته‌بندی","LABOR")
+        )
+        components.forEach{(id,name,kind)->if(db.materialDao().get(id)==null)db.materialDao().upsert(MaterialEntity(id=id,name=name,category="PACKAGING",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind=kind,createdAt=now,updatedAt=now))}
+        listOf("foam_packaging" to "pack_foam","carton_packaging" to "pack_carton").forEach{(oldId,newId)->
+            db.sizePriceDao().getFor(oldId).forEach{rule->db.sizePriceDao().upsert(rule.copy(id=newId+"_"+rule.widthCm+"x"+rule.heightCm+"_"+rule.pieceCount,materialId=newId,updatedAt=now))}
+            db.materialDao().get(oldId)?.let{db.materialDao().softDelete(oldId,now)}
         }
     }
 
-    suspend fun ensurePhotoPrices() {
-        val sizes = listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x50","50x70","50x100","60x60","60x90","70x70","70x100","76x120","76x140")
-        val now = System.currentTimeMillis()
-        sizes.forEach { key ->
-            val id = "photo_$key"
-            if (db.materialDao().get(id) == null) {
-                db.materialDao().upsert(MaterialEntity(id=id, name="عکس " + key.replace("x","×"), category="PRODUCTION", calculationType="PER_PIECE", priceToman=0L, enabled=true, createdAt=now, updatedAt=now))
-            }
-        }
-    }
 
-    val pricedProducts: Flow<List<PricedProduct>> = combine(products, materials, profitRules, settings) { ps, ms, rs, st ->
+    val pricedProducts: Flow<List<PricedProduct>> = combine(products, materials, profitRules, settings, db.sizePriceDao().observeAll()) { ps, ms, rs, st, sizeRules ->
         val pMaterials = ms.map { it.toPricing() }
         val profits = rs.associate { it.pieceCount to it.fixedToman }
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty())) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules)) }.getOrNull()
         }
     }
 

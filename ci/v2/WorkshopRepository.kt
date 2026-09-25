@@ -20,31 +20,55 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
 
     suspend fun ensurePricingStructure() {
         val now=System.currentTimeMillis()
-        val photoId="photo_lab"
-        if(db.materialDao().get(photoId)==null) db.materialDao().upsert(MaterialEntity(id=photoId,name="عکس لابراتوار",category="PRODUCTION",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind="PHOTO_TABLE",createdAt=now,updatedAt=now))
-        val sizes=listOf("10x15","13x18","16x21","20x30","30x30","30x40","30x45","30x50","30x60","30x70","30x80","40x60","40x70","40x80","50x50","50x70","50x100","60x60","60x90","70x70","70x100","76x120","76x140")
-        val currentPhoto=db.sizePriceDao().getFor(photoId).associateBy{it.id}
-        sizes.forEach{key->
-            val wh=key.split("x").map{it.toInt()}
-            val legacy=db.materialDao().get("photo_$key")
-            val id="photo_lab_$key"
-            if(currentPhoto[id]==null) db.sizePriceDao().upsert(SizePriceEntity(id=id,materialId=photoId,widthCm=wh[0],heightCm=wh[1],priceToman=legacy?.priceToman?:0L,createdAt=now,updatedAt=now))
-            legacy?.let{db.materialDao().softDelete(it.id,now)}
+        suspend fun material(id:String,name:String,category:String,type:String,price:Long=0L,rate:Int=0,kind:String="GENERIC"){
+            val old=db.materialDao().get(id)
+            db.materialDao().upsert(MaterialEntity(id=id,name=name,category=category,calculationType=type,priceToman=old?.priceToman?:price,rateBasisPoints=old?.rateBasisPoints?:rate,wasteBasisPoints=old?.wasteBasisPoints?:0,enabled=old?.enabled?:true,smartKind=kind,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now,formulaMode=old?.formulaMode?:"STANDARD",customFormula=old?.customFormula?:""))
         }
-        val parentId="packaging_bundle"
-        if(db.materialDao().get(parentId)==null) db.materialDao().upsert(MaterialEntity(id=parentId,name="بسته‌بندی",category="PACKAGING",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind="PACKAGE_BUNDLE",createdAt=now,updatedAt=now))
-        val components=listOf(
-            Triple("pack_foam","فوم بسته‌بندی","FOAM"),
-            Triple("pack_carton","کارتن","CARTON"),
-            Triple("pack_tape","چسب","TAPE"),
-            Triple("pack_label","لیبل","LABEL"),
-            Triple("pack_labor","دستمزد بسته‌بندی","LABOR")
-        )
-        components.forEach{(id,name,kind)->if(db.materialDao().get(id)==null)db.materialDao().upsert(MaterialEntity(id=id,name=name,category="PACKAGING",calculationType="PER_SET",priceToman=0L,enabled=true,smartKind=kind,createdAt=now,updatedAt=now))}
-        listOf("foam_packaging" to "pack_foam","carton_packaging" to "pack_carton").forEach{(oldId,newId)->
-            db.sizePriceDao().getFor(oldId).forEach{rule->db.sizePriceDao().upsert(rule.copy(id=newId+"_"+rule.widthCm+"x"+rule.heightCm+"_"+rule.pieceCount,materialId=newId,updatedAt=now))}
-            db.materialDao().get(oldId)?.let{db.materialDao().softDelete(oldId,now)}
+        material("frame_pvc","فریم PVC","PRODUCTION","PER_LINEAR_METER",110000)
+        material("glass","شیشه","PRODUCTION","PER_SQUARE_METER",330000)
+        material("backboard_3mm","شاسی ۳ میل","PRODUCTION","PER_SQUARE_METER",820000)
+        material("frame_supplies","ملزومات قاب","PRODUCTION","PER_PIECE",50000)
+        material("production_labor","دستمزد تولید هر قاب","PRODUCTION","PER_PIECE",30000)
+        material("photo_lab","عکس لابراتوار","PRODUCTION","PER_SET",0,0,"PHOTO_TABLE")
+        material("packaging_bundle","بسته‌بندی","PACKAGING","PER_SET",0,0,"PACKAGE_BUNDLE")
+        material("unexpected_cost","هزینه پیش‌بینی نشده","OVERHEAD","PERCENT_OF_COST",0,200)
+        material("inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100)
+
+        val allowed=setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation","pack_foam","pack_carton","pack_tape","pack_labor")
+        db.materialDao().getAll().filter{it.id !in allowed}.forEach{db.materialDao().softDelete(it.id,now)}
+
+        val photoPrices=mapOf(
+            "10x15" to 24000L,"13x18" to 42000L,"16x21" to 49000L,"20x30" to 88000L,"30x30" to 165000L,
+            "30x40" to 190000L,"30x45" to 210000L,"30x50" to 216000L,"30x60" to 250000L,"30x70" to 345000L,
+            "30x80" to 345000L,"40x60" to 440000L,"40x70" to 640000L,"40x80" to 900000L,"50x50" to 640000L,
+            "50x70" to 640000L,"50x100" to 1200000L,"60x60" to 970000L,"60x90" to 970000L,"70x100" to 1250000L,
+            "76x120" to 1500000L,"76x140" to 1780000L)
+        val existingPhoto=db.sizePriceDao().getFor("photo_lab").associateBy{it.id}
+        photoPrices.forEach{(key,defaultPrice)->val wh=key.split("x").map{it.toInt()};val id="photo_lab_$key";val old=existingPhoto[id];db.sizePriceDao().upsert(SizePriceEntity(id,"photo_lab",wh[0],wh[1],0,old?.priceToman?:defaultPrice,true,old?.createdAt?:now,now))}
+
+        material("pack_foam","فوم بسته‌بندی","PACKAGING","PER_SET",0,0,"FOAM")
+        material("pack_carton","کارتن بسته‌بندی","PACKAGING","PER_SET",0,0,"CARTON")
+        material("pack_tape","چسب بسته‌بندی","PACKAGING","PER_SET",30000,0,"TAPE")
+        material("pack_labor","دستمزد کارگر بسته‌بندی","PACKAGING","PER_SET",60000,0,"LABOR")
+        val packs=listOf(Triple(40,60,70000L to 120000L),Triple(50,70,200000L to 130000L),Triple(60,90,200000L to 230000L),Triple(70,100,300000L to 230000L))
+        for((w,h,costs) in packs){
+            for((id,price) in listOf("pack_foam" to costs.first,"pack_carton" to costs.second)){
+                val key=id+"_"+w+"x"+h
+                val old=db.sizePriceDao().getFor(id).firstOrNull{it.id==key}
+                db.sizePriceDao().upsert(SizePriceEntity(key,id,w,h,0,old?.priceToman?:price,true,old?.createdAt?:now,now))
+            }
         }
+    }
+
+    suspend fun resetDefaults() {
+        val now=System.currentTimeMillis()
+        val defaults=mapOf("frame_pvc" to 110000L,"glass" to 330000L,"backboard_3mm" to 820000L,"frame_supplies" to 50000L,"production_labor" to 30000L,"pack_tape" to 30000L,"pack_labor" to 60000L)
+        defaults.forEach{(id,p)->db.materialDao().get(id)?.let{db.materialDao().upsert(it.copy(priceToman=p,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}}
+        db.materialDao().get("unexpected_cost")?.let{db.materialDao().upsert(it.copy(rateBasisPoints=200,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}
+        db.materialDao().get("inflation")?.let{db.materialDao().upsert(it.copy(rateBasisPoints=100,formulaMode="STANDARD",customFormula="",enabled=true,updatedAt=now))}
+        val photos=mapOf("10x15" to 24000L,"13x18" to 42000L,"16x21" to 49000L,"20x30" to 88000L,"30x30" to 165000L,"30x40" to 190000L,"30x45" to 210000L,"30x50" to 216000L,"30x60" to 250000L,"30x70" to 345000L,"30x80" to 345000L,"40x60" to 440000L,"40x70" to 640000L,"40x80" to 900000L,"50x50" to 640000L,"50x70" to 640000L,"50x100" to 1200000L,"60x60" to 970000L,"60x90" to 970000L,"70x100" to 1250000L,"76x120" to 1500000L,"76x140" to 1780000L)
+        photos.forEach{(k,p)->val wh=k.split("x").map{it.toInt()};db.sizePriceDao().upsert(SizePriceEntity("photo_lab_$k","photo_lab",wh[0],wh[1],0,p,true,now,now))}
+        listOf(Triple(40,60,70000L to 120000L),Triple(50,70,200000L to 130000L),Triple(60,90,200000L to 230000L),Triple(70,100,300000L to 230000L)).forEach{(w,h,c)->db.sizePriceDao().upsert(SizePriceEntity("pack_foam_"+w+"x"+h,"pack_foam",w,h,0,c.first,true,now,now));db.sizePriceDao().upsert(SizePriceEntity("pack_carton_"+w+"x"+h,"pack_carton",w,h,0,c.second,true,now,now))}
     }
 
 

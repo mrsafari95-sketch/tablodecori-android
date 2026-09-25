@@ -26,12 +26,52 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable fun VariablesScreen(vm:MainViewModel){
-    val vars by vm.materials.collectAsState(); var editing by remember{mutableStateOf<MaterialEntity?>(null)}; var creating by remember{mutableStateOf(false)}; var deleting by remember{mutableStateOf<MaterialEntity?>(null)}; var sizePricingMaterial by remember{mutableStateOf<MaterialEntity?>(null)}
+    val vars by vm.materials.collectAsState()
+    var editing by remember{mutableStateOf<MaterialEntity?>(null)}
+    var creating by remember{mutableStateOf(false)}
+    var deleting by remember{mutableStateOf<MaterialEntity?>(null)}
+    var sizePricingMaterial by remember{mutableStateOf<MaterialEntity?>(null)}
+    var packagingOpen by remember{mutableStateOf(false)}
+    val visible=vars.filter{!it.id.startsWith("photo_")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}
+    val packageParts=vars.filter{it.id.startsWith("pack_")}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
-        item{SectionTitle("متریال‌ها و هزینه‌ها","قیمت، پرت، روش محاسبه و وضعیت فعال"){Button(onClick={creating=true}){Text("+ متغیر")}}}
-        item{AppCard{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("قیمت‌گذاری بر اساس ابعاد",fontWeight=FontWeight.Bold);Text("عکس لابراتوار، فوم و کارتن را بدون شلوغ کردن این صفحه مدیریت کنید.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){vars.firstOrNull{it.id.startsWith("photo_")}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("عکس")}};vars.firstOrNull{it.id=="foam_packaging"}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("فوم")}};vars.firstOrNull{it.id=="carton_packaging"}?.let{m->TextButton(onClick={sizePricingMaterial=m}){Text("کارتن")}}}}}}
+        item{SectionTitle("متریال‌ها و هزینه‌ها","متغیرهای اصلی قیمت؛ جزئیات عکس و بسته‌بندی داخل خودشان قرار دارد"){Button(onClick={creating=true}){Text("+ متغیر")}}}
         listOf("PRODUCTION" to "ساخت تابلو","PACKAGING" to "بسته‌بندی","OVERHEAD" to "هزینه عمومی").forEach{(cat,title)->
-            val list=vars.filter{it.category==cat && !it.id.startsWith("photo_")}; if(list.isNotEmpty()){item{Text(title,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=8.dp))};items(list,key={it.id}){m->AppCard{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name,fontWeight=FontWeight.Bold);Text(if(m.calculationType=="PERCENT_OF_COST") percentFromBasisPoints(m.rateBasisPoints) else money(m.priceToman),style=MaterialTheme.typography.bodySmall);Text(calcLabel(m.calculationType)+" · پرت ${percentFromBasisPoints(m.wasteBasisPoints)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};TextButton(onClick={editing=m}){Text("ویرایش")};Switch(checked=m.enabled,onCheckedChange={vm.toggleMaterial(m.id,it)})};TextButton(onClick={deleting=m}){Text("حذف",color=MaterialTheme.colorScheme.error)}}}}
+            val list=visible.filter{it.category==cat}
+            if(list.isNotEmpty()){
+                item{Text(title,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=8.dp))}
+                items(list,key={it.id}){m->
+                    AppCard{
+                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                            Column(Modifier.weight(1f)){
+                                Text(m.name,fontWeight=FontWeight.Bold)
+                                val sub=when(m.id){"photo_lab"->"۲۳ سایز ثابت؛ قیمت هر سایز مستقل";"packaging_bundle"->"یک هزینه برای کل ست؛ شامل فوم، کارتن، چسب، لیبل و دستمزد";else->if(m.calculationType=="PERCENT_OF_COST")percentFromBasisPoints(m.rateBasisPoints) else money(m.priceToman)}
+                                Text(sub,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            when(m.id){
+                                "photo_lab"->TextButton(onClick={sizePricingMaterial=m}){Text("قیمت ابعاد")}
+                                "packaging_bundle"->TextButton(onClick={packagingOpen=!packagingOpen}){Text(if(packagingOpen)"بستن جزئیات" else "جزئیات")}
+                                else->TextButton(onClick={editing=m}){Text("ویرایش")}
+                            }
+                            Switch(checked=m.enabled,onCheckedChange={vm.toggleMaterial(m.id,it)})
+                        }
+                        if(m.id!="photo_lab"&&m.id!="packaging_bundle")TextButton(onClick={deleting=m}){Text("حذف",color=MaterialTheme.colorScheme.error)}
+                    }
+                    if(m.id=="packaging_bundle"&&packagingOpen){
+                        AppCard{
+                            Text("اجزای بسته‌بندی",fontWeight=FontWeight.Bold)
+                            Text("این موارد جداگانه روی تابلو اعمال نمی‌شوند؛ مجموع آن‌ها یک‌بار به کل ست اضافه می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            packageParts.forEach{part->
+                                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                                    Column(Modifier.weight(1f)){Text(part.name,fontWeight=FontWeight.SemiBold);Text(if(part.id=="pack_foam"||part.id=="pack_carton")"قیمت بر اساس ابعاد ست" else "هزینه ثابت برای هر بسته‌بندی",style=MaterialTheme.typography.bodySmall)}
+                                    if(part.id=="pack_foam"||part.id=="pack_carton")TextButton(onClick={sizePricingMaterial=part}){Text("جدول ابعاد")}
+                                    TextButton(onClick={editing=part}){Text("ویرایش")}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     if(creating||editing!=null) MaterialDialog(initial=editing,onDismiss={creating=false;editing=null},onSave={vm.saveMaterial(it);creating=false;editing=null})

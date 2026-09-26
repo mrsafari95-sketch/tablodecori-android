@@ -104,10 +104,14 @@ private val bottomItems=listOf(
                         selected=route==i.route,
                         onClick={
                             if(route!=i.route){
-                                nav.navigate(i.route){
-                                    popUpTo("home"){inclusive=false;saveState=true}
-                                    launchSingleTop=true
-                                    restoreState=true
+                                if(i.route=="home"){
+                                    nav.popBackStack("home",inclusive=false)
+                                }else{
+                                    nav.navigate(i.route){
+                                        popUpTo("home"){inclusive=false;saveState=true}
+                                        launchSingleTop=true
+                                        restoreState=true
+                                    }
                                 }
                             }
                         },

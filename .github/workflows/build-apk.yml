@@ -89,9 +89,6 @@ jobs:
             cp ci/v2/AppDatabase.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/AppDatabase.kt"
             cp ci/v2/Entities.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/Entities.kt"
             cp ci/v2/Models.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/Models.kt"
-            # Keep archive backup importer compatible with newly added order address columns.
-            BACKUP_FILE="$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/BackupManager.kt"
-            sed -i 's/o\.optString("city",""),o\.optString("productId",null)/o.optString("city",""),"", "",o.optString("productId",null)/g' "$BACKUP_FILE"
             cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/Entities.kt" ci/v2/Entities.kt 2>/dev/null || true
             cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/Models.kt" ci/v2/Models.kt 2>/dev/null || true
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }", "db.materialDao().setEnabled(id, enabled, System.currentTimeMillis())"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"

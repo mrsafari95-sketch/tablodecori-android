@@ -9,7 +9,25 @@ import com.tablodecori.app.pricing.PricingResult
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+data class QuickDraft(
+    val pieces: List<PieceInput> = listOf(PieceInput(40,60,1)),
+    val enabledIds: Map<String,Boolean> = emptyMap(),
+    val selectedPackage: String = "",
+    val packageOpen: Boolean = false
+)
+
 class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
+    private val _quickDraft = MutableStateFlow(QuickDraft())
+    val quickDraft = _quickDraft.asStateFlow()
+    fun initializeQuickIds(defaults: Map<String,Boolean>) {
+        _quickDraft.update { d -> d.copy(enabledIds = defaults + d.enabledIds) }
+    }
+    fun updateQuickPiece(index:Int,piece:PieceInput) { _quickDraft.update { d -> d.copy(pieces=d.pieces.toMutableList().also{if(index in it.indices)it[index]=piece}) } }
+    fun addQuickPiece() { _quickDraft.update { d -> d.copy(pieces=d.pieces + PieceInput(20,30,1)) } }
+    fun removeQuickPiece(index:Int) { _quickDraft.update { d -> if(d.pieces.size<=1)d else d.copy(pieces=d.pieces.filterIndexed{i,_->i!=index}) } }
+    fun setQuickId(id:String,on:Boolean) { _quickDraft.update { d -> d.copy(enabledIds=d.enabledIds + (id to on)) } }
+    fun setQuickPackage(key:String) { _quickDraft.update { d -> d.copy(selectedPackage=key,packageOpen=false) } }
+    fun toggleQuickPackage() { _quickDraft.update { d -> d.copy(packageOpen=!d.packageOpen) } }
     val materials = repo.materials.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val products = repo.products.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val pricedProducts = repo.pricedProducts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

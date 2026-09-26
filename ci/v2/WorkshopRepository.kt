@@ -21,7 +21,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     val settings: Flow<AppSettingsEntity?> = db.settingsDao().observe()
     fun sizePrices(materialId:String): Flow<List<SizePriceEntity>> = db.sizePriceDao().observeFor(materialId)
     suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
-    suspend fun deleteSizePrice(id:String)=db.sizePriceDao().delete(id)
+    suspend fun deleteSizePrice(id:String)=db.sizePriceDao().disable(id,System.currentTimeMillis())
 
     private val backupTables = listOf(
         "materials","size_prices","products","product_pieces","product_variables",
@@ -115,8 +115,8 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
             "30x80" to 345000L,"40x60" to 440000L,"40x70" to 640000L,"40x80" to 900000L,"50x50" to 640000L,
             "50x70" to 640000L,"50x100" to 1200000L,"60x60" to 970000L,"60x90" to 970000L,"70x100" to 1250000L,
             "76x120" to 1500000L,"76x140" to 1780000L)
-        val existingPhoto=db.sizePriceDao().getFor("photo_lab").associateBy{it.id}
-        photoPrices.forEach{(key,defaultPrice)->val wh=key.split("x").map{it.toInt()};val id="photo_lab_$key";val old=existingPhoto[id];db.sizePriceDao().upsert(SizePriceEntity(id,"photo_lab",wh[0],wh[1],0,old?.priceToman?:defaultPrice,true,old?.createdAt?:now,now))}
+        val existingPhoto=db.sizePriceDao().getAllFor("photo_lab").associateBy{it.id}
+        photoPrices.forEach{(key,defaultPrice)->val wh=key.split("x").map{it.toInt()};val id="photo_lab_$key";val old=existingPhoto[id];if(old==null) db.sizePriceDao().upsert(SizePriceEntity(id,"photo_lab",wh[0],wh[1],0,defaultPrice,true,now,now))}
 
         material("pack_foam","فوم بسته‌بندی","PACKAGING","PER_SET",0,0,"FOAM")
         material("pack_carton","کارتن بسته‌بندی","PACKAGING","PER_SET",0,0,"CARTON")
@@ -126,8 +126,8 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         for((w,h,costs) in packs){
             for((id,price) in listOf("pack_foam" to costs.first,"pack_carton" to costs.second,"pack_tape" to 30000L,"pack_labor" to 60000L)){
                 val key=id+"_"+w+"x"+h
-                val old=db.sizePriceDao().getFor(id).firstOrNull{it.id==key}
-                db.sizePriceDao().upsert(SizePriceEntity(key,id,w,h,0,old?.priceToman?:price,true,old?.createdAt?:now,now))
+                val old=db.sizePriceDao().getAllFor(id).firstOrNull{it.id==key}
+                if(old==null) db.sizePriceDao().upsert(SizePriceEntity(key,id,w,h,0,price,true,now,now))
             }
         }
     }

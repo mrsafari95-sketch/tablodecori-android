@@ -173,6 +173,29 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         return id
     }
 
+    suspend fun updateOrder(
+        orderId: String, dateEpochMillis: Long, customer: String, instagram: String, phone: String,
+        province: String, city: String, shipping: Long, received: Long, note: String
+    ) {
+        require(customer.isNotBlank()) { "نام گیرنده الزامی است." }
+        require(shipping >= 0 && received >= 0) { "مبالغ نمی‌توانند منفی باشند." }
+        val existing = db.orderDao().getAll().firstOrNull { it.order.id == orderId }?.order
+            ?: error("سفارش پیدا نشد.")
+        val actual = OrderMath.actualProfit(received, existing.productCostSnapshotToman, shipping)
+        db.orderDao().update(existing.copy(
+            dateEpochMillis = dateEpochMillis,
+            customerName = customer,
+            instagramId = instagram,
+            phone = phone,
+            province = province,
+            city = city,
+            shippingCostToman = shipping,
+            receivedToman = received,
+            actualProfitToman = actual,
+            note = note
+        ))
+    }
+
     suspend fun updateSettings(rounding: Long, shipping: Long, dark: Boolean) {
         require(rounding > 0 && shipping >= 0) { "تنظیمات مبلغ نامعتبر است." }
         db.settingsDao().upsert(AppSettingsEntity(roundingStepToman=rounding,shippingDefaultToman=shipping,darkMode=dark,updatedAt=System.currentTimeMillis()))

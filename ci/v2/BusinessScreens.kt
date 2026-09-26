@@ -123,7 +123,18 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 var details by remember{mutableStateOf(false)}
-                TextButton(onClick={details=true}){Text("جزئیات هزینه")}
+                var confirmDelete by remember{mutableStateOf(false)}
+                Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                    TextButton(onClick={details=true}){Text("جزئیات هزینه")}
+                    TextButton(onClick={confirmDelete=true}){Text("حذف سفارش",color=MaterialTheme.colorScheme.error)}
+                }
+                if(confirmDelete) AlertDialog(
+                    onDismissRequest={confirmDelete=false},
+                    title={Text("حذف سفارش")},
+                    text={Text("آیا مطمئنید برای حذف این سفارش؟")},
+                    confirmButton={Button(onClick={confirmDelete=false;vm.deleteOrder(o.id)}){Text("بله")}},
+                    dismissButton={TextButton(onClick={confirmDelete=false}){Text("خیر")}}
+                )
                 if(details) AlertDialog(onDismissRequest={details=false},title={Text(o.internalNumber)},text={
                     Column(Modifier.verticalScroll(rememberScrollState())){
                         x.costs.forEach{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(it.name);Text(money(it.amountToman))}}

@@ -108,6 +108,9 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                 }
                 Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
                 if(o.addressDetails.isNotBlank()||o.postalCode.isNotBlank()) Text("آدرس: ${o.province} - ${o.city}${if(o.addressDetails.isNotBlank()) " - "+o.addressDetails else ""}${if(o.postalCode.isNotBlank()) " · کد پستی: "+o.postalCode else ""}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(o.note.isNotBlank()){
+                    Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 Row(Modifier.horizontalScroll(rememberScrollState())){
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
@@ -127,9 +130,6 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                         }
                         copy(context,allInfo);vm.notify("همه اطلاعات سفارش کپی شد.")
                     }){Text("کپی همه اطلاعات")}
-                }
-                if(o.note.isNotBlank()){
-                    Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 var details by remember{mutableStateOf(false)}
                 var confirmDelete by remember{mutableStateOf(false)}

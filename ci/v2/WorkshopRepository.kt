@@ -196,6 +196,10 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         ))
     }
 
+    suspend fun deleteOrder(orderId: String) {
+        db.withTransaction { db.orderDao().delete(orderId) }
+    }
+
     suspend fun updateSettings(rounding: Long, shipping: Long, dark: Boolean) {
         require(rounding > 0 && shipping >= 0) { "تنظیمات مبلغ نامعتبر است." }
         db.settingsDao().upsert(AppSettingsEntity(roundingStepToman=rounding,shippingDefaultToman=shipping,darkMode=dark,updatedAt=System.currentTimeMillis()))

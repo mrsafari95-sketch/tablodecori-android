@@ -42,7 +42,7 @@ import java.util.Calendar
         val filtered=all.filter{it.product.active&&(q.isBlank()||it.product.name.contains(q.trim(),ignoreCase=true))}
         when(sort){
             "price"->filtered.sortedWith(compareBy<PricedProduct>{it.pricing.finalPriceToman}.thenBy{it.product.name})
-            "pieces"->filtered.sortedWith(compareBy<PricedProduct>{it.pricing.pieceCount}.thenBy{it.product.name})
+            "pieces"->filtered.sortedWith(compareByDescending<PricedProduct>{it.pricing.pieceCount}.thenBy{it.product.name})
             else->filtered.sortedBy{it.product.name}
         }
     }

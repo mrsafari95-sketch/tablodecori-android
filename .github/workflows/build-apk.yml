@@ -121,6 +121,15 @@ jobs:
           grep -Fq '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100' "$SRC/data/WorkshopRepository.kt"
           grep -Fq 'pack_tape" to 30000L' "$SRC/data/WorkshopRepository.kt"
           grep -Fq 'pack_labor" to 60000L' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'fun LegacySettingsScreen(' "$SRC/ui/screens/BusinessScreens.kt"
+          test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1
+          grep -Fq 'compareByDescending<PricedProduct>{it.pricing.pieceCount}' "$SRC/ui/screens/BusinessScreens.kt"
+          grep -Fq 'append("\\nکد پستی : ");append(o.postalCode)' "$SRC/ui/screens/BusinessScreens.kt"
+          grep -Fq 'o.addressDetails' "$SRC/ui/screens/BusinessScreens.kt"
+          grep -Fq 'packagingSizeKey = packagingSizeKey' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'MIGRATION_4_5' "$SRC/data/db/AppDatabase.kt"
+          grep -Fq 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"
+          grep -Fq 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"
           if grep -Fq 'سود بر اساس تعداد تکه' "$SRC/ui/screens/CoreScreens.kt"; then
             echo "Regression: legacy piece-count profit UI returned" >&2
             exit 1

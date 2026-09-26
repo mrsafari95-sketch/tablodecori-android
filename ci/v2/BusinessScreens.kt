@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,6 +29,7 @@ import com.tablodecori.app.TablodecoriApp
 import com.tablodecori.app.data.MonthlySummary
 import com.tablodecori.app.data.PricedProduct
 import com.tablodecori.app.data.db.OrderWithCosts
+import com.tablodecori.app.data.db.SentOrderEntity
 import com.tablodecori.app.ui.*
 import com.tablodecori.app.util.*
 import kotlinx.coroutines.launch

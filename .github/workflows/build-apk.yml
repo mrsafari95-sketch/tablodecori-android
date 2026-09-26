@@ -126,7 +126,7 @@ jobs:
           grep -Fq 'compareByDescending<PricedProduct>{it.pricing.pieceCount}' "$SRC/ui/screens/BusinessScreens.kt"
           grep -Fq 'append("\\nکد پستی : ");append(o.postalCode)' "$SRC/ui/screens/BusinessScreens.kt"
           grep -Fq 'o.addressDetails' "$SRC/ui/screens/BusinessScreens.kt"
-          grep -Fq 'packagingSizeKey = packagingSizeKey' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'packagingSizeKey=packagingSizeKey' "$SRC/data/WorkshopRepository.kt"
           grep -Fq 'MIGRATION_4_5' "$SRC/data/db/AppDatabase.kt"
           grep -Fq 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"
           grep -Fq 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"

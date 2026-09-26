@@ -42,16 +42,14 @@ Unable to strip the following libraries, packaging them as they are: libandroidx
 > Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:202 Argument type mismatch: actual type is 'String?', but 'String' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:276 Argument type mismatch: actual type is 'Int', but 'String' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:303 Argument type mismatch: actual type is 'Long', but 'String' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:336 Argument type mismatch: actual type is 'Long', but 'Int' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:410 Argument type mismatch: actual type is 'String!', but 'Long' was expected.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'note'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'createdAt'.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:242:17 Argument type mismatch: actual type is 'String', but 'Int' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:242:29 Argument type mismatch: actual type is 'String', but 'Long' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:242:42 Argument type mismatch: actual type is 'Int', but 'Long' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:242:103 Argument type mismatch: actual type is 'Long', but 'String' was expected.
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:242:127 Argument type mismatch: actual type is 'Long', but 'String' was expected.
 
 > Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790441712410.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790441885446.json
 
 FAILURE: Build failed with an exception.
 
@@ -66,5 +64,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 49s
+BUILD FAILED in 47s
 32 actionable tasks: 32 executed

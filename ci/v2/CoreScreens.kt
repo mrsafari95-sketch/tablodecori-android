@@ -134,7 +134,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 @Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String)->Unit){
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};val profitMode="FORMULA"
     val pieces=remember{mutableStateListOf<PieceInput>().apply{addAll(initial?.pieces?:listOf(PieceInput(40,60,1)))}}
-    val ids=remember(initial?.id,vars.map{it.id to it.enabled}){mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{v->put(v.id,initial?.enabledMaterialIds?.contains(v.id)?:v.enabled)}}}
+    val ids=remember(initial?.id,vars.map{it.id to it.enabled}){mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{v->put(v.id,v.enabled)}}}
     val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
     val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
     val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())

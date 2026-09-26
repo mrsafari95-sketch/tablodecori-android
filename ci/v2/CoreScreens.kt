@@ -40,7 +40,7 @@ import java.util.UUID
     var packagingOpen by remember{mutableStateOf(false)}
     val visible=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation")}
     val packageParts=vars.filter{it.id in setOf("pack_foam","pack_carton","pack_tape","pack_labor")}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+    LazyColumn(Modifier.fillMaxSize(),state=quickListState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("متریال‌ها و هزینه‌ها","متغیرهای اصلی قیمت؛ جزئیات عکس و بسته‌بندی داخل خودشان قرار دارد"){Button(onClick={creating=true}){Text("+ متغیر")}}}
         listOf("PRODUCTION" to "ساخت تابلو","PACKAGING" to "بسته‌بندی","OVERHEAD" to "هزینه عمومی").forEach{(cat,title)->
             val list=visible.filter{it.category==cat}
@@ -174,10 +174,17 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())
     val laborPrices by vm.sizePrices("pack_labor").collectAsState(initial=emptyList())
     val scope=rememberCoroutineScope()
-    val pieces=remember{mutableStateListOf(PieceInput(40,60,1))}
-    val ids=remember{mutableStateMapOf<String,Boolean>()}
-    var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by remember{mutableStateOf(false)}
-    var packageOpen by remember{mutableStateOf(false)};var selectedPackage by remember{mutableStateOf("")}
+    val pieces=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<PieceInput>,Int>(
+        save={list->list.flatMap{p->listOf(p.widthCm,p.heightCm,p.quantity)}},
+        restore={saved->mutableStateListOf<PieceInput>().apply{saved.chunked(3).forEach{v->if(v.size==3)add(PieceInput(v[0],v[1],v[2]))}}}
+    )){mutableStateListOf(PieceInput(40,60,1))}
+    val ids=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateMap<String,Boolean>,String>(
+        save={map->map.map{(id,on)->id+"="+if(on)"1" else "0"}},
+        restore={saved->mutableStateMapOf<String,Boolean>().apply{saved.forEach{entry->val cut=entry.lastIndexOf('=');if(cut>0)put(entry.substring(0,cut),entry.substring(cut+1)=="1")}}}
+    )){mutableStateMapOf<String,Boolean>()}
+    var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by rememberSaveable{mutableStateOf(false)}
+    var packageOpen by rememberSaveable{mutableStateOf(false)};var selectedPackage by rememberSaveable{mutableStateOf("")}
+    val quickListState=androidx.compose.foundation.lazy.rememberLazyListState()
     val packageSizes=(foamPrices+cartonPrices+tapePrices+laborPrices)
         .filter{it.enabled&&it.widthCm>0&&it.heightCm>0}
         .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}

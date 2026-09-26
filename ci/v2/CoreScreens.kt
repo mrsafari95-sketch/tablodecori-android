@@ -159,12 +159,14 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val vars by vm.materials.collectAsState()
     val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
     val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
+    val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())
+    val laborPrices by vm.sizePrices("pack_labor").collectAsState(initial=emptyList())
     val scope=rememberCoroutineScope()
     val pieces=remember{mutableStateListOf(PieceInput(40,60,1))}
     val ids=remember{mutableStateMapOf<String,Boolean>()}
     var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by remember{mutableStateOf(false)}
     var packageOpen by remember{mutableStateOf(false)};var selectedPackage by remember{mutableStateOf("40x60")}
-    val packageSizes=(foamPrices+cartonPrices)
+    val packageSizes=(foamPrices+cartonPrices+tapePrices+laborPrices)
         .filter{it.enabled&&it.widthCm>0&&it.heightCm>0}
         .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}
         .distinct()
@@ -172,7 +174,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val selectable=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","unexpected_cost","inflation")}
     LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled};ids["packaging_bundle"]=true}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}}}
-    LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,selectedPackage){if(vars.isNotEmpty())recalc()}
+    LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,tapePrices,laborPrices,selectedPackage){if(vars.isNotEmpty())recalc()}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("محاسبه سریع","عکس لابراتوار از روی ابعاد هر تابلو خودکار محاسبه می‌شود.")}
         item{AppCard{Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold);pieces.forEachIndexed{i,p->PieceEditorRow(p,{pieces[i]=it;recalc()},{if(pieces.size>1){pieces.removeAt(i);recalc()}})};OutlinedButton(onClick={pieces.add(PieceInput(20,30,1));recalc()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}}}
@@ -181,8 +183,8 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
             }
-            val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L
-            val tape=vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L
+            val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_foam"}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_carton"}?.priceToman?:0L
+            val tape=tapePrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=laborPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L
             Text("انتخاب‌شده: بسته‌بندی "+wh[0]+"×"+wh[1]+" — "+money(foam+carton+tape+labor),fontWeight=FontWeight.SemiBold)
         }}
         item{AppCard{Text("متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{ids[m.id]=it;recalc()})}};Divider();Text("بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}

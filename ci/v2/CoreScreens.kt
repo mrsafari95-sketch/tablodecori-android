@@ -107,11 +107,15 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             }
             prices.forEach{r->
                 var rowPrice by remember(r.id,r.priceToman){mutableStateOf(if(r.priceToman==0L)"" else r.priceToman.toString())}
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                    Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.width(105.dp),fontWeight=FontWeight.Bold)
-                    OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.width(170.dp))
-                    TextButton(onClick={vm.saveSizePrice(r.copy(priceToman=rowPrice.toLongOrNull()?:0L,updatedAt=System.currentTimeMillis()))}){Text("ثبت")}
-                    IconButton(onClick={deletingRow=r}){Icon(Icons.Rounded.Delete,"حذف",tint=MaterialTheme.colorScheme.error)}
+                AppCard{
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                        Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.weight(1f),fontWeight=FontWeight.Bold)
+                        OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.width(150.dp))
+                    }
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                        TextButton(onClick={vm.saveSizePrice(r.copy(priceToman=rowPrice.toLongOrNull()?:0L,updatedAt=System.currentTimeMillis()))}){Text("ثبت قیمت")}
+                        TextButton(onClick={deletingRow=r}){Icon(Icons.Rounded.Delete,"حذف");Spacer(Modifier.width(4.dp));Text("حذف ابعاد",color=MaterialTheme.colorScheme.error)}
+                    }
                 }
             }
         }
@@ -184,16 +188,13 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())
     val laborPrices by vm.sizePrices("pack_labor").collectAsState(initial=emptyList())
     val scope=rememberCoroutineScope()
-    val pieces=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<PieceInput>,Int>(
-        save={list->list.flatMap{p->listOf(p.widthCm,p.heightCm,p.quantity)}},
-        restore={saved->mutableStateListOf<PieceInput>().apply{saved.chunked(3).forEach{v->if(v.size==3)add(PieceInput(v[0],v[1],v[2]))}}}
-    )){mutableStateListOf(PieceInput(40,60,1))}
-    val ids=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateMap<String,Boolean>,String>(
-        save={map->map.map{(id,on)->id+"="+if(on)"1" else "0"}},
-        restore={saved->mutableStateMapOf<String,Boolean>().apply{saved.forEach{entry->val cut=entry.lastIndexOf('=');if(cut>0)put(entry.substring(0,cut),entry.substring(cut+1)=="1")}}}
-    )){mutableStateMapOf<String,Boolean>()}
-    var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by rememberSaveable{mutableStateOf(false)}
-    var packageOpen by rememberSaveable{mutableStateOf(false)};var selectedPackage by rememberSaveable{mutableStateOf("")}
+    val draft by vm.quickDraft.collectAsState()
+    val pieces=draft.pieces
+    val ids=draft.enabledIds
+    val selectedPackage=draft.selectedPackage
+    val packageOpen=draft.packageOpen
+    var result by remember{mutableStateOf<PricingResult?>(null)}
+    var saveDialog by rememberSaveable{mutableStateOf(false)}
     val quickListState=androidx.compose.foundation.lazy.rememberLazyListState()
     val packageSizes=(foamPrices+cartonPrices+tapePrices+laborPrices)
         .filter{it.enabled&&it.widthCm>0&&it.heightCm>0}
@@ -201,20 +202,20 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         .distinct()
         .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
     val selectable=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","unexpected_cost","inflation")}
-    LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled};ids["packaging_bundle"]=true}
+    LaunchedEffect(selectable){vm.initializeQuickIds(selectable.associate{it.id to it.enabled} + ("packaging_bundle" to true))}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedPackage)}catch(_:Throwable){}}}
     LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,tapePrices,laborPrices,selectedPackage){if(vars.isNotEmpty())recalc()}
     LazyColumn(Modifier.fillMaxSize(),state=quickListState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("محاسبه سریع","عکس لابراتوار از روی ابعاد هر تابلو خودکار محاسبه می‌شود.")}
-        item{AppCard{Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold);pieces.forEachIndexed{i,p->PieceEditorRow(p,{pieces[i]=it;recalc()},{if(pieces.size>1){pieces.removeAt(i);recalc()}})};OutlinedButton(onClick={pieces.add(PieceInput(20,30,1));recalc()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}}}
+        item{AppCard{Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold);pieces.forEachIndexed{i,p->PieceEditorRow(p,{vm.updateQuickPiece(i,it)},{vm.removeQuickPiece(i)})};OutlinedButton(onClick={vm.addQuickPiece()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}}}
         item{AppCard{
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("یک بسته‌بندی برای کل ست انتخاب کنید.",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={packageOpen=!packageOpen}){Text(if(packageOpen)"بستن" else "انتخاب")}}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("یک بسته‌بندی برای کل ست انتخاب کنید.",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={vm.toggleQuickPackage()}){Text(if(packageOpen)"بستن" else "انتخاب")}}
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                FilterChip(selected=selectedPackage.isBlank(),onClick={selectedPackage="";packageOpen=false;recalc()},label={Text("خودکار")},leadingIcon=if(selectedPackage.isBlank()){{Text("✓")}}else null);packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
+                FilterChip(selected=selectedPackage.isBlank(),onClick={vm.setQuickPackage("")},label={Text("خودکار")},leadingIcon=if(selectedPackage.isBlank()){{Text("✓")}}else null);packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={vm.setQuickPackage(key)},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
             }
             if(selectedPackage.isBlank()){Text("انتخاب‌شده: خودکار — "+money(result?.lines?.firstOrNull{it.materialId=="packaging_bundle"}?.amountToman?:0L),fontWeight=FontWeight.SemiBold)}else{val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_foam"}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_carton"}?.priceToman?:0L;val tape=tapePrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=laborPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L;Text("انتخاب‌شده: بسته‌بندی "+wh[0]+"×"+wh[1]+" — "+money(foam+carton+tape+labor),fontWeight=FontWeight.SemiBold)}
         }}
-        item{AppCard{Text("متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{ids[m.id]=it;recalc()})}};Divider();Text(if(selectedPackage.isBlank()) "بسته‌بندی خودکار" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
+        item{AppCard{Text("متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{vm.setQuickId(m.id,it)})}};Divider();Text(if(selectedPackage.isBlank()) "بسته‌بندی خودکار" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
         result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")}}}}
     }
     if(saveDialog){var name by remember{mutableStateOf("ست جدید")};AlertDialog(onDismissRequest={saveDialog=false},title={Text("ذخیره محصول")},text={OutlinedTextField(name,{name=it},label={Text("نام محصول")})},confirmButton={Button(onClick={vm.saveProduct(null,name,pieces.toList(),ids.filterValues{it}.keys,packagingSizeKey=selectedPackage);saveDialog=false}){Text("ذخیره")}},dismissButton={TextButton(onClick={saveDialog=false}){Text("انصراف")}})}

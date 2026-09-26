@@ -142,6 +142,8 @@ jobs:
           guard "quick pieces survive tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'val pieces=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<PieceInput>,Int>'
           guard "quick variable switches survive tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'val ids=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateMap<String,Boolean>,String>'
           guard "quick package survives tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'selectedPackage by rememberSaveable'
+          echo "GUARD: Quick scroll state stays inside QuickScreen"
+          python3 -c 'from pathlib import Path; s=Path("'"$SRC"'/ui/screens/CoreScreens.kt").read_text(); pre,quick=s.split("fun QuickScreen",1); assert "state=quickListState" not in pre and "state=quickListState" in quick'
           guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage)'
           guard "backup restore success feedback exists" "$SRC/MainViewModel.kt" 'بکاپ کامل با موفقیت بازیابی شد.'
           guard "backup restore is transactional" "$SRC/data/WorkshopRepository.kt" 'db.withTransaction {'

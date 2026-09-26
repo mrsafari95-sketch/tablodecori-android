@@ -91,8 +91,6 @@ data class SentOrderEntity(
     val phone: String,
     val province: String,
     val city: String,
-    val addressDetails: String = "",
-    val postalCode: String = "",
     val productId: String?,
     val productNameSnapshot: String,
     val compositionSnapshot: String,
@@ -103,6 +101,8 @@ data class SentOrderEntity(
     val actualProfitToman: Long,
     val note: String,
     val createdAt: Long,
+    val addressDetails: String = "",
+    val postalCode: String = "",
 )
 
 @Entity(

@@ -182,9 +182,10 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
     var recv by rememberSaveable(initial?.id){mutableStateOf(initial?.receivedToman?.toString().orEmpty())}
     var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
     var date by rememberSaveable(initial?.id){mutableLongStateOf(initial?.dateEpochMillis?:System.currentTimeMillis())}
-    var picker by rememberSaveable{mutableStateOf(false)}
-    var exp by rememberSaveable{mutableStateOf(false)}
+    var picker by rememberSaveable(initial?.id){mutableStateOf(false)}
+    var exp by rememberSaveable(initial?.id){mutableStateOf(false)}
     var autoReceived by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
+    val formScroll=rememberScrollState()
 
     LaunchedEffect(pid,ship,autoReceived){
         if(autoReceived){
@@ -198,7 +199,6 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
         onDismissRequest=onDismiss,
         title={Text(if(initial==null)"ثبت سفارش ارسالی" else "ویرایش سفارش")},
         text={
-            val formScroll=rememberScrollState()
             Column(
                 Modifier.fillMaxWidth().heightIn(max=590.dp).verticalScroll(formScroll),
                 verticalArrangement=Arrangement.spacedBy(8.dp)

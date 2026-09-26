@@ -22,7 +22,7 @@ interface SizePriceDao {
     @Query("SELECT * FROM size_prices WHERE enabled = 1") suspend fun getAll(): List<SizePriceEntity>
     @Query("SELECT * FROM size_prices WHERE enabled = 1") fun observeAll(): Flow<List<SizePriceEntity>>
     @Upsert suspend fun upsert(entity: SizePriceEntity)
-    @Query("DELETE FROM size_prices WHERE id = :id") suspend fun delete(id: String)
+    @Query("UPDATE size_prices SET enabled = 0, updatedAt = :now WHERE id = :id") suspend fun disable(id: String, now: Long)
 }
 
 @Dao

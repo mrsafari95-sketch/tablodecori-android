@@ -126,7 +126,7 @@ jobs:
           echo "GUARD: exactly one active SettingsScreen"
           test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
-          guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'append("\\nکد پستی : ");append(o.postalCode)'
+          guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'

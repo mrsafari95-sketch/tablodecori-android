@@ -7,8 +7,8 @@ Daemon will be stopped at the end of the build
 > Task :app:generateDebugBuildConfig
 > Task :app:checkDebugAarMetadata
 > Task :app:processDebugNavigationResources
-> Task :app:generateDebugResValues
 > Task :app:compileDebugNavigationResources
+> Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
@@ -49,8 +49,7 @@ e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tabl
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:410 Argument type mismatch: actual type is 'String!', but 'Long' was expected.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'note'.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'createdAt'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:198:86 Unresolved reference 'packagingToman'.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790440316872.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790440672917.json
 
 FAILURE: Build failed with an exception.
 
@@ -65,5 +64,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 50s
+BUILD FAILED in 40s
 32 actionable tasks: 32 executed

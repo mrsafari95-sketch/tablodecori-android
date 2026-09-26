@@ -161,6 +161,11 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val ids=remember{mutableStateMapOf<String,Boolean>()}
     var result by remember{mutableStateOf<PricingResult?>(null)};var saveDialog by remember{mutableStateOf(false)}
     var packageOpen by remember{mutableStateOf(false)};var selectedPackage by remember{mutableStateOf("40x60")}
+    val packageSizes=(foamPrices+cartonPrices)
+        .filter{it.enabled&&it.widthCm>0&&it.heightCm>0}
+        .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}
+        .distinct()
+        .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
     val selectable=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","unexpected_cost","inflation")}
     LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled};ids["packaging_bundle"]=true}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}}}
@@ -171,7 +176,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         item{AppCard{
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("یک بسته‌بندی برای کل ست انتخاب کنید.",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={packageOpen=!packageOpen}){Text(if(packageOpen)"بستن" else "انتخاب")}}
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                listOf(40 to 60,50 to 70,60 to 90,70 to 100).forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
+                packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={selectedPackage=key;packageOpen=false;recalc()},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
             }
             val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{it.widthCm==wh[0]&&it.heightCm==wh[1]}?.priceToman?:0L
             val tape=vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L

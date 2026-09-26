@@ -66,8 +66,8 @@ import java.util.UUID
                             Text("این موارد جداگانه روی تابلو اعمال نمی‌شوند؛ مجموع آن‌ها یک‌بار به کل ست اضافه می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                             packageParts.forEach{part->
                                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                                    Column(Modifier.weight(1f)){Text(part.name,fontWeight=FontWeight.SemiBold);Text(if(part.id=="pack_foam"||part.id=="pack_carton")"قیمت بر اساس ابعاد ست" else "هزینه ثابت برای هر بسته‌بندی",style=MaterialTheme.typography.bodySmall)}
-                                    if(part.id=="pack_foam"||part.id=="pack_carton")TextButton(onClick={sizePricingMaterial=part}){Text("جدول ابعاد")}
+                                    Column(Modifier.weight(1f)){Text(part.name,fontWeight=FontWeight.SemiBold);Text("قیمت بر اساس ابعاد ست",style=MaterialTheme.typography.bodySmall)}
+                                    TextButton(onClick={sizePricingMaterial=part}){Text("جدول ابعاد")}
                                     TextButton(onClick={editing=part}){Text("ویرایش")}
                                 }
                             }
@@ -90,7 +90,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     AlertDialog(onDismissRequest=onDismiss,title={Text(if(isPhoto)"قیمت عکس لابراتوار" else "جدول ابعاد "+material.name)},text={
         Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
             if(isPhoto){
-                Text("ابعاد عکس ثابت هستند؛ فقط قیمت خرید لابراتوار را برای هر سایز وارد کنید.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("قیمت خرید لابراتوار برای هر سایز مستقل است. می‌توانید ابعاد جدید هم اضافه کنید.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedTextField(w,{w=it.filter(Char::isDigit)},label={Text("عرض")},modifier=Modifier.weight(1f));OutlinedTextField(h,{h=it.filter(Char::isDigit)},label={Text("ارتفاع")},modifier=Modifier.weight(1f))}
+                OutlinedTextField(price,{price=it.filter(Char::isDigit)},label={Text("قیمت تومان")},modifier=Modifier.fillMaxWidth())
+                Button(onClick={val now=System.currentTimeMillis();val ww=w.toIntOrNull()?:0;val hh=h.toIntOrNull()?:0;vm.saveSizePrice(SizePriceEntity(id=material.id+"_"+ww+"x"+hh,materialId=material.id,widthCm=ww,heightCm=hh,pieceCount=0,priceToman=price.toLongOrNull()?:0,createdAt=now,updatedAt=now));w="";h="";price=""},enabled=w.toIntOrNull()?.let{it>0}==true&&h.toIntOrNull()?.let{it>0}==true&&price.toLongOrNull()!=null,modifier=Modifier.fillMaxWidth()){Text("اضافه کردن ابعاد جدید")}
             }else{
                 Text("برای هر اندازه بسته‌بندی، قیمت این جزء را تعریف کنید. تعداد تکه باعث می‌شود مثلاً ست ۳ تکه با ست ۵ تکه قیمت متفاوت داشته باشد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){OutlinedTextField(w,{w=it.filter(Char::isDigit)},label={Text("عرض")},modifier=Modifier.weight(1f));OutlinedTextField(h,{h=it.filter(Char::isDigit)},label={Text("ارتفاع")},modifier=Modifier.weight(1f))}

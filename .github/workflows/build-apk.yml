@@ -112,28 +112,32 @@ jobs:
         run: |
           set -euo pipefail
           SRC="project/tablodecori-android/app/src/main/java/com/tablodecori/app"
-          grep -Fq 'saveState=true' "$SRC/MainActivity.kt"
-          grep -Fq 'restoreState=true' "$SRC/MainActivity.kt"
-          grep -Fq 'add(BigDecimal(20)).divide(hundred)' "$SRC/pricing/PricingEngine.kt"
-          grep -Fq 'val manualWh=selectedPackagingSizeKey.split("x")' "$SRC/pricing/PricingEngine.kt"
-          grep -Fq 'addressDetails = addressDetails' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq 'postalCode = postalCode' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq 'pack_tape" to 30000L' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq 'pack_labor" to 60000L' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq 'fun LegacySettingsScreen(' "$SRC/ui/screens/BusinessScreens.kt"
-          test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1
-          grep -Fq 'compareByDescending<PricedProduct>{it.pricing.pieceCount}' "$SRC/ui/screens/BusinessScreens.kt"
-          grep -Fq 'append("\\nکد پستی : ");append(o.postalCode)' "$SRC/ui/screens/BusinessScreens.kt"
-          grep -Fq 'o.addressDetails' "$SRC/ui/screens/BusinessScreens.kt"
-          grep -Fq 'packagingSizeKey=packagingSizeKey' "$SRC/data/WorkshopRepository.kt"
-          grep -Fq 'MIGRATION_4_5' "$SRC/data/db/AppDatabase.kt"
-          grep -Fq 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"
-          grep -Fq 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT' "$SRC/data/db/AppDatabase.kt"
+          guard() { label="$1"; file="$2"; pattern="$3"; echo "GUARD: $label"; grep -Fq "$pattern" "$file" || { echo "FAILED GUARD: $label" >&2; exit 1; }; }
+          guard "bottom navigation saves state" "$SRC/MainActivity.kt" 'saveState=true'
+          guard "bottom navigation restores state" "$SRC/MainActivity.kt" 'restoreState=true'
+          guard "frame adds 20cm" "$SRC/pricing/PricingEngine.kt" 'add(BigDecimal(20)).divide(hundred)'
+          guard "manual packaging reaches pricing" "$SRC/pricing/PricingEngine.kt" 'val manualWh=selectedPackagingSizeKey.split("x")'
+          guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = addressDetails'
+          guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = postalCode'
+          guard "inflation default is one percent" "$SRC/data/WorkshopRepository.kt" '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100'
+          guard "tape has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_tape" to 30000L'
+          guard "pack labor has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_labor" to 60000L'
+          guard "legacy settings isolated" "$SRC/ui/screens/BusinessScreens.kt" 'fun LegacySettingsScreen('
+          echo "GUARD: exactly one active SettingsScreen"
+          test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
+          guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
+          guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'append("\\nکد پستی : ");append(o.postalCode)'
+          guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
+          guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
+          guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
+          guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'
+          guard "postal migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT'
+          echo "GUARD: legacy piece-count profit stays removed"
           if grep -Fq 'سود بر اساس تعداد تکه' "$SRC/ui/screens/CoreScreens.kt"; then
-            echo "Regression: legacy piece-count profit UI returned" >&2
+            echo "FAILED GUARD: legacy piece-count profit UI returned" >&2
             exit 1
           fi
+          echo "All regression guards passed."
 
       - name: Persist maintainable source exports
         shell: bash

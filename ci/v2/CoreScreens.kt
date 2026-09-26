@@ -90,6 +90,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     val prices by vm.sizePrices(material.id).collectAsState(initial=emptyList())
     val isPhoto=material.id=="photo_lab"
     var w by remember{mutableStateOf("")};var h by remember{mutableStateOf("")};var count by remember{mutableStateOf("")};var price by remember{mutableStateOf("")}
+    var deletingRow by remember{mutableStateOf<SizePriceEntity?>(null)}
     AlertDialog(onDismissRequest=onDismiss,title={Text(if(isPhoto)"قیمت عکس لابراتوار" else "جدول ابعاد "+material.name)},text={
         Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
             if(isPhoto){
@@ -110,11 +111,20 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
                     Text(r.widthCm.toString()+"×"+r.heightCm+(if(r.pieceCount>0)" • "+r.pieceCount+" تکه" else ""),Modifier.width(105.dp),fontWeight=FontWeight.Bold)
                     OutlinedTextField(rowPrice,{rowPrice=it.filter(Char::isDigit)},label={Text("تومان")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.width(170.dp))
                     TextButton(onClick={vm.saveSizePrice(r.copy(priceToman=rowPrice.toLongOrNull()?:0L,updatedAt=System.currentTimeMillis()))}){Text("ثبت")}
-                    if(!isPhoto)IconButton(onClick={vm.deleteSizePrice(r.id)}){Icon(Icons.Rounded.Delete,"حذف")}
+                    IconButton(onClick={deletingRow=r}){Icon(Icons.Rounded.Delete,"حذف",tint=MaterialTheme.colorScheme.error)}
                 }
             }
         }
     },confirmButton={Button(onClick=onDismiss){Text("بستن")}})
+    deletingRow?.let{r->
+        AlertDialog(
+            onDismissRequest={deletingRow=null},
+            title={Text("حذف ابعاد")},
+            text={Text("ابعاد "+r.widthCm+"×"+r.heightCm+(if(r.pieceCount>0)" برای "+r.pieceCount+" تکه" else "")+" حذف شود؟ این ابعاد دیگر در محاسبه قیمت و انتخاب‌های مرتبط استفاده نمی‌شود.")},
+            confirmButton={Button(onClick={vm.deleteSizePrice(r.id);deletingRow=null}){Text("حذف")}},
+            dismissButton={TextButton(onClick={deletingRow=null}){Text("انصراف")}}
+        )
+    }
 }
 
 @Composable private fun MaterialDialog(initial:MaterialEntity?,onDismiss:()->Unit,onSave:(MaterialEntity)->Unit){

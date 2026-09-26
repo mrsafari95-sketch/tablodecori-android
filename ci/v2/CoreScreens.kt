@@ -184,3 +184,20 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 }
 
 
+
+
+@Composable fun SettingsScreen(vm:MainViewModel){
+    val current by vm.settings.collectAsState()
+    var rounding by remember(current?.roundingStepToman){mutableStateOf((current?.roundingStepToman?:10000L).toString())}
+    var shipping by remember(current?.shippingDefaultToman){mutableStateOf((current?.shippingDefaultToman?:0L).toString())}
+    var dark by remember(current?.darkMode){mutableStateOf(current?.darkMode?:false)}
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+        item{SectionTitle("تنظیمات","سود از این صفحه حذف شده و برای هر ست به‌صورت درصد مستقل در ویرایش محصول تعیین می‌شود.")}
+        item{AppCard{
+            OutlinedTextField(rounding,{rounding=it.filter(Char::isDigit)},label={Text("گرد کردن قیمت (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+            OutlinedTextField(shipping,{shipping=it.filter(Char::isDigit)},label={Text("هزینه ارسال پیش‌فرض (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("حالت تیره");Switch(dark,{dark=it})}
+            Button(onClick={vm.saveSettings(rounding.toLongOrNull()?:10000L,shipping.toLongOrNull()?:0L,dark)},modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات")}
+        }}
+    }
+}

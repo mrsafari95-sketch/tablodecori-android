@@ -94,7 +94,7 @@ private val bottomItems=listOf(
                         }
                     }
                 },
-                actions={IconButton(onClick={nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات")}}
+                actions={IconButton(onClick={if(route=="settings") nav.popBackStack() else nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات")}}
             )
         },
         bottomBar={

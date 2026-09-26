@@ -107,6 +107,25 @@ jobs:
             exit 1
           fi
 
+      - name: Regression guards for approved behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="project/tablodecori-android/app/src/main/java/com/tablodecori/app"
+          grep -Fq 'saveState=true' "$SRC/MainActivity.kt"
+          grep -Fq 'restoreState=true' "$SRC/MainActivity.kt"
+          grep -Fq 'add(BigDecimal(20)).divide(hundred)' "$SRC/pricing/PricingEngine.kt"
+          grep -Fq 'val manualWh=selectedPackagingSizeKey.split("x")' "$SRC/pricing/PricingEngine.kt"
+          grep -Fq 'addressDetails = addressDetails' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'postalCode = postalCode' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'pack_tape" to 30000L' "$SRC/data/WorkshopRepository.kt"
+          grep -Fq 'pack_labor" to 60000L' "$SRC/data/WorkshopRepository.kt"
+          if grep -Fq 'سود بر اساس تعداد تکه' "$SRC/ui/screens/CoreScreens.kt"; then
+            echo "Regression: legacy piece-count profit UI returned" >&2
+            exit 1
+          fi
+
       - name: Persist maintainable source exports
         shell: bash
         run: |

@@ -142,6 +142,12 @@ jobs:
           guard "quick pieces survive tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'val pieces=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<PieceInput>,Int>'
           guard "quick variable switches survive tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'val ids=rememberSaveable(saver=listSaver<androidx.compose.runtime.snapshots.SnapshotStateMap<String,Boolean>,String>'
           guard "quick package survives tab navigation" "$SRC/ui/screens/CoreScreens.kt" 'selectedPackage by rememberSaveable'
+          guard "all size tables expose delete" "$SRC/ui/screens/CoreScreens.kt" 'IconButton(onClick={deletingRow=r})'
+          guard "dimension deletion requires confirmation" "$SRC/ui/screens/CoreScreens.kt" 'title={Text("حذف ابعاد")}'
+          guard "deleted dimensions are disabled not destroyed" "$SRC/data/db/Daos.kt" 'UPDATE size_prices SET enabled = 0'
+          guard "initialization sees disabled dimensions" "$SRC/data/db/Daos.kt" 'suspend fun getAllFor(materialId: String)'
+          guard "deleted photo defaults do not return" "$SRC/data/WorkshopRepository.kt" 'val existingPhoto=db.sizePriceDao().getAllFor("photo_lab")'
+          guard "deleted package defaults do not return" "$SRC/data/WorkshopRepository.kt" 'val old=db.sizePriceDao().getAllFor(id).firstOrNull{it.id==key}'
           echo "GUARD: Quick scroll state stays inside QuickScreen"
           python3 -c 'from pathlib import Path; s=Path("'"$SRC"'/ui/screens/CoreScreens.kt").read_text(); pre,quick=s.split("fun QuickScreen",1); assert "state=quickListState" not in pre and "state=quickListState" in quick'
           guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage)'

@@ -19,6 +19,7 @@ interface MaterialDao {
 interface SizePriceDao {
     @Query("SELECT * FROM size_prices WHERE materialId = :materialId AND enabled = 1 ORDER BY widthCm, heightCm, pieceCount") fun observeFor(materialId: String): Flow<List<SizePriceEntity>>
     @Query("SELECT * FROM size_prices WHERE materialId = :materialId AND enabled = 1 ORDER BY widthCm, heightCm, pieceCount") suspend fun getFor(materialId: String): List<SizePriceEntity>
+    @Query("SELECT * FROM size_prices WHERE materialId = :materialId ORDER BY widthCm, heightCm, pieceCount") suspend fun getAllFor(materialId: String): List<SizePriceEntity>
     @Query("SELECT * FROM size_prices WHERE enabled = 1") suspend fun getAll(): List<SizePriceEntity>
     @Query("SELECT * FROM size_prices WHERE enabled = 1") fun observeAll(): Flow<List<SizePriceEntity>>
     @Upsert suspend fun upsert(entity: SizePriceEntity)

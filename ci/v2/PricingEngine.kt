@@ -51,7 +51,15 @@ class PricingEngine {
             val wasteFactor = BigDecimal(10_000 + m.wasteBasisPoints).divide(tenThousand)
             val basePrice = BigDecimal(m.priceToman)
             val custom = customFormulas[m.id].orEmpty()
-            val raw = if(custom.isNotBlank()) pieces.fold(BigDecimal.ZERO){acc,p -> acc + FormulaEvaluator.evaluate(custom,mapOf("width" to BigDecimal(p.widthCm),"height" to BigDecimal(p.heightCm),"qty" to BigDecimal(p.quantity),"unitPrice" to basePrice,"area" to BigDecimal(p.widthCm*p.heightCm).divide(tenThousand),"perimeter" to BigDecimal(2*(p.widthCm+p.heightCm)+20).divide(hundred),"count" to BigDecimal(count),"subtotal" to subtotalExact))} else when (m.calculationType) {
+            val glassEnabled = "glass" in enabledMaterialIds
+            val raw = if(m.id=="backboard_3mm" && glassEnabled) {
+                pieces.fold(BigDecimal.ZERO){acc,p ->
+                    val shortSide=minOf(p.widthCm,p.heightCm)
+                    val longSide=maxOf(p.widthCm,p.heightCm)
+                    if(shortSide < 30 || (shortSide == 30 && longSide < 45)) acc
+                    else acc + BigDecimal(p.widthCm).multiply(BigDecimal(p.heightCm)).multiply(BigDecimal(p.quantity)).divide(tenThousand).multiply(basePrice)
+                }
+            } else if(custom.isNotBlank()) pieces.fold(BigDecimal.ZERO){acc,p -> acc + FormulaEvaluator.evaluate(custom,mapOf("width" to BigDecimal(p.widthCm),"height" to BigDecimal(p.heightCm),"qty" to BigDecimal(p.quantity),"unitPrice" to basePrice,"area" to BigDecimal(p.widthCm*p.heightCm).divide(tenThousand),"perimeter" to BigDecimal(2*(p.widthCm+p.heightCm)+20).divide(hundred),"count" to BigDecimal(count),"subtotal" to subtotalExact))} else when (m.calculationType) {
                 CalculationType.PER_SQUARE_METER -> area.multiply(basePrice)
                 CalculationType.PER_LINEAR_METER -> perimeter.multiply(basePrice)
                 CalculationType.PER_PIECE -> BigDecimal(count).multiply(basePrice)

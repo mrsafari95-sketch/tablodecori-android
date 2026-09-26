@@ -33,6 +33,9 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun saveOrder(productId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,shipping:Long,received:Long,note:String)=launch {
         repo.createOrder(productId,date,customer,instagram,phone,province,city,shipping,received,note); _message.emit("سفارش ارسالی ثبت شد.")
     }
+    fun updateOrder(orderId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,shipping:Long,received:Long,note:String)=launch {
+        repo.updateOrder(orderId,date,customer,instagram,phone,province,city,shipping,received,note); _message.emit("سفارش ویرایش شد.")
+    }
     fun saveSettings(rounding:Long,shipping:Long,dark:Boolean)=launch { repo.updateSettings(rounding,shipping,dark); _message.emit("تنظیمات ذخیره شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }

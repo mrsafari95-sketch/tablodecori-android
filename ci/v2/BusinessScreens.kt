@@ -75,7 +75,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     val query=search.trim()
     val filtered=if(query.isBlank()) monthFiltered else monthFiltered.filter{x->
         val o=x.order
-        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.internalNumber).any{it.contains(query,ignoreCase=true)}
+        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber).any{it.contains(query,ignoreCase=true)}
     }
     val s=summary(filtered)
     val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->
@@ -107,6 +107,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     Text(if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
                 }
                 Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
+                if(o.addressDetails.isNotBlank()||o.postalCode.isNotBlank()) Text("آدرس: ${o.province} - ${o.city}${if(o.addressDetails.isNotBlank()) " - "+o.addressDetails else ""}${if(o.postalCode.isNotBlank()) " · کد پستی: "+o.postalCode else ""}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.horizontalScroll(rememberScrollState())){
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
@@ -118,7 +119,8 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                             append("\nتاریخ سفارش : ");append(d.label)
                             append("\nنام گیرنده : ");append(o.customerName)
                             append("\nآیدی اینستاگرام : ");append(o.instagramId)
-                            append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city)
+                            append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city);if(o.addressDetails.isNotBlank()){append(" - ");append(o.addressDetails)}
+                            if(o.postalCode.isNotBlank()){append("\nکد پستی : ");append(o.postalCode)}
                             append("\nهزینه ارسال : ");append(money(o.shippingCostToman))
                             append("\nهزینه دریافتی : ");append(money(o.receivedToman))
                             append("\nیادداشت سفارش : ");append(o.note)
@@ -151,12 +153,12 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
             }
         }
     }
-    if(add) OrderDialog(products,settings?.shippingDefaultToman?:0,null,{add=false}){pid,date,name,ig,phone,prov,city,ship,recv,note->
-        vm.saveOrder(pid,date,name,ig,phone,prov,city,ship,recv,note);add=false
+    if(add) OrderDialog(products,settings?.shippingDefaultToman?:0,null,{add=false}){pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
+        vm.saveOrder(pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note);add=false
     }
     editing?.let{selected->
-        OrderDialog(products,settings?.shippingDefaultToman?:0,selected.order,{editing=null}){_,date,name,ig,phone,prov,city,ship,recv,note->
-            vm.updateOrder(selected.order.id,date,name,ig,phone,prov,city,ship,recv,note);editing=null
+        OrderDialog(products,settings?.shippingDefaultToman?:0,selected.order,{editing=null}){_,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
+            vm.updateOrder(selected.order.id,date,name,ig,phone,prov,city,address,postal,ship,recv,note);editing=null
         }
     }
 }
@@ -166,7 +168,7 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
 @Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0,x.order.actualProfitToman)})}?:1).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,Long,Long,String)->Unit){
+@Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,String,String,Long,Long,String)->Unit){
     val initialProductId=initial?.productId?.takeIf{id->products.any{it.product.id==id}}?:products.firstOrNull()?.product?.id.orEmpty()
     var pid by rememberSaveable(initial?.id){mutableStateOf(initialProductId)}
     var customer by rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}
@@ -174,6 +176,8 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
     var phone by rememberSaveable(initial?.id){mutableStateOf(initial?.phone.orEmpty())}
     var prov by rememberSaveable(initial?.id){mutableStateOf(initial?.province.orEmpty())}
     var city by rememberSaveable(initial?.id){mutableStateOf(initial?.city.orEmpty())}
+    var addressDetails by rememberSaveable(initial?.id){mutableStateOf(initial?.addressDetails.orEmpty())}
+    var postalCode by rememberSaveable(initial?.id){mutableStateOf(initial?.postalCode.orEmpty())}
     var ship by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:shippingDefault).toString())}
     var recv by rememberSaveable(initial?.id){mutableStateOf(initial?.receivedToman?.toString().orEmpty())}
     var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
@@ -213,12 +217,14 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
                 OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(prov,{prov=it},label={Text("استان")},modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(city,{city=it},label={Text("شهر")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(addressDetails,{addressDetails=it},label={Text("جزئیات آدرس")},placeholder={Text("خیابان، کوچه، پلاک و ...")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=3)
+                OutlinedTextField(postalCode,{postalCode=it.filter(Char::isDigit)},label={Text("کد پستی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(ship,{ship=it.filter(Char::isDigit);autoReceived=true},label={Text("هزینه ارسال واقعی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(recv,{recv=it.filter(Char::isDigit);autoReceived=false},label={Text("مبلغ دریافتی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
                 OutlinedTextField(note,{note=it},label={Text("یادداشت")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4)
             }
         },
-        confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text(if(initial==null)"ثبت ارسال" else "ذخیره ویرایش")}},
+        confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,addressDetails,postalCode,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text(if(initial==null)"ثبت ارسال" else "ذخیره ویرایش")}},
         dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}
     )
     if(picker){

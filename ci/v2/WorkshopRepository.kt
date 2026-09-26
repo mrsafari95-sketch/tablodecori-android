@@ -1,6 +1,11 @@
 package com.tablodecori.app.data
 
 import androidx.room.withTransaction
+import android.content.ContentValues
+import android.database.Cursor
+import android.database.sqlite.SQLiteDatabase
+import org.json.JSONArray
+import org.json.JSONObject
 import com.tablodecori.app.data.db.*
 import com.tablodecori.app.pricing.*
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +22,73 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     fun sizePrices(materialId:String): Flow<List<SizePriceEntity>> = db.sizePriceDao().observeFor(materialId)
     suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
     suspend fun deleteSizePrice(id:String)=db.sizePriceDao().delete(id)
+
+    private val backupTables = listOf(
+        "materials","size_prices","products","product_pieces","product_variables",
+        "profit_rules","sent_orders","order_cost_snapshots","price_change_history","app_settings"
+    )
+
+    suspend fun exportFullBackup(): String {
+        val sql=db.openHelper.readableDatabase
+        val root=JSONObject().put("format","tablodecori-full-backup").put("version",1).put("createdAt",System.currentTimeMillis())
+        val tables=JSONObject()
+        backupTables.forEach { table ->
+            val rows=JSONArray()
+            sql.query("SELECT * FROM $table").use { c ->
+                while(c.moveToNext()){
+                    val row=JSONObject()
+                    for(i in 0 until c.columnCount){
+                        val name=c.getColumnName(i)
+                        when(c.getType(i)){
+                            Cursor.FIELD_TYPE_NULL -> row.put(name,JSONObject.NULL)
+                            Cursor.FIELD_TYPE_INTEGER -> row.put(name,c.getLong(i))
+                            Cursor.FIELD_TYPE_FLOAT -> row.put(name,c.getDouble(i))
+                            Cursor.FIELD_TYPE_STRING -> row.put(name,c.getString(i))
+                            Cursor.FIELD_TYPE_BLOB -> row.put(name,android.util.Base64.encodeToString(c.getBlob(i),android.util.Base64.NO_WRAP))
+                        }
+                    }
+                    rows.put(row)
+                }
+            }
+            tables.put(table,rows)
+        }
+        root.put("tables",tables)
+        return root.toString(2)
+    }
+
+    suspend fun importFullBackup(json:String) {
+        val root=JSONObject(json)
+        require(root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
+        require(root.optInt("version",0)==1){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        val tables=root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
+        backupTables.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        val sql=db.openHelper.writableDatabase
+        db.withTransaction {
+            val b=db.backupDao()
+            b.clearCosts();b.clearOrders();b.clearHistory();b.clearVariables();b.clearPieces();b.clearProducts()
+            b.clearSizePrices();b.clearProfits();b.clearSettings();b.clearMaterials()
+            backupTables.forEach { table ->
+                val rows=tables.getJSONArray(table)
+                for(r in 0 until rows.length()){
+                    val row=rows.getJSONObject(r);val values=ContentValues()
+                    row.keys().forEach { key ->
+                        if(row.isNull(key)) values.putNull(key) else {
+                            val value=row.get(key)
+                            when(value){
+                                is Int -> values.put(key,value)
+                                is Long -> values.put(key,value)
+                                is Double -> values.put(key,value)
+                                is Boolean -> values.put(key,if(value)1 else 0)
+                                else -> values.put(key,value.toString())
+                            }
+                        }
+                    }
+                    val result=sql.insert(table,SQLiteDatabase.CONFLICT_REPLACE,values)
+                    require(result!=-1L){"بازیابی اطلاعات $table ناموفق بود."}
+                }
+            }
+        }
+    }
 
     suspend fun ensurePricingStructure() {
         val now=System.currentTimeMillis()

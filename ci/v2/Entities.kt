@@ -44,6 +44,7 @@ data class ProductEntity(
     val manualProfitToman: Long = 0L,
     val profitMode: String = "MANUAL",
     val profitFormula: String = "",
+    val packagingSizeKey: String = "",
 )
 
 @Entity(
@@ -90,6 +91,8 @@ data class SentOrderEntity(
     val phone: String,
     val province: String,
     val city: String,
+    val addressDetails: String = "",
+    val postalCode: String = "",
     val productId: String?,
     val productNameSnapshot: String,
     val compositionSnapshot: String,

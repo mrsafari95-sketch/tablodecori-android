@@ -26,15 +26,15 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun deleteSizePrice(id:String)=launch { repo.deleteSizePrice(id); _message.emit("قیمت ابعاد حذف شد.") }
     fun toggleMaterial(id:String,on:Boolean)=launch { repo.toggleMaterial(id,on) }
     fun deleteMaterial(id:String)=launch { val n=repo.deleteMaterial(id); _message.emit(if(n>0) "متغیر غیرفعال شد؛ در $n محصول استفاده شده بود." else "متغیر حذف شد.") }
-    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="")=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula); _message.emit("محصول ذخیره شد.") }
+    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="",packagingSizeKey:String="")=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula,packagingSizeKey); _message.emit("محصول ذخیره شد.") }
     fun duplicateProduct(id:String)=launch { repo.duplicateProduct(id); _message.emit("یک کپی از محصول ساخته شد.") }
     fun toggleProduct(id:String,on:Boolean)=launch { repo.toggleProduct(id,on) }
     fun deleteProduct(id:String)=launch { repo.deleteProduct(id); _message.emit("محصول حذف شد.") }
-    fun saveOrder(productId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,shipping:Long,received:Long,note:String)=launch {
-        repo.createOrder(productId,date,customer,instagram,phone,province,city,shipping,received,note); _message.emit("سفارش ارسالی ثبت شد.")
+    fun saveOrder(productId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,addressDetails:String,postalCode:String,shipping:Long,received:Long,note:String)=launch {
+        repo.createOrder(productId,date,customer,instagram,phone,province,city,addressDetails,postalCode,shipping,received,note); _message.emit("سفارش ارسالی ثبت شد.")
     }
-    fun updateOrder(orderId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,shipping:Long,received:Long,note:String)=launch {
-        repo.updateOrder(orderId,date,customer,instagram,phone,province,city,shipping,received,note); _message.emit("سفارش ویرایش شد.")
+    fun updateOrder(orderId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,addressDetails:String,postalCode:String,shipping:Long,received:Long,note:String)=launch {
+        repo.updateOrder(orderId,date,customer,instagram,phone,province,city,addressDetails,postalCode,shipping,received,note); _message.emit("سفارش ویرایش شد.")
     }
     fun deleteOrder(orderId:String)=launch {
         repo.deleteOrder(orderId); _message.emit("سفارش حذف شد.")
@@ -44,7 +44,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ کامل با موفقیت بازیابی شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
-    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null): PricingResult = repo.calculate(pieces,ids)
+    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String=""): PricingResult = repo.calculate(pieces,ids,packagingSizeKey)
     fun notify(text:String){ _message.tryEmit(text) }
     private fun launch(block:suspend()->Unit)=viewModelScope.launch { try { block() } catch (t: Throwable) { _message.emit(t.message ?: "خطای نامشخص") } }
 }

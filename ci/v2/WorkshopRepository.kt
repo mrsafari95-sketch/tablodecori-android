@@ -150,16 +150,16 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules)) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey)) }.getOrNull()
         }
     }
 
-    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null): PricingResult {
+    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null, packagingSizeKey: String = ""): PricingResult {
         val ms = db.materialDao().getAll().map { it.toPricing() }
         val profits = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
         val st = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
         val entities=db.materialDao().getAll()
-        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "", db.sizePriceDao().getAll())
+        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "", db.sizePriceDao().getAll(), packagingSizeKey)
     }
 
     suspend fun saveMaterial(entity: MaterialEntity): Int {
@@ -192,7 +192,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         return usage
     }
 
-    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = ""): String {
+    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = "", packagingSizeKey: String = ""): String {
         require(name.isNotBlank()) { "نام محصول الزامی است." }
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
@@ -202,7 +202,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val productId = id ?: UUID.randomUUID().toString()
         val old = id?.let { db.productDao().get(it)?.product }
         db.withTransaction {
-            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
+            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,packagingSizeKey=packagingSizeKey,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
             db.productDao().deletePieces(productId)
             db.productDao().deleteVariables(productId)
             db.productDao().insertPieces(pieces.mapIndexed { i, p -> ProductPieceEntity(productId=productId,widthCm=p.widthCm,heightCm=p.heightCm,quantity=p.quantity,sortOrder=i) })
@@ -214,7 +214,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
     suspend fun duplicateProduct(id: String): String? {
         val p = db.productDao().get(id) ?: return null
         val m = p.toModel()
-        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula)
+        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula, m.packagingSizeKey)
     }
 
     suspend fun toggleProduct(id: String, active: Boolean) {
@@ -226,19 +226,19 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
 
     suspend fun createOrder(
         productId: String, dateEpochMillis: Long, customer: String, instagram: String, phone: String,
-        province: String, city: String, shipping: Long, received: Long, note: String
+        province: String, city: String, addressDetails: String, postalCode: String, shipping: Long, received: Long, note: String
     ): String {
         require(customer.isNotBlank()) { "نام گیرنده الزامی است." }
         require(shipping >= 0 && received >= 0) { "مبالغ نمی‌توانند منفی باشند." }
         val rel = db.productDao().get(productId) ?: error("محصول پیدا نشد.")
         val model = rel.toModel()
-        val pricing = calculate(model.pieces, model.enabledMaterialIds)
+        val pricing = calculate(model.pieces, model.enabledMaterialIds, model.packagingSizeKey)
         val id = UUID.randomUUID().toString()
         val internal = "TD-${System.currentTimeMillis().toString().takeLast(7)}"
         val actual = OrderMath.actualProfit(received, pricing.costBeforeProfitToman, shipping)
         val composition = model.pieces.joinToString(" + ") { "${it.quantity}× ${it.widthCm}×${it.heightCm}" }
         db.withTransaction {
-            db.orderDao().insert(SentOrderEntity(id, internal, dateEpochMillis, customer, instagram, phone, province, city, productId,
+            db.orderDao().insert(SentOrderEntity(id, internal, dateEpochMillis, customer, instagram, phone, province, city, addressDetails, postalCode, productId,
                 model.name, composition, pricing.pieceCount, pricing.costBeforeProfitToman, shipping, received, actual, note, System.currentTimeMillis()))
             db.orderDao().insertCosts(pricing.lines.map { OrderCostSnapshotEntity(orderId=id,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
         }
@@ -247,7 +247,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
 
     suspend fun updateOrder(
         orderId: String, dateEpochMillis: Long, customer: String, instagram: String, phone: String,
-        province: String, city: String, shipping: Long, received: Long, note: String
+        province: String, city: String, addressDetails: String, postalCode: String, shipping: Long, received: Long, note: String
     ) {
         require(customer.isNotBlank()) { "نام گیرنده الزامی است." }
         require(shipping >= 0 && received >= 0) { "مبالغ نمی‌توانند منفی باشند." }
@@ -261,6 +261,8 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
             phone = phone,
             province = province,
             city = city,
+            addressDetails = addressDetails,
+            postalCode = postalCode,
             shippingCostToman = shipping,
             receivedToman = received,
             actualProfitToman = actual,

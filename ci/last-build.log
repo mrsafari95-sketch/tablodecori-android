@@ -18,11 +18,11 @@ Daemon will be stopped at the end of the build
 > Task :app:parseDebugLocalResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
 > Task :app:processDebugResources
@@ -41,7 +41,7 @@ Unable to strip the following libraries, packaging them as they are: libandroidx
 > Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
 
-> Task :app:compileDebugKotlin
+> Task :app:compileDebugKotlin FAILED
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:202 Argument type mismatch: actual type is 'String?', but 'String' was expected.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:276 Argument type mismatch: actual type is 'Int', but 'String' was expected.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:303 Argument type mismatch: actual type is 'Long', but 'String' was expected.
@@ -49,9 +49,7 @@ e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tabl
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:410 Argument type mismatch: actual type is 'String!', but 'Long' was expected.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'note'.
 e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/BackupManager.kt:38:423 No value passed for parameter 'createdAt'.
-
-> Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790440841129.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1790441406825.json
 
 FAILURE: Build failed with an exception.
 
@@ -66,5 +64,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 51s
+BUILD FAILED in 50s
 32 actionable tasks: 32 executed

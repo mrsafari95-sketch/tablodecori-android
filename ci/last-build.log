@@ -25,82 +25,25 @@ Daemon will be stopped at the end of the build
 > Task :app:mergeDebugAssets
 > Task :app:compressDebugAssets
 > Task :app:desugarDebugFileDependencies
-> Task :app:processDebugManifestForPackage
-> Task :app:checkDebugDuplicateClasses
-> Task :app:processDebugResources
 > Task :app:mergeDebugJniLibFolders
-> Task :app:mergeLibDexDebug
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugNativeLibs
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeLibDexDebug
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so. Run with --info option to learn more.
 
+> Task :app:processDebugResources
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
 > Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
 
-> Task :app:compileDebugKotlin
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:93:30 Unresolved reference 'horizontalScroll'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:127:95 Unresolved reference 'SentOrderEntity'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:128:35 Unresolved reference 'productId'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:128:46 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:128:53 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:129:16 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:129:42 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:129:46 Cannot infer type for type parameter 'T'. Specify it explicitly.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:130:21 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:130:47 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:130:75 Unresolved reference 'customerName'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:131:15 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:131:41 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:131:69 Unresolved reference 'instagramId'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:132:18 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:132:44 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:132:72 Unresolved reference 'phone'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:133:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:133:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:133:71 Unresolved reference 'province'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:134:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:134:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:134:71 Unresolved reference 'city'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:135:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:135:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:135:72 Unresolved reference 'shippingCostToman'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:136:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:136:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:136:71 Unresolved reference 'receivedToman'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:137:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:137:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:137:71 Unresolved reference 'note'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:138:17 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:138:43 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:138:75 Unresolved reference 'dateEpochMillis'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:139:19 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:140:16 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:141:25 Unresolved reference 'rememberSaveable'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:141:51 Unresolved reference 'id'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:162:89 Unresolved reference 'productNameSnapshot'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:169:54 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:169:65 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:170:42 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:170:53 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:171:48 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:171:59 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:172:46 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:172:57 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:173:46 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:173:57 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:174:46 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:174:97 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:175:46 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:175:98 @Composable invocations can only happen from the context of a @Composable function
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:176:46 Unresolved reference 'it'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:176:57 @Composable invocations can only happen from the context of a @Composable function
-
 > Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790424690967.json
+e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt:95:30 Unresolved reference 'horizontalScroll'.
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_4-1790424846588.json
 
 FAILURE: Build failed with an exception.
 
@@ -115,5 +58,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 39s
+BUILD FAILED in 51s
 32 actionable tasks: 32 executed

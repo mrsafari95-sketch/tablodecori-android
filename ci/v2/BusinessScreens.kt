@@ -62,14 +62,21 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     var selectedMonth by remember{mutableStateOf<String?>(null)}
     var add by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<OrderWithCosts?>(null)}
+    var search by rememberSaveable{mutableStateOf("")}
     val months=orders.map{PersianDate.fromEpoch(it.order.dateEpochMillis)}.distinctBy{it.monthKey}.sortedByDescending{it.monthKey}
-    val filtered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
+    val monthFiltered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
+    val query=search.trim()
+    val filtered=if(query.isBlank()) monthFiltered else monthFiltered.filter{x->
+        val o=x.order
+        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.internalNumber).any{it.contains(query,ignoreCase=true)}
+    }
     val s=summary(filtered)
     val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->
         if(uri!=null) context.contentResolver.openOutputStream(uri)?.use{it.write(Exporters.ordersCsv(filtered).toByteArray(Charsets.UTF_8))}
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("سفارش‌های ارسالی","Snapshot مالی؛ تغییر قیمت آینده روی گذشته اثر ندارد"){Button(onClick={add=true},enabled=products.isNotEmpty()){Text("+ ثبت ارسال")}}}
+        item{OutlinedTextField(search,{search=it},label={Text("جستجو در سفارش‌ها")},placeholder={Text("نام، آیدی اینستاگرام یا شماره تماس")},singleLine=true,modifier=Modifier.fillMaxWidth())}
         item{
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){
                 var exp by remember{mutableStateOf(false)}
@@ -97,6 +104,20 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
                     TextButton(onClick={editing=x}){Text("ویرایش سفارش")}
+                    TextButton(onClick={
+                        val d=PersianDate.fromEpoch(o.dateEpochMillis)
+                        val allInfo=buildString{
+                            append(o.productNameSnapshot)
+                            append("\nتاریخ سفارش : ");append(d.label)
+                            append("\nنام گیرنده : ");append(o.customerName)
+                            append("\nآیدی اینستاگرام : ");append(o.instagramId)
+                            append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city)
+                            append("\nهزینه ارسال : ");append(money(o.shippingCostToman))
+                            append("\nهزینه دریافتی : ");append(money(o.receivedToman))
+                            append("\nیادداشت سفارش : ");append(o.note)
+                        }
+                        copy(context,allInfo);vm.notify("همه اطلاعات سفارش کپی شد.")
+                    }){Text("کپی همه اطلاعات")}
                 }
                 if(o.note.isNotBlank()){
                     Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)

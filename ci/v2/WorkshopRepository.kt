@@ -238,8 +238,28 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         val actual = OrderMath.actualProfit(received, pricing.costBeforeProfitToman, shipping)
         val composition = model.pieces.joinToString(" + ") { "${it.quantity}× ${it.widthCm}×${it.heightCm}" }
         db.withTransaction {
-            db.orderDao().insert(SentOrderEntity(id, internal, dateEpochMillis, customer, instagram, phone, province, city, addressDetails, postalCode, productId,
-                model.name, composition, pricing.pieceCount, pricing.costBeforeProfitToman, shipping, received, actual, note, System.currentTimeMillis()))
+            db.orderDao().insert(SentOrderEntity(
+                id = id,
+                internalNumber = internal,
+                dateEpochMillis = dateEpochMillis,
+                customerName = customer,
+                instagramId = instagram,
+                phone = phone,
+                province = province,
+                city = city,
+                productId = productId,
+                productNameSnapshot = model.name,
+                compositionSnapshot = composition,
+                pieceCountSnapshot = pricing.pieceCount,
+                productCostSnapshotToman = pricing.costBeforeProfitToman,
+                shippingCostToman = shipping,
+                receivedToman = received,
+                actualProfitToman = actual,
+                note = note,
+                createdAt = System.currentTimeMillis(),
+                addressDetails = addressDetails,
+                postalCode = postalCode
+            ))
             db.orderDao().insertCosts(pricing.lines.map { OrderCostSnapshotEntity(orderId=id,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
         }
         return id

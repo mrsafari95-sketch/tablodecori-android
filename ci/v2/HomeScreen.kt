@@ -103,8 +103,8 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     OverviewCard(Icons.Rounded.PhotoSizeSelectLarge, "تابلو ارسالی", orders.sumOf { it.order.pieceCountSnapshot }.toString(), Color(0xFF4D9B87), Modifier.weight(1f)) { onNavigate("orders") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OverviewCard(Icons.Rounded.TrendingUp, "سود ثبت‌شده", money(orders.sumOf { maxOf(0, it.order.actualProfitToman) }), HomeGold, Modifier.weight(1f)) { onNavigate("reports") }
-                    OverviewCard(Icons.Rounded.History, "تغییر قیمت", history.size.toString(), QuickAccent, Modifier.weight(1f)) { onNavigate("reports") }
+                    OverviewCard(Icons.Rounded.TrendingUp, "سود ثبت‌شده", money(orders.sumOf { maxOf(0, it.order.actualProfitToman) }), HomeGold, Modifier.weight(1f)) { onNavigate("orders") }
+                    OverviewCard(Icons.Rounded.History, "تغییر قیمت", history.size.toString(), QuickAccent, Modifier.weight(1f)) { onNavigate("variables") }
                 }
             }
         }

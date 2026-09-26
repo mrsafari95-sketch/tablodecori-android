@@ -136,6 +136,13 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Prepare stable debug signing
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          base64 -d ci/v2/stable-debug-keystore.b64 > "$HOME/.android/debug.keystore"
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
+
       - name: Build debug APK
         shell: bash
         run: |

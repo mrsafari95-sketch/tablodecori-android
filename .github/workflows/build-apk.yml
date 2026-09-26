@@ -91,6 +91,7 @@ jobs:
             sed -i '/android:icon="@drawable\/tablodecori_logo"/a\        android:roundIcon="@drawable/tablodecori_logo"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
+            sed -i 's/fun SettingsScreen(/fun LegacySettingsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,
             # so convert it to a List before calling takeLast().
             sed -i 's/by.entries.takeLast(12)/by.entries.toList().takeLast(12)/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"

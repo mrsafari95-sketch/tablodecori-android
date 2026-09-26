@@ -1,5 +1,7 @@
 package com.tablodecori.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -198,9 +201,29 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 
 @Composable fun SettingsScreen(vm:MainViewModel){
     val current by vm.settings.collectAsState()
+    val context=LocalContext.current
+    val scope=rememberCoroutineScope()
     var rounding by remember(current?.roundingStepToman){mutableStateOf((current?.roundingStepToman?:10000L).toString())}
     var shipping by remember(current?.shippingDefaultToman){mutableStateOf((current?.shippingDefaultToman?:0L).toString())}
     var dark by remember(current?.darkMode){mutableStateOf(current?.darkMode?:false)}
+    var pendingImport by remember{mutableStateOf<String?>(null)}
+    val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
+        if(uri!=null) scope.launch {
+            runCatching {
+                val data=vm.exportFullBackup()
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use{it.write(data)}
+                    ?: error("فایل بکاپ قابل نوشتن نیست.")
+            }.onSuccess{vm.notify("بکاپ کامل ذخیره شد.")}.onFailure{vm.notify(it.message?:"خطا در بکاپ‌گیری")}
+        }
+    }
+    val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
+        if(uri!=null) scope.launch {
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use{it.readText()}
+                    ?: error("فایل بکاپ قابل خواندن نیست.")
+            }.onSuccess{pendingImport=it}.onFailure{vm.notify(it.message?:"خطا در خواندن بکاپ")}
+        }
+    }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{SectionTitle("تنظیمات","سود از این صفحه حذف شده و برای هر ست به‌صورت درصد مستقل در ویرایش محصول تعیین می‌شود.")}
         item{AppCard{
@@ -209,5 +232,23 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("حالت تیره");Switch(dark,{dark=it})}
             Button(onClick={vm.saveSettings(rounding.toLongOrNull()?:10000L,shipping.toLongOrNull()?:0L,dark)},modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات")}
         }}
+        item{AppCard{
+            Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+            Text("بکاپ کامل شامل متریال‌ها، جدول ابعاد، محصولات، سفارش‌ها، تاریخچه قیمت و تنظیمات برنامه است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
+            OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
+        }}
+    }
+    pendingImport?.let{data->
+        AlertDialog(
+            onDismissRequest={pendingImport=null},
+            title={Text("بازیابی بکاپ")},
+            text={Text("با بازیابی، تمام اطلاعات فعلی این گوشی با اطلاعات فایل بکاپ جایگزین می‌شود. آیا مطمئن هستید؟")},
+            confirmButton={Button(onClick={
+                pendingImport=null
+                scope.launch{runCatching{vm.importFullBackup(data)}.onFailure{vm.notify(it.message?:"بازیابی بکاپ ناموفق بود.")}}
+            }){Text("بله، بازیابی شود")}},
+            dismissButton={TextButton(onClick={pendingImport=null}){Text("خیر")}}
+        )
     }
 }

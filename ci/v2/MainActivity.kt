@@ -74,6 +74,17 @@ private val bottomItems=listOf(
     val route=entry?.destination?.route?:"home"
     val snackbar=remember{SnackbarHostState()}
     LaunchedEffect(Unit){vm.messages.collect{snackbar.showSnackbar(it)}}
+    fun navigateTopLevel(target:String){
+        if(target=="home"){
+            nav.popBackStack("home",false)
+        }else if(route!=target){
+            nav.navigate(target){
+                popUpTo("home"){inclusive=false;saveState=true}
+                launchSingleTop=true
+                restoreState=true
+            }
+        }
+    }
     Scaffold(
         containerColor=MaterialTheme.colorScheme.background,
         snackbarHost={SnackbarHost(snackbar)},
@@ -102,15 +113,7 @@ private val bottomItems=listOf(
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,
-                        onClick={
-                            if(route!=i.route){
-                                nav.navigate(i.route){
-                                    popUpTo("home"){inclusive=false;saveState=true}
-                                    launchSingleTop=true
-                                    restoreState=true
-                                }
-                            }
-                        },
+                        onClick={navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
                         label={Text(i.label,maxLines=1)}
                     )
@@ -119,7 +122,7 @@ private val bottomItems=listOf(
         }
     ){pad->
         NavHost(nav,"home",Modifier.padding(pad)){
-            composable("home"){HomeScreen(vm){target->nav.navigate(target){launchSingleTop=true}}}
+            composable("home"){HomeScreen(vm){target->navigateTopLevel(target)}}
             composable("variables"){VariablesScreen(vm)}
             composable("products"){ProductsScreen(vm)}
             composable("quick"){QuickScreen(vm)}

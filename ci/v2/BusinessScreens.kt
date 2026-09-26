@@ -37,14 +37,21 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 
 @Composable fun PricebookScreen(vm:MainViewModel){
-    val all by vm.pricedProducts.collectAsState(); val context=LocalContext.current;var q by remember{mutableStateOf("")};var sort by remember{mutableStateOf("name")}
-    val list=all.filter{it.product.active&&(q.isBlank()||it.product.name.contains(q))}.let{when(sort){"price"->it.sortedBy{p->p.pricing.finalPriceToman};"pieces"->it.sortedBy{p->p.pricing.pieceCount};else->it.sortedBy{p->p.product.name}}}
+    val all by vm.pricedProducts.collectAsState(); val context=LocalContext.current;var q by rememberSaveable{mutableStateOf("")};var sort by rememberSaveable{mutableStateOf("name")}
+    val list=remember(all,q,sort){
+        val filtered=all.filter{it.product.active&&(q.isBlank()||it.product.name.contains(q.trim(),ignoreCase=true))}
+        when(sort){
+            "price"->filtered.sortedWith(compareBy<PricedProduct>{it.pricing.finalPriceToman}.thenBy{it.product.name})
+            "pieces"->filtered.sortedWith(compareBy<PricedProduct>{it.pricing.pieceCount}.thenBy{it.product.name})
+            else->filtered.sortedBy{it.product.name}
+        }
+    }
     val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->if(uri!=null)runCatching{context.contentResolver.openOutputStream(uri)?.use{it.write(Exporters.pricebookCsv(list).toByteArray(Charsets.UTF_8))}}.onSuccess{vm.notify("فایل CSV ذخیره شد.")}.onFailure{vm.notify("ذخیره فایل ناموفق بود.")}}
     val pdfLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")){uri->if(uri!=null)runCatching{context.contentResolver.openOutputStream(uri)?.use{Exporters.writePricebookPdf(it,list)}}.onSuccess{vm.notify("فایل PDF ذخیره شد.")}.onFailure{vm.notify("ذخیره فایل ناموفق بود.")}}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("قیمت‌نامه","قیمت زنده همه محصولات فعال")}
         item{OutlinedTextField(q,{q=it},label={Text("جستجو")},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(sort=="name",{sort="name"},{Text("نام")});FilterChip(sort=="pieces",{sort="pieces"},{Text("تعداد")});FilterChip(sort=="price",{sort="price"},{Text("قیمت")})}}
+        item{Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=sort=="name",onClick={sort="name"},label={Text("نام")});FilterChip(selected=sort=="pieces",onClick={sort="pieces"},label={Text("تعداد")});FilterChip(selected=sort=="price",onClick={sort="price"},label={Text("قیمت")})}}
         item{FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){Button(onClick={csvLauncher.launch("tablodecori-pricebook.csv")}){Text("CSV")};Button(onClick={pdfLauncher.launch("tablodecori-pricebook.pdf")}){Text("PDF")};OutlinedButton(onClick={Exporters.printPricebook(context,list)}){Text("چاپ")};OutlinedButton(onClick={sharePricebook(context,list)}){Text("اشتراک")}}}
         if(list.isEmpty()) item{AppCard{Text("محصول فعالی برای قیمت‌نامه وجود ندارد.")}}
         items(list,key={it.product.id}){p->AppCard{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(p.product.name,fontWeight=FontWeight.Bold);PieceChips(p.product.pieces)};MoneyText(p.pricing.finalPriceToman)};Text("هزینه: ${money(p.pricing.costBeforeProfitToman)} · سود: ${money(p.pricing.profitToman)}",style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){TextButton(onClick={copy(context,money(p.pricing.finalPriceToman));vm.notify("قیمت کپی شد.")}){Text("کپی قیمت")};TextButton(onClick={val dimensions=p.product.pieces.joinToString("\n"){piece->"${piece.quantity} عدد ${piece.widthCm} در ${piece.heightCm}"};copy(context,dimensions+"\nقیمت : "+money(p.pricing.finalPriceToman));vm.notify("ابعاد و قیمت کپی شد.")}){Text("کپی ابعاد و قیمت")}}}}

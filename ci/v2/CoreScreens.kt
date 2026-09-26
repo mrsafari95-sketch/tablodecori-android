@@ -40,7 +40,7 @@ import java.util.UUID
     var packagingOpen by remember{mutableStateOf(false)}
     val visible=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation")}
     val packageParts=vars.filter{it.id in setOf("pack_foam","pack_carton","pack_tape","pack_labor")}
-    LazyColumn(Modifier.fillMaxSize(),state=quickListState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("متریال‌ها و هزینه‌ها","متغیرهای اصلی قیمت؛ جزئیات عکس و بسته‌بندی داخل خودشان قرار دارد"){Button(onClick={creating=true}){Text("+ متغیر")}}}
         listOf("PRODUCTION" to "ساخت تابلو","PACKAGING" to "بسته‌بندی","OVERHEAD" to "هزینه عمومی").forEach{(cat,title)->
             val list=visible.filter{it.category==cat}
@@ -194,7 +194,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     LaunchedEffect(selectable){selectable.forEach{if(it.id !in ids)ids[it.id]=it.enabled};ids["packaging_bundle"]=true}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedPackage)}catch(_:Throwable){}}}
     LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,tapePrices,laborPrices,selectedPackage){if(vars.isNotEmpty())recalc()}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+    LazyColumn(Modifier.fillMaxSize(),state=quickListState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("محاسبه سریع","عکس لابراتوار از روی ابعاد هر تابلو خودکار محاسبه می‌شود.")}
         item{AppCard{Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold);pieces.forEachIndexed{i,p->PieceEditorRow(p,{pieces[i]=it;recalc()},{if(pieces.size>1){pieces.removeAt(i);recalc()}})};OutlinedButton(onClick={pieces.add(PieceInput(20,30,1));recalc()},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}}}
         item{AppCard{

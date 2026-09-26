@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
         ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,9 +39,16 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_size_prices_materialId ON size_prices(materialId)")
             }
         }
+        private val MIGRATION_4_5 = object : Migration(4,5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE products ADD COLUMN packagingSizeKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN addressDetails TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN postalCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigration(true)
                 .build()
     }

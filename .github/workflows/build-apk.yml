@@ -115,6 +115,9 @@ jobs:
           guard() { label="$1"; file="$2"; pattern="$3"; echo "GUARD: $label"; grep -Fq "$pattern" "$file" || { echo "FAILED GUARD: $label" >&2; exit 1; }; }
           guard "bottom navigation saves state" "$SRC/MainActivity.kt" 'saveState=true'
           guard "bottom navigation restores state" "$SRC/MainActivity.kt" 'restoreState=true'
+          guard "home tab pops to real home" "$SRC/MainActivity.kt" 'nav.popBackStack("home",false)'
+          guard "home shortcuts use top-level navigation" "$SRC/MainActivity.kt" 'HomeScreen(vm){target->navigateTopLevel(target)}'
+          guard "order note precedes action row" "$SRC/ui/screens/BusinessScreens.kt" 'Text("یادداشت: "+o.note'
           guard "frame adds 20cm" "$SRC/pricing/PricingEngine.kt" 'add(BigDecimal(20)).divide(hundred)'
           guard "manual packaging reaches pricing" "$SRC/pricing/PricingEngine.kt" 'val manualWh=selectedPackagingSizeKey.split("x")'
           guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = addressDetails'
@@ -128,7 +131,7 @@ jobs:
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
-          guard "product editor preserves material selections" "$SRC/ui/screens/CoreScreens.kt" 'initial?.enabledMaterialIds?.contains(v.id)?:v.enabled'
+          guard "product editor defaults active variables on" "$SRC/ui/screens/CoreScreens.kt" 'forEach{v->put(v.id,v.enabled)}'
           guard "order form state is keyed to order id" "$SRC/ui/screens/BusinessScreens.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
           guard "pricebook copies dimensions and price" "$SRC/ui/screens/BusinessScreens.kt" 'کپی ابعاد و قیمت'
           guard "pricebook piece sort stays descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'

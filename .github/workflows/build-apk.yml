@@ -91,25 +91,7 @@ jobs:
             cp ci/v2/Models.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/Models.kt"
             # Keep archive backup importer compatible with newly added order address columns.
             BACKUP_FILE="$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/BackupManager.kt"
-            python3 - "$BACKUP_FILE" <<'PY'
-            import sys
-            from pathlib import Path
-            p = Path(sys.argv[1])
-            s = p.read_text()
-            start = s.find("SentOrderEntity(")
-            if start < 0:
-                raise SystemExit("SentOrderEntity importer not found")
-            end = s.find(")", start)
-            call = s[start:end + 1]
-            if 'addressDetails' not in call:
-                needle = 'o.optString("city",""),'
-                replacement = 'o.optString("city",""),o.optString("addressDetails",""),o.optString("postalCode",""),'
-                if needle not in call:
-                    raise SystemExit("city argument not found in SentOrderEntity importer")
-                call = call.replace(needle, replacement, 1)
-                s = s[:start] + call + s[end + 1:]
-                p.write_text(s)
-            PY
+            python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); old="o.optString(\\"city\\",\\"\\"),o.optString(\\"productId\\",null)"; new="o.optString(\\"city\\",\\"\\"),o.optString(\\"addressDetails\\",\\"\\"),o.optString(\\"postalCode\\",\\"\\"),o.optString(\\"productId\\",null)"; assert old in s or \\"addressDetails\\" in s, \\"SentOrderEntity address patch target missing\\"; p.write_text(s.replace(old,new,1) if old in s else s)' "$BACKUP_FILE"
             cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/db/Entities.kt" ci/v2/Entities.kt 2>/dev/null || true
             cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/Models.kt" ci/v2/Models.kt 2>/dev/null || true
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }", "db.materialDao().setEnabled(id, enabled, System.currentTimeMillis())"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"

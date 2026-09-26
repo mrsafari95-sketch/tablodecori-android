@@ -54,6 +54,11 @@ jobs:
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            if [ -f ci/v2/BusinessScreens.kt ]; then
+              cp ci/v2/BusinessScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
+            else
+              cp "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt" ci/v2/BusinessScreens.kt
+            fi
             cp ci/v2/CoreScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/MainViewModel.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt"
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
@@ -108,7 +113,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci/v2/CoreScreens.kt ci/v2/MainViewModel.kt ci/v2/WorkshopRepository.kt ci/v2/Entities.kt ci/v2/Models.kt 2>/dev/null || true
+          git add ci/v2/CoreScreens.kt ci/v2/BusinessScreens.kt ci/v2/MainViewModel.kt ci/v2/WorkshopRepository.kt ci/v2/Entities.kt ci/v2/Models.kt 2>/dev/null || true
           if [ -f ci/v2/PricingEngine.kt ]; then git add ci/v2/PricingEngine.kt; fi
           if ! git diff --cached --quiet; then
             git commit -m "Export maintainable pricing sources [skip ci]"

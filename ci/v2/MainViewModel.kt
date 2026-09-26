@@ -40,6 +40,8 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
         repo.deleteOrder(orderId); _message.emit("سفارش حذف شد.")
     }
     fun saveSettings(rounding:Long,shipping:Long,dark:Boolean)=launch { repo.updateSettings(rounding,shipping,dark); _message.emit("تنظیمات ذخیره شد.") }
+    suspend fun exportFullBackup():String = repo.exportFullBackup()
+    suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ کامل با موفقیت بازیابی شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
     suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null): PricingResult = repo.calculate(pieces,ids)

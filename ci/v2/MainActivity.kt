@@ -77,11 +77,14 @@ private val bottomItems=listOf(
     fun navigateTopLevel(target:String){
         if(target=="home"){
             nav.popBackStack("home",false)
-        }else if(route!=target){
-            nav.navigate(target){
-                popUpTo("home"){inclusive=false;saveState=true}
-                launchSingleTop=true
-                restoreState=true
+        }else{
+            if(route=="settings") nav.popBackStack()
+            if(nav.currentDestination?.route!=target){
+                nav.navigate(target){
+                    popUpTo("home"){inclusive=false;saveState=true}
+                    launchSingleTop=true
+                    restoreState=true
+                }
             }
         }
     }

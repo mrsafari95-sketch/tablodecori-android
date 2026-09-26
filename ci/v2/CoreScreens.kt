@@ -135,7 +135,16 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};val profitMode="FORMULA"
     val pieces=remember{mutableStateListOf<PieceInput>().apply{addAll(initial?.pieces?:listOf(PieceInput(40,60,1)))}}
     val ids=remember{mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{put(it.id,true)}}}
-    var selectedProductPackage by remember{mutableStateOf("40×60")}
+    val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
+    val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
+    val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())
+    val laborPrices by vm.sizePrices("pack_labor").collectAsState(initial=emptyList())
+    val productPackageSizes=(foamPrices+cartonPrices+tapePrices+laborPrices)
+        .filter{it.enabled&&it.widthCm>0&&it.heightCm>0}
+        .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}
+        .distinct()
+        .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
+    var selectedProductPackage by remember{mutableStateOf("40x60")}
     var preview by remember{mutableStateOf<PricingResult?>(null)}
     LaunchedEffect(pieces.toList(),ids.toMap(),vars){
         if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),ids.filterValues{it}.keys)}catch(_:Throwable){}
@@ -148,7 +157,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             OutlinedButton(onClick={pieces.add(PieceInput(20,30,1))},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}
             Text("سود این ست",fontWeight=FontWeight.Bold);OutlinedTextField(profitPercent,{profitPercent=it.filter{ch->ch.isDigit()||ch=='.'}},label={Text("درصد سود این ست")},suffix={Text("٪")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),modifier=Modifier.fillMaxWidth(),singleLine=true);Text("درصد سود برای هر ست مستقل است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant);Text("اجزای فعال",fontWeight=FontWeight.Bold)
             Text("بسته‌بندی محصول",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf("40×60","50×70","60×90","70×100").forEach{size->FilterChip(selected=selectedProductPackage==size,onClick={selectedProductPackage=size;ids["packaging_bundle"]=true},label={Text("بسته‌بندی "+size)},leadingIcon=if(selectedProductPackage==size){{Text("✓")}}else null)}}
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){productPackageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedProductPackage==key,onClick={selectedProductPackage=key;ids["packaging_bundle"]=true},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedProductPackage==key){{Text("✓")}}else null)}}
             vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(m.name);Switch(ids[m.id]?:false,{ids[m.id]=it})}}
             preview?.let{Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=MaterialTheme.shapes.medium){Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceBetween){Text("قیمت زنده");MoneyText(it.finalPriceToman)}}}
         }

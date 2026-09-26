@@ -128,6 +128,7 @@ jobs:
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
+          guard "product editor preserves material selections" "$SRC/ui/screens/CoreScreens.kt" 'initial?.enabledMaterialIds?.contains(v.id)?:v.enabled'
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
           guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'

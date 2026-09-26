@@ -19,6 +19,7 @@ class PricingEngine {
         manualProfitToman: Long? = null,
         profitFormula: String = "",
         sizePrices: List<SizePriceEntity> = emptyList(),
+        selectedPackagingSizeKey: String = "",
     ): PricingResult {
         require(pieces.isNotEmpty()) { "حداقل یک سایز لازم است." }
         require(pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
@@ -95,11 +96,17 @@ class PricingEngine {
         }
 
         packagingParent?.let { parent ->
+            val manualWh=selectedPackagingSizeKey.split("x").mapNotNull{it.toIntOrNull()}.takeIf{it.size==2}
             val largest=pieces.maxByOrNull{it.widthCm*it.heightCm}
+            val targetW=manualWh?.get(0) ?: largest?.widthCm
+            val targetH=manualWh?.get(1) ?: largest?.heightCm
             var packageTotal=0L
             packagingComponents.forEach{component->
                 val rules=sizePrices.filter{it.materialId==component.id&&it.enabled}
-                val rule=largest?.let{p->rules.filter{r->((p.widthCm==r.widthCm&&p.heightCm==r.heightCm)||(p.widthCm==r.heightCm&&p.heightCm==r.widthCm))&&(r.pieceCount==0||r.pieceCount==count)}.sortedWith(compareByDescending<SizePriceEntity>{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull()}
+                val rule=if(targetW!=null&&targetH!=null) rules.filter{r->
+                    ((targetW==r.widthCm&&targetH==r.heightCm)||(targetW==r.heightCm&&targetH==r.widthCm)) &&
+                    (r.pieceCount==0||r.pieceCount==count)
+                }.sortedWith(compareByDescending<SizePriceEntity>{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull() else null
                 val amount=rule?.priceToman?:component.priceToman
                 packageTotal=Math.addExact(packageTotal,amount)
             }

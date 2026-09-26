@@ -58,6 +58,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     val context=LocalContext.current
     var selectedMonth by remember{mutableStateOf<String?>(null)}
     var add by remember{mutableStateOf(false)}
+    var editing by remember{mutableStateOf<OrderWithCosts?>(null)}
     val months=orders.map{PersianDate.fromEpoch(it.order.dateEpochMillis)}.distinctBy{it.monthKey}.sortedByDescending{it.monthKey}
     val filtered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
     val s=summary(filtered)
@@ -89,9 +90,13 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     Text(if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
                 }
                 Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
-                Row{
+                Row(Modifier.horizontalScroll(rememberScrollState())){
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
+                    TextButton(onClick={editing=x}){Text("ویرایش سفارش")}
+                }
+                if(o.note.isNotBlank()){
+                    Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 var details by remember{mutableStateOf(false)}
                 TextButton(onClick={details=true}){Text("جزئیات هزینه")}
@@ -104,8 +109,13 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
             }
         }
     }
-    if(add) OrderDialog(vm,products,settings?.shippingDefaultToman?:0,{add=false}){pid,date,name,ig,phone,prov,city,ship,recv,note->
+    if(add) OrderDialog(products,settings?.shippingDefaultToman?:0,null,{add=false}){pid,date,name,ig,phone,prov,city,ship,recv,note->
         vm.saveOrder(pid,date,name,ig,phone,prov,city,ship,recv,note);add=false
+    }
+    editing?.let{selected->
+        OrderDialog(products,settings?.shippingDefaultToman?:0,selected.order,{editing=null}){_,date,name,ig,phone,prov,city,ship,recv,note->
+            vm.updateOrder(selected.order.id,date,name,ig,phone,prov,city,ship,recv,note);editing=null
+        }
     }
 }
 
@@ -114,11 +124,65 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sum
 @Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0,x.order.actualProfitToman)})}?:1).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun OrderDialog(vm:MainViewModel,products:List<PricedProduct>,shippingDefault:Long,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,Long,Long,String)->Unit){
-    var pid by remember{mutableStateOf(products.firstOrNull()?.product?.id?:"")};var customer by remember{mutableStateOf("")};var ig by remember{mutableStateOf("")};var phone by remember{mutableStateOf("")};var prov by remember{mutableStateOf("")};var city by remember{mutableStateOf("")};var ship by remember{mutableStateOf(shippingDefault.toString())};var recv by remember{mutableStateOf("")};var note by remember{mutableStateOf("")};var date by remember{mutableLongStateOf(System.currentTimeMillis())};var picker by remember{mutableStateOf(false)}
-    LaunchedEffect(pid,ship){products.find{it.product.id==pid}?.let{recv=(it.pricing.finalPriceToman+(ship.toLongOrNull()?:0)).toString()}}
-    AlertDialog(onDismissRequest=onDismiss,title={Text("ثبت سفارش ارسالی")},text={Column(Modifier.heightIn(max=590.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){var exp by remember{mutableStateOf(false)};Box{OutlinedButton(onClick={exp=true},modifier=Modifier.fillMaxWidth()){Text(products.find{it.product.id==pid}?.product?.name?:"انتخاب محصول")};DropdownMenu(exp,{exp=false}){products.forEach{p->DropdownMenuItem({Text(p.product.name)},{pid=p.product.id;exp=false})}}};OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()){Text("تاریخ: ${PersianDate.fromEpoch(date).label}")};OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده")},modifier=Modifier.fillMaxWidth());OutlinedTextField(ig,{ig=it},label={Text("آیدی اینستاگرام")},modifier=Modifier.fillMaxWidth());OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth());OutlinedTextField(prov,{prov=it},label={Text("استان")},modifier=Modifier.fillMaxWidth());OutlinedTextField(city,{city=it},label={Text("شهر")},modifier=Modifier.fillMaxWidth());OutlinedTextField(ship,{ship=it},label={Text("هزینه ارسال واقعی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());OutlinedTextField(recv,{recv=it},label={Text("مبلغ دریافتی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());OutlinedTextField(note,{note=it},label={Text("یادداشت")},modifier=Modifier.fillMaxWidth())}},confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text("ثبت ارسال")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
-    if(picker){val state=rememberDatePickerState(initialSelectedDateMillis=date);DatePickerDialog(onDismissRequest={picker=false},confirmButton={TextButton(onClick={state.selectedDateMillis?.let{date=it};picker=false}){Text("تأیید")}},dismissButton={TextButton(onClick={picker=false}){Text("انصراف")}}){DatePicker(state)}}
+@Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,Long,Long,String)->Unit){
+    val initialProductId=initial?.productId?.takeIf{id->products.any{it.product.id==id}}?:products.firstOrNull()?.product?.id.orEmpty()
+    var pid by rememberSaveable(initial?.id){mutableStateOf(initialProductId)}
+    var customer by rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}
+    var ig by rememberSaveable(initial?.id){mutableStateOf(initial?.instagramId.orEmpty())}
+    var phone by rememberSaveable(initial?.id){mutableStateOf(initial?.phone.orEmpty())}
+    var prov by rememberSaveable(initial?.id){mutableStateOf(initial?.province.orEmpty())}
+    var city by rememberSaveable(initial?.id){mutableStateOf(initial?.city.orEmpty())}
+    var ship by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:shippingDefault).toString())}
+    var recv by rememberSaveable(initial?.id){mutableStateOf(initial?.receivedToman?.toString().orEmpty())}
+    var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
+    var date by rememberSaveable(initial?.id){mutableLongStateOf(initial?.dateEpochMillis?:System.currentTimeMillis())}
+    var picker by rememberSaveable{mutableStateOf(false)}
+    var exp by rememberSaveable{mutableStateOf(false)}
+    var autoReceived by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
+
+    LaunchedEffect(pid,ship,autoReceived){
+        if(autoReceived){
+            products.find{it.product.id==pid}?.let{
+                recv=(it.pricing.finalPriceToman+(ship.toLongOrNull()?:0)).toString()
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest=onDismiss,
+        title={Text(if(initial==null)"ثبت سفارش ارسالی" else "ویرایش سفارش")},
+        text={
+            val formScroll=rememberScrollState()
+            Column(
+                Modifier.fillMaxWidth().heightIn(max=590.dp).verticalScroll(formScroll),
+                verticalArrangement=Arrangement.spacedBy(8.dp)
+            ){
+                Box{
+                    OutlinedButton(onClick={exp=true},modifier=Modifier.fillMaxWidth(),enabled=initial==null){
+                        Text(products.find{it.product.id==pid}?.product?.name?:initial?.productNameSnapshot?:"انتخاب محصول")
+                    }
+                    DropdownMenu(exp,{exp=false}){
+                        products.forEach{p->DropdownMenuItem({Text(p.product.name)},{pid=p.product.id;autoReceived=true;exp=false})}
+                    }
+                }
+                OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()){Text("تاریخ: "+PersianDate.fromEpoch(date).label)}
+                OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(ig,{ig=it},label={Text("آیدی اینستاگرام")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(prov,{prov=it},label={Text("استان")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(city,{city=it},label={Text("شهر")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(ship,{ship=it.filter(Char::isDigit);autoReceived=true},label={Text("هزینه ارسال واقعی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(recv,{recv=it.filter(Char::isDigit);autoReceived=false},label={Text("مبلغ دریافتی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(note,{note=it},label={Text("یادداشت")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4)
+            }
+        },
+        confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text(if(initial==null)"ثبت ارسال" else "ذخیره ویرایش")}},
+        dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}
+    )
+    if(picker){
+        val state=rememberDatePickerState(initialSelectedDateMillis=date)
+        DatePickerDialog(onDismissRequest={picker=false},confirmButton={TextButton(onClick={state.selectedDateMillis?.let{date=it};picker=false}){Text("تأیید")}},dismissButton={TextButton(onClick={picker=false}){Text("انصراف")}}){DatePicker(state)}
+    }
 }
 
 @Composable fun ReportsScreen(vm:MainViewModel){val history by vm.history.collectAsState();LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{SectionTitle("گزارش تغییر قیمت","اثر تغییر متریال روی محصولات")};if(history.isEmpty())item{AppCard{Text("هنوز قیمت متغیری تغییر نکرده است.")}} else items(history,key={it.id}){h->AppCard{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(h.materialName,fontWeight=FontWeight.Bold);Text(PersianDate.fromEpoch(h.changedAt).label,style=MaterialTheme.typography.bodySmall)};AssistChip(onClick={},label={Text("${fa(h.affectedProductCount)} محصول")})};Text(if(h.oldPriceToman!=h.newPriceToman)"${money(h.oldPriceToman)} ← ${money(h.newPriceToman)}" else "${percentFromBasisPoints(h.oldRateBasisPoints)} ← ${percentFromBasisPoints(h.newRateBasisPoints)}")}}}}

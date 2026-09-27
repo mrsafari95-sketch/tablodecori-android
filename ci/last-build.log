@@ -1,9 +1,8 @@
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Daemon will be stopped at the end of the build 
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig
 > Task :app:checkDebugAarMetadata
 > Task :app:processDebugNavigationResources
@@ -20,6 +19,9 @@ Daemon will be stopped at the end of the build
 > Task :app:processDebugManifest
 > Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
@@ -40,23 +42,63 @@ Unable to strip the following libraries, packaging them as they are: libandroidx
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
+> Task :app:compileDebugKotlin
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/MainActivity.kt:66:39 'val Icons.Rounded.ReceiptLong: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ReceiptLong.
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:218:488 'fun Divider(modifier: Modifier = ..., thickness: Dp = ..., color: Color = ...): Unit' is deprecated. Renamed to HorizontalDivider.
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt:79:46 'val Icons.Rounded.ReceiptLong: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.ReceiptLong.
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt:107:48 'val Icons.Rounded.TrendingUp: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.TrendingUp.
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/util/Exporters.kt:46:17 Unnecessary non-null assertion (!!) on a non-null receiver of type 'PdfDocument.Page'.
+w: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/util/Formatters.kt:6:55 'constructor(p0: String!, p1: String!): Locale' is deprecated. Deprecated in Java.
 
-> Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:43:45 Unresolved reference 'quickListState'.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1790448185913.json
+> Task :app:compileDebugJavaWithJavac
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:dexBuilderDebug
+> Task :app:kspDebugUnitTestKotlin
+> Task :app:mergeDebugGlobalSynthetics
+> Task :app:mergeProjectDexDebug
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+> Task :app:mergeDebugJavaResource
+
+> Task :app:testDebugUnitTest
+
+PricingEngineTest > profitRuleFourPieces FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:21
+
+PricingEngineTest > profitRuleThreePieces FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:20
+
+PricingEngineTest > shippingNeverEntersBasePrice FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:22
+
+PricingEngineTest > ninePieceSet FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:15
+
+PricingEngineTest > inflationAppliedBeforeProfit FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:18
+
+PricingEngineTest > fourPieceIrregularSet FAILED
+    java.lang.AssertionError at PricingEngineTest.kt:14
+
+PricingEngineTest > pvcPerimeter20x30IsOneMeter FAILED
+    org.junit.ComparisonFailure at PricingEngineTest.kt:13
+
+15 tests completed, 7 failed
+
+> Task :app:testDebugUnitTest FAILED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1790533816572.json
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
-Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
+Execution failed for task ':app:testDebugUnitTest'.
+> There were failing tests. See the report at: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/build/reports/tests/testDebugUnitTest/index.html
 
 * Try:
-> Run with --stacktrace option to get the stack trace.
-> Run with --info or --debug option to get more log output.
 > Run with --scan to get full insights.
-> Get more help at https://help.gradle.org.
 
-BUILD FAILED in 54s
-32 actionable tasks: 32 executed
+BUILD FAILED in 1m 16s
+45 actionable tasks: 45 executed

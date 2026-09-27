@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.outstandingToman
+import com.tablodecori.app.util.PersianDate
 import com.tablodecori.app.util.money
 
 private val HomeGold = Color(0xFFB78322)
@@ -38,6 +39,13 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val materials by vm.materials.collectAsState()
     val history by vm.history.collectAsState()
     val activeProducts = products.count { it.product.active }
+    val today=PersianDate.fromEpoch(System.currentTimeMillis())
+    fun dateKey(millis:Long):Int=PersianDate.fromEpoch(millis).let{it.year*10000+it.month*100+it.day}
+    val todayKey=today.year*10000+today.month*100+today.day
+    val pendingShip=orders.map{it.order}.filter{it.orderStatus!="SENT"&&it.plannedShipAtMillis>0L}.sortedBy{it.plannedShipAtMillis}
+    val dueToday=pendingShip.count{dateKey(it.plannedShipAtMillis)==todayKey}
+    val overdue=pendingShip.count{dateKey(it.plannedShipAtMillis)<todayKey}
+    val receivables=orders.sumOf{it.order.outstandingToman()}
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -92,8 +100,36 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                         modifier = Modifier.weight(1f)
                     ) { onNavigate("quick") }
                 }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HomeActionCard(Icons.Rounded.LocalShipping,"سفارش‌ها","ثبت، پیگیری و ارسال",MaterialTint,MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("orders")}
+                    HomeActionCard(Icons.Rounded.Settings,"تنظیمات","قیمت، سفارش و بکاپ",PriceTint,PriceAccent,Modifier.weight(1f)){onNavigate("settings")}
+                }
             }
         }
+
+        item { CenteredSectionTitle("کارهای امروز", "${today.label} · وضعیت سفارش‌های باز") }
+        item {
+            Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                    OverviewCard(Icons.Rounded.NotificationsActive,"ارسال امروز",dueToday.toString(),MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("orders")}
+                    OverviewCard(Icons.Rounded.WarningAmber,"ارسال عقب‌افتاده",overdue.toString(),Color(0xFFA65D13),Modifier.weight(1f)){onNavigate("orders")}
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                    OverviewCard(Icons.Rounded.DoneAll,"آمادهٔ ارسال",orders.count{it.order.orderStatus=="READY"}.toString(),Color(0xFF39816C),Modifier.weight(1f)){onNavigate("orders")}
+                    OverviewCard(Icons.Rounded.AccountBalanceWallet,"ماندهٔ وصول",money(receivables),HomeGold,Modifier.weight(1f)){onNavigate("orders")}
+                }
+            }
+        }
+        item { CenteredSectionTitle("نوبت‌های نزدیک ارسال", "سه سفارشی که زودتر باید بررسی شوند") }
+        if(pendingShip.isEmpty()) item { ElevatedCard(Modifier.fillMaxWidth()){Text("فعلاً سفارشِ دارای نوبت ارسال باز ندارید.",Modifier.padding(16.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)} }
+        else pendingShip.take(3).forEach{order->item(key="shipping-${order.id}"){
+            ElevatedCard(onClick={onNavigate("orders")},modifier=Modifier.fillMaxWidth()){
+                Row(Modifier.fillMaxWidth().padding(14.dp),horizontalArrangement=Arrangement.SpaceBetween){
+                    Column{Text(order.customerName,fontWeight=FontWeight.Bold);Text(order.productNameSnapshot,style=MaterialTheme.typography.bodySmall)}
+                    Text(PersianDate.fromEpoch(order.plannedShipAtMillis).label,color=MaterialTheme.colorScheme.primary)
+                }
+            }
+        }}
 
         item { CenteredSectionTitle("نمای کلی کارگاه", "خلاصه‌ای از وضعیت فعلی و عملکرد") }
 

@@ -38,6 +38,11 @@ data class OrderFormInput(
     val note: String,
     val selectedPhotoUri: String? = null,
     val removePhoto: Boolean = false,
+    val shippingPayer: String = "RECIPIENT",
+    val dimensionsText: String = "",
+    val plannedShipAtMillis: Long = 0L,
+    val orderStatus: String = "PREPARING",
+    val trackingCode: String = "",
 )
 
 /** The amount due at delivery is only received after collection is recorded. */
@@ -53,7 +58,9 @@ object OrderPaymentMath {
 }
 
 fun SentOrderEntity.outstandingToman(): Long = (quotedTotalToman - receivedToman).coerceAtLeast(0L)
-fun SentOrderEntity.expectedProfitToman(): Long = quotedTotalToman - productCostSnapshotToman - shippingCostToman
+fun SentOrderEntity.sellerShippingToman(): Long = if(shippingPayer=="SENDER") shippingCostToman else 0L
+fun SentOrderEntity.expectedProfitToman(): Long = quotedTotalToman - productCostSnapshotToman - sellerShippingToman()
+fun SentOrderEntity.displayDimensions(): String = dimensionsText.ifBlank { compositionSnapshot }
 
 data class MonthlySummary(
     val orderCount: Int = 0,

@@ -13,6 +13,8 @@ import android.os.ParcelFileDescriptor
 import com.tablodecori.app.data.PricedProduct
 import com.tablodecori.app.data.outstandingToman
 import com.tablodecori.app.data.expectedProfitToman
+import com.tablodecori.app.data.displayDimensions
+import com.tablodecori.app.data.sellerShippingToman
 import java.io.FileOutputStream
 import java.io.OutputStream
 
@@ -27,8 +29,8 @@ object Exporters {
     }
 
     fun ordersCsv(orders: List<com.tablodecori.app.data.db.OrderWithCosts>): String = buildString {
-        append('\uFEFF'); appendLine("تاریخ,گیرنده,اینستاگرام,تلفن,استان,شهر,محصول,رنگ قاب,تعداد تابلو,هزینه تولید,ارسال,مبلغ توافقی,بیعانه,سایر پرداخت‌ها,پرداخت درب منزل,وصول درب منزل,جمع دریافتی,مانده,سود پیش‌بینی‌شده,سود/زیان دریافتی")
-        orders.forEach { x -> val o=x.order; appendLine(listOf(PersianDate.fromEpoch(o.dateEpochMillis).label,o.customerName,o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.frameColor,o.pieceCountSnapshot,o.productCostSnapshotToman,o.shippingCostToman,o.quotedTotalToman,o.depositToman,o.otherPaidToman,o.codDueToman,o.codCollectedToman,o.receivedToman,o.outstandingToman(),o.expectedProfitToman(),o.actualProfitToman).joinToString(","){csv(it.toString())}) }
+        append('\uFEFF'); appendLine("تاریخ,گیرنده,اینستاگرام,تلفن,استان,شهر,محصول,ابعاد,رنگ قاب,تعداد تابلو,وضعیت,نوبت ارسال,کد رهگیری,هزینه تولید,روش ارسال,پس‌کرایه یا هزینه حمل,هزینه ارسال کارگاه,مبلغ توافقی محصول,بیعانه,سایر پرداخت‌ها,پرداخت محصول درب منزل,وصول درب منزل,جمع دریافتی,مانده محصول,سود پیش‌بینی‌شده,سود/زیان دریافتی")
+        orders.forEach { x -> val o=x.order; appendLine(listOf(PersianDate.fromEpoch(o.dateEpochMillis).label,o.customerName,o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.displayDimensions(),o.frameColor,o.pieceCountSnapshot,o.orderStatus,if(o.plannedShipAtMillis>0L)PersianDate.fromEpoch(o.plannedShipAtMillis).label else "",o.trackingCode,o.productCostSnapshotToman,o.shippingPayer,o.shippingCostToman,o.sellerShippingToman(),o.quotedTotalToman,o.depositToman,o.otherPaidToman,o.codDueToman,o.codCollectedToman,o.receivedToman,o.outstandingToman(),o.expectedProfitToman(),o.actualProfitToman).joinToString(","){csv(it.toString())}) }
     }
 
     private fun csv(s:String)="\"${s.replace("\"","\"\"")}\""

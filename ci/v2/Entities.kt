@@ -110,6 +110,11 @@ data class SentOrderEntity(
     val codDueToman: Long = 0L,
     val codCollectedToman: Long = 0L,
     val photoFileName: String = "",
+    val shippingPayer: String = "SENDER",
+    val dimensionsText: String = "",
+    val plannedShipAtMillis: Long = 0L,
+    val orderStatus: String = "SENT",
+    val trackingCode: String = "",
 )
 
 @Entity(

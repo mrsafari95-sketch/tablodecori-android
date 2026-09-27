@@ -29,8 +29,12 @@ import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.TablodecoriApp
 import com.tablodecori.app.data.MonthlySummary
 import com.tablodecori.app.data.PricedProduct
+import com.tablodecori.app.data.OrderShareText
+import com.tablodecori.app.data.OrderSharing
+import com.tablodecori.app.data.displayDimensions
 import com.tablodecori.app.data.expectedProfitToman
 import com.tablodecori.app.data.outstandingToman
+import com.tablodecori.app.data.sellerShippingToman
 import com.tablodecori.app.data.db.OrderWithCosts
 import com.tablodecori.app.data.db.SentOrderEntity
 import com.tablodecori.app.ui.*
@@ -115,9 +119,12 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     Column{Text(o.customerName,fontWeight=FontWeight.Bold);Text("${PersianDate.fromEpoch(o.dateEpochMillis).label} · ${o.province} ${o.city}",style=MaterialTheme.typography.bodySmall)}
                     Text(if(o.outstandingToman()>0)"مانده ${money(o.outstandingToman())}" else if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.outstandingToman()>0||o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
                 }
-                Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
+                Text("${o.productNameSnapshot} · ${o.displayDimensions()}",style=MaterialTheme.typography.bodySmall)
                 if(o.photoFileName.isNotBlank()) OrderPhotoThumbnail(o.photoFileName)
                 if(o.frameColor.isNotBlank()) Text("رنگ قاب: ${o.frameColor}",style=MaterialTheme.typography.bodySmall)
+                Text("وضعیت: ${when(o.orderStatus){"READY"->"آمادهٔ ارسال";"SENT"->"ارسال‌شده";else->"در آماده‌سازی"}}${if(o.plannedShipAtMillis>0L)" · نوبت ارسال: ${PersianDate.fromEpoch(o.plannedShipAtMillis).label}" else ""}",style=MaterialTheme.typography.bodySmall)
+                if(o.trackingCode.isNotBlank()) Text("کد رهگیری: ${o.trackingCode}",style=MaterialTheme.typography.bodySmall)
+                Text(if(o.shippingPayer=="RECIPIENT")"ارسال: پس‌کرایه، پرداخت مشتری به شرکت حمل${if(o.shippingCostToman>0L) " · ${money(o.shippingCostToman)}" else ""}" else "ارسال: هزینه با فروشنده · ${money(o.shippingCostToman)}",style=MaterialTheme.typography.bodySmall)
                 if(o.outstandingToman()>0) Text("مبلغ سفارش: ${money(o.quotedTotalToman)} · دریافتی: ${money(o.receivedToman)} · سود پیش‌بینی‌شده: ${money(o.expectedProfitToman())}",style=MaterialTheme.typography.bodySmall)
                 if(o.addressDetails.isNotBlank()||o.postalCode.isNotBlank()) Text("آدرس: ${o.province} - ${o.city}${if(o.addressDetails.isNotBlank()) " - "+o.addressDetails else ""}${if(o.postalCode.isNotBlank()) " · کد پستی: "+o.postalCode else ""}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(o.note.isNotBlank()){
@@ -127,27 +134,8 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
                     TextButton(onClick={editing=x}){Text("ویرایش سفارش")}
-                    TextButton(onClick={
-                        val d=PersianDate.fromEpoch(o.dateEpochMillis)
-                        val allInfo=buildString{
-                            append(o.productNameSnapshot)
-                            append("\nتاریخ سفارش : ");append(d.label)
-                            append("\nنام گیرنده : ");append(o.customerName)
-                            append("\nآیدی اینستاگرام : ");append(o.instagramId)
-                            append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city);if(o.addressDetails.isNotBlank()){append(" - ");append(o.addressDetails)}
-                            if(o.postalCode.isNotBlank()){append("\nکد پستی : ");append(o.postalCode)}
-                            append("\nهزینه ارسال : ");append(money(o.shippingCostToman))
-                            if(o.frameColor.isNotBlank()){append("\nرنگ قاب : ");append(o.frameColor)}
-                            append("\nمبلغ توافق‌شده : ");append(money(o.quotedTotalToman))
-                            append("\nبیعانه : ");append(money(o.depositToman))
-                            append("\nپرداخت درب منزل : ");append(money(o.codDueToman))
-                            append("\nدریافت‌شده درب منزل : ");append(money(o.codCollectedToman))
-                            append("\nجمع دریافتی : ");append(money(o.receivedToman))
-                            append("\nمانده : ");append(money(o.outstandingToman()))
-                            append("\nیادداشت سفارش : ");append(o.note)
-                        }
-                        copy(context,allInfo);vm.notify("همه اطلاعات سفارش کپی شد.")
-                    }){Text("کپی همه اطلاعات")}
+                    TextButton(onClick={copy(context,OrderShareText.format(o));vm.notify("اطلاعات سفارش کپی شد.")}){Text("کپی اطلاعات")}
+                    TextButton(onClick={runCatching{OrderSharing.share(context,o)}.onFailure{vm.notify("اشتراک‌گذاری ناموفق بود: ${it.message.orEmpty()}")}}){Text("اشتراک با عکس")}
                 }
                 var details by remember{mutableStateOf(false)}
                 var confirmDelete by remember{mutableStateOf(false)}
@@ -165,7 +153,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                 if(details) AlertDialog(onDismissRequest={details=false},title={Text(o.internalNumber)},text={
                     Column(Modifier.verticalScroll(rememberScrollState())){
                         x.costs.forEach{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(it.name);Text(money(it.amountToman))}}
-                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("ارسال: ${money(o.shippingCostToman)}");Text("مبلغ توافق‌شده: ${money(o.quotedTotalToman)}");Text("بیعانه: ${money(o.depositToman)}");Text("درب منزل: ${money(o.codDueToman)}");Text("دریافت‌شده درب منزل: ${money(o.codCollectedToman)}");Text("جمع دریافتی: ${money(o.receivedToman)}");Text("مانده: ${money(o.outstandingToman())}");Text("سود پیش‌بینی‌شده: ${money(o.expectedProfitToman())}")
+                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("هزینه ارسال کارگاه: ${money(o.sellerShippingToman())}");if(o.shippingPayer=="RECIPIENT")Text("پس‌کرایه مشتری: ${money(o.shippingCostToman)}");Text("مبلغ توافق‌شده: ${money(o.quotedTotalToman)}");Text("بیعانه: ${money(o.depositToman)}");Text("درب منزل: ${money(o.codDueToman)}");Text("دریافت‌شده درب منزل: ${money(o.codCollectedToman)}");Text("جمع دریافتی: ${money(o.receivedToman)}");Text("مانده: ${money(o.outstandingToman())}");Text("سود پیش‌بینی‌شده: ${money(o.expectedProfitToman())}")
                     }
                 },confirmButton={Button(onClick={details=false}){Text("بستن")}})
             }
@@ -181,7 +169,7 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{
         orderCount=list.size,pieceCount=list.sumOf{it.order.pieceCountSnapshot},
         salesToman=list.sumOf{it.order.quotedTotalToman},
         costToman=list.sumOf{it.order.productCostSnapshotToman},
-        shippingToman=list.sumOf{it.order.shippingCostToman},
+        shippingToman=list.sumOf{it.order.sellerShippingToman()},
         profitToman=profit,lossToman=loss,netToman=profit-loss,
         receivedToman=list.sumOf{it.order.receivedToman},
         outstandingToman=list.sumOf{it.order.outstandingToman()},

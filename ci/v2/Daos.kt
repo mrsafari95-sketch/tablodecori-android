@@ -52,9 +52,11 @@ interface ProfitRuleDao {
 interface OrderDao {
     @Transaction @Query("SELECT * FROM sent_orders ORDER BY dateEpochMillis DESC, createdAt DESC") fun observeAll(): Flow<List<OrderWithCosts>>
     @Transaction @Query("SELECT * FROM sent_orders ORDER BY dateEpochMillis DESC, createdAt DESC") suspend fun getAll(): List<OrderWithCosts>
+    @Query("SELECT * FROM sent_orders WHERE id = :id LIMIT 1") suspend fun getOrder(id: String): SentOrderEntity?
     @Insert suspend fun insert(order: SentOrderEntity)
     @Update suspend fun update(order: SentOrderEntity)
     @Insert suspend fun insertCosts(costs: List<OrderCostSnapshotEntity>)
+    @Query("DELETE FROM order_cost_snapshots WHERE orderId = :orderId") suspend fun deleteCosts(orderId: String)
     @Query("DELETE FROM sent_orders WHERE id = :id") suspend fun delete(id: String)
 }
 

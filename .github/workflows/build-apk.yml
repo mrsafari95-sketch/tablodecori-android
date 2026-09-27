@@ -48,8 +48,9 @@ jobs:
             sed -i 's/room-ktx:2.8.5/room-ktx:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 2/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.1.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 3/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.2.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
@@ -67,12 +68,15 @@ jobs:
             cp ci/v2/MainViewModel.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt"
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
             cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
+            cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
+            cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
             cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
             cp ci/v2/FormulaEvaluator.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/FormulaEvaluator.kt"
             cp ci/v2/PricingEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/pricing/PricingEngineTest.kt"
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data"
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
+            cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
             if [ ! -f ci/v2/PricingEngine.kt ]; then
               PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"
@@ -103,6 +107,8 @@ jobs:
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }", "db.materialDao().setEnabled(id, enabled, System.currentTimeMillis())"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
             sed -i '/android:roundIcon=/d' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
             sed -i '/android:icon="@drawable\/tablodecori_logo"/a\        android:roundIcon="@drawable/tablodecori_logo"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            cp ci/v2/AndroidManifest.xml "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            cp ci/v2/order_share_paths.xml "$PROJECT_DIR/app/src/main/res/xml/order_share_paths.xml"
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/fun SettingsScreen(/fun LegacySettingsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
@@ -144,7 +150,12 @@ jobs:
           echo "GUARD: exactly one active SettingsScreen"
           test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
-          guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
+          guard "shared order includes postal code" "$SRC/data/OrderSharing.kt" 'کد پستی: ${order.postalCode}'
+          guard "recipient shipping excludes seller cost" "$SRC/data/Models.kt" 'if(shippingPayer=="SENDER") shippingCostToman else 0L'
+          guard "saved orders can change product snapshots" "$SRC/data/WorkshopRepository.kt" 'db.orderDao().deleteCosts(orderId)'
+          guard "photo preview shows whole artwork" "$SRC/ui/screens/OrderEditorScreen.kt" 'contentScale=ContentScale.Fit'
+          guard "order sharing attaches a photo" "$SRC/data/OrderSharing.kt" 'Intent.EXTRA_STREAM'
+          guard "shipping reminders are scheduled" "$SRC/data/ShippingReminder.kt" 'enqueueUniqueWork'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
           guard "product editor preserves saved variables" "$SRC/ui/screens/CoreScreens.kt" 'if(initial==null)v.enabled else v.id in initial.enabledMaterialIds'
           guard "order form state is keyed to order id" "$SRC/ui/screens/OrderEditorScreen.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
@@ -170,6 +181,7 @@ jobs:
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
           guard "database migration 5 to 6 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_5_6'
+          guard "database migration 6 to 7 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_6_7'
           guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
           guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
           guard "order form tracks COD collection" "$SRC/ui/screens/OrderEditorScreen.kt" 'دریافت‌شده درب منزل'

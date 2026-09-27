@@ -15,7 +15,8 @@ import kotlinx.coroutines.flow.combine
 import java.util.UUID
 
 class WorkshopRepository(private val db: AppDatabase, context: Context, private val engine: PricingEngine = PricingEngine()) {
-    private val photos = OrderPhotoStore(context)
+    private val appContext = context.applicationContext
+    private val photos = OrderPhotoStore(appContext)
     val materials: Flow<List<MaterialEntity>> = db.materialDao().observeAll()
     val products: Flow<List<ProductWithDetails>> = db.productDao().observeAll()
     val profitRules: Flow<List<ProfitRuleEntity>> = db.profitRuleDao().observeAll()
@@ -117,6 +118,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 }
             }
         }
+        runCatching { ShippingReminder.refreshAll(appContext,db.orderDao().getAll().map{it.order}) }
     }
 
     suspend fun ensurePricingStructure() {
@@ -254,6 +256,9 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
 
     private fun received(input: OrderFormInput): Long {
         require(input.shippingCostToman>=0){"هزینه ارسال نمی‌تواند منفی باشد."}
+        require(input.shippingPayer in setOf("SENDER","RECIPIENT")){"روش پرداخت ارسال نامعتبر است."}
+        require(input.orderStatus in setOf("PREPARING","READY","SENT")){"وضعیت سفارش نامعتبر است."}
+        require(input.plannedShipAtMillis>=0L){"تاریخ یادآوری نامعتبر است."}
         return OrderPaymentMath.received(input.quotedTotalToman,input.depositToman,input.otherPaidToman,input.codDueToman,input.codCollectedToman)
     }
 
@@ -265,7 +270,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val pricing = calculate(model.pieces, model.enabledMaterialIds, model.packagingSizeKey)
         val id = UUID.randomUUID().toString()
         val internal = "TD-${System.currentTimeMillis().toString().takeLast(7)}"
-        val actual = OrderMath.actualProfit(paid, pricing.costBeforeProfitToman, input.shippingCostToman)
+        val actual = OrderMath.actualProfit(paid, pricing.costBeforeProfitToman, if(input.shippingPayer=="SENDER") input.shippingCostToman else 0L)
         val composition = model.pieces.joinToString(" + ") { "${it.quantity}× ${it.widthCm}×${it.heightCm}" }
         val photoName=input.selectedPhotoUri?.let{photos.importSelected(it)}.orEmpty()
         try { db.withTransaction {
@@ -297,9 +302,15 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 codDueToman = input.codDueToman,
                 codCollectedToman = input.codCollectedToman,
                 photoFileName = photoName,
+                shippingPayer = input.shippingPayer,
+                dimensionsText = input.dimensionsText,
+                plannedShipAtMillis = input.plannedShipAtMillis,
+                orderStatus = input.orderStatus,
+                trackingCode = input.trackingCode,
             ))
             db.orderDao().insertCosts(pricing.lines.map { OrderCostSnapshotEntity(orderId=id,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
         }} catch(t:Throwable){ photos.delete(photoName); throw t }
+        runCatching { ShippingReminder.schedule(appContext,id,input.plannedShipAtMillis,input.orderStatus) }
         return id
     }
 
@@ -308,10 +319,16 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val paid=received(input)
         val existing = db.orderDao().getAll().firstOrNull { it.order.id == orderId }?.order
             ?: error("سفارش پیدا نشد.")
-        val actual = OrderMath.actualProfit(paid, existing.productCostSnapshotToman, input.shippingCostToman)
+        val replacement=if(input.productId!=existing.productId){
+            val rel=db.productDao().get(input.productId)?:error("ست جدید پیدا نشد.")
+            val model=rel.toModel()
+            model to calculate(model.pieces,model.enabledMaterialIds,model.packagingSizeKey)
+        }else null
+        val newCost=replacement?.second?.costBeforeProfitToman?:existing.productCostSnapshotToman
+        val actual = OrderMath.actualProfit(paid, newCost, if(input.shippingPayer=="SENDER") input.shippingCostToman else 0L)
         val newPhoto=input.selectedPhotoUri?.let{photos.importSelected(it)}
         val photoName=when { newPhoto!=null->newPhoto; input.removePhoto->""; else->existing.photoFileName }
-        try { db.orderDao().update(existing.copy(
+        try { db.withTransaction { db.orderDao().update(existing.copy(
             dateEpochMillis = input.dateEpochMillis,
             customerName = input.customerName,
             instagramId = input.instagramId,
@@ -331,14 +348,31 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             codDueToman = input.codDueToman,
             codCollectedToman = input.codCollectedToman,
             photoFileName = photoName,
-        )) } catch(t:Throwable){ if(newPhoto!=null) photos.delete(newPhoto); throw t }
+            productId = if(replacement!=null) input.productId else existing.productId,
+            productNameSnapshot = replacement?.first?.name?:existing.productNameSnapshot,
+            compositionSnapshot = replacement?.first?.pieces?.joinToString(" + ") { "${it.quantity}× ${it.widthCm}×${it.heightCm}" }?:existing.compositionSnapshot,
+            pieceCountSnapshot = replacement?.second?.pieceCount?:existing.pieceCountSnapshot,
+            productCostSnapshotToman = newCost,
+            shippingPayer = input.shippingPayer,
+            dimensionsText = input.dimensionsText,
+            plannedShipAtMillis = input.plannedShipAtMillis,
+            orderStatus = input.orderStatus,
+            trackingCode = input.trackingCode,
+        ))
+            if(replacement!=null){
+                db.orderDao().deleteCosts(orderId)
+                db.orderDao().insertCosts(replacement.second.lines.map { OrderCostSnapshotEntity(orderId=orderId,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
+            }
+        } } catch(t:Throwable){ if(newPhoto!=null) photos.delete(newPhoto); throw t }
         if(photoName!=existing.photoFileName) photos.delete(existing.photoFileName)
+        runCatching { ShippingReminder.schedule(appContext,orderId,input.plannedShipAtMillis,input.orderStatus) }
     }
 
     suspend fun deleteOrder(orderId: String) {
         val photo=db.orderDao().getAll().firstOrNull{it.order.id==orderId}?.order?.photoFileName.orEmpty()
         db.withTransaction { db.orderDao().delete(orderId) }
         photos.delete(photo)
+        runCatching { ShippingReminder.cancel(appContext,orderId) }
     }
 
     suspend fun updateSettings(rounding: Long, shipping: Long, dark: Boolean) {

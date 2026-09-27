@@ -2,17 +2,20 @@ package com.tablodecori.app.data
 
 import androidx.room.withTransaction
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import org.json.JSONArray
 import org.json.JSONObject
+import android.util.Base64
 import com.tablodecori.app.data.db.*
 import com.tablodecori.app.pricing.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.util.UUID
 
-class WorkshopRepository(private val db: AppDatabase, private val engine: PricingEngine = PricingEngine()) {
+class WorkshopRepository(private val db: AppDatabase, context: Context, private val engine: PricingEngine = PricingEngine()) {
+    private val photos = OrderPhotoStore(context)
     val materials: Flow<List<MaterialEntity>> = db.materialDao().observeAll()
     val products: Flow<List<ProductWithDetails>> = db.productDao().observeAll()
     val profitRules: Flow<List<ProfitRuleEntity>> = db.profitRuleDao().observeAll()
@@ -30,7 +33,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
 
     suspend fun exportFullBackup(): String {
         val sql=db.openHelper.readableDatabase
-        val root=JSONObject().put("format","tablodecori-full-backup").put("version",1).put("createdAt",System.currentTimeMillis())
+        val root=JSONObject().put("format","tablodecori-full-backup").put("version",2).put("createdAt",System.currentTimeMillis())
         val tables=JSONObject()
         backupTables.forEach { table ->
             val rows=JSONArray()
@@ -53,15 +56,41 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
             tables.put(table,rows)
         }
         root.put("tables",tables)
+        val images=JSONObject()
+        db.orderDao().getAll().map{it.order.photoFileName}.filter{it.isNotBlank()}.distinct().forEach { name ->
+            val encoded=photos.exportBase64(name) ?: error("عکس یکی از سفارش‌ها برای بکاپ پیدا نشد: $name")
+            images.put(name,encoded)
+        }
+        root.put("images",images)
         return root.toString(2)
     }
 
     suspend fun importFullBackup(json:String) {
         val root=JSONObject(json)
         require(root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
-        require(root.optInt("version",0)==1){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        val version=root.optInt("version",0)
+        require(version==1 || version==2){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
         val tables=root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
         backupTables.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        val images=if(version==2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
+        val restoredImages=mutableMapOf<String,ByteArray>()
+        var totalImageBytes=0L
+        images.keys().forEach { name ->
+            require(photos.file(name)!=null){"نام عکس در بکاپ نامعتبر است."}
+            val bytes=Base64.decode(images.getString(name),Base64.DEFAULT)
+            require(bytes.size<=8_000_000){"حجم یک عکس در بکاپ بیش از حد مجاز است."}
+            totalImageBytes+=bytes.size
+            require(totalImageBytes<=100_000_000){"حجم عکس‌های بکاپ بیش از حد مجاز است."}
+            restoredImages[name]=bytes
+        }
+        if(version==2){
+            val orders=tables.getJSONArray("sent_orders")
+            for(i in 0 until orders.length()){
+                val name=orders.getJSONObject(i).optString("photoFileName")
+                require(name.isBlank() || restoredImages.containsKey(name)){"عکس یکی از سفارش‌ها در بکاپ موجود نیست."}
+            }
+        }
+        restoredImages.forEach { (name,bytes) -> photos.restoreBytes(name,bytes) }
         val sql=db.openHelper.writableDatabase
         db.withTransaction {
             val b=db.backupDao()
@@ -106,8 +135,7 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         material("unexpected_cost","هزینه پیش‌بینی نشده","OVERHEAD","PERCENT_OF_COST",0,200)
         material("inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100)
 
-        val allowed=setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","packaging_bundle","unexpected_cost","inflation","pack_foam","pack_carton","pack_tape","pack_labor")
-        db.materialDao().getAll().filter{it.id !in allowed}.forEach{db.materialDao().softDelete(it.id,now)}
+        // User-created materials are first-class data and must survive app restarts.
 
         val photoPrices=mapOf(
             "10x15" to 24000L,"13x18" to 42000L,"16x21" to 49000L,"20x30" to 88000L,"30x30" to 165000L,
@@ -154,12 +182,12 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
         }
     }
 
-    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null, packagingSizeKey: String = ""): PricingResult {
+    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null, packagingSizeKey: String = "", profitFormula: String = ""): PricingResult {
         val ms = db.materialDao().getAll().map { it.toPricing() }
         val profits = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
         val st = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
         val entities=db.materialDao().getAll()
-        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, 0L, "", db.sizePriceDao().getAll(), packagingSizeKey)
+        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, if(profitFormula.isBlank())0L else null, profitFormula, db.sizePriceDao().getAll(), packagingSizeKey)
     }
 
     suspend fun saveMaterial(entity: MaterialEntity): Int {
@@ -224,79 +252,109 @@ class WorkshopRepository(private val db: AppDatabase, private val engine: Pricin
 
     suspend fun deleteProduct(id: String) = db.productDao().softDelete(id, System.currentTimeMillis())
 
-    suspend fun createOrder(
-        productId: String, dateEpochMillis: Long, customer: String, instagram: String, phone: String,
-        province: String, city: String, addressDetails: String, postalCode: String, shipping: Long, received: Long, note: String
-    ): String {
-        require(customer.isNotBlank()) { "نام گیرنده الزامی است." }
-        require(shipping >= 0 && received >= 0) { "مبالغ نمی‌توانند منفی باشند." }
-        val rel = db.productDao().get(productId) ?: error("محصول پیدا نشد.")
+    private fun received(input: OrderFormInput): Long {
+        require(input.shippingCostToman>=0 && input.quotedTotalToman>=0 && input.depositToman>=0 && input.otherPaidToman>=0 && input.codDueToman>=0 && input.codCollectedToman>=0){"مبالغ نمی‌توانند منفی باشند."}
+        require(input.codCollectedToman<=input.codDueToman){"پرداخت دریافت‌شده درب منزل از مبلغ درب منزل بیشتر است."}
+        val paid=Math.addExact(Math.addExact(input.depositToman,input.otherPaidToman),input.codCollectedToman)
+        require(paid<=input.quotedTotalToman){"دریافتی از مبلغ توافق‌شده بیشتر است."}
+        require(input.codDueToman<=input.quotedTotalToman-input.depositToman-input.otherPaidToman){"مبلغ درب منزل از مانده سفارش بیشتر است."}
+        return paid
+    }
+
+    suspend fun createOrder(input: OrderFormInput): String {
+        require(input.customerName.isNotBlank()) { "نام گیرنده الزامی است." }
+        val paid=received(input)
+        val rel = db.productDao().get(input.productId) ?: error("محصول پیدا نشد.")
         val model = rel.toModel()
         val pricing = calculate(model.pieces, model.enabledMaterialIds, model.packagingSizeKey)
         val id = UUID.randomUUID().toString()
         val internal = "TD-${System.currentTimeMillis().toString().takeLast(7)}"
-        val actual = OrderMath.actualProfit(received, pricing.costBeforeProfitToman, shipping)
+        val actual = OrderMath.actualProfit(paid, pricing.costBeforeProfitToman, input.shippingCostToman)
         val composition = model.pieces.joinToString(" + ") { "${it.quantity}× ${it.widthCm}×${it.heightCm}" }
-        db.withTransaction {
+        val photoName=input.selectedPhotoUri?.let{photos.importSelected(it)}.orEmpty()
+        try { db.withTransaction {
             db.orderDao().insert(SentOrderEntity(
                 id = id,
                 internalNumber = internal,
-                dateEpochMillis = dateEpochMillis,
-                customerName = customer,
-                instagramId = instagram,
-                phone = phone,
-                province = province,
-                city = city,
-                productId = productId,
+                dateEpochMillis = input.dateEpochMillis,
+                customerName = input.customerName,
+                instagramId = input.instagramId,
+                phone = input.phone,
+                province = input.province,
+                city = input.city,
+                productId = input.productId,
                 productNameSnapshot = model.name,
                 compositionSnapshot = composition,
                 pieceCountSnapshot = pricing.pieceCount,
                 productCostSnapshotToman = pricing.costBeforeProfitToman,
-                shippingCostToman = shipping,
-                receivedToman = received,
+                shippingCostToman = input.shippingCostToman,
+                receivedToman = paid,
                 actualProfitToman = actual,
-                note = note,
+                note = input.note,
                 createdAt = System.currentTimeMillis(),
-                addressDetails = addressDetails,
-                postalCode = postalCode
+                addressDetails = input.addressDetails,
+                postalCode = input.postalCode,
+                frameColor = input.frameColor,
+                quotedTotalToman = input.quotedTotalToman,
+                depositToman = input.depositToman,
+                otherPaidToman = input.otherPaidToman,
+                codDueToman = input.codDueToman,
+                codCollectedToman = input.codCollectedToman,
+                photoFileName = photoName,
             ))
             db.orderDao().insertCosts(pricing.lines.map { OrderCostSnapshotEntity(orderId=id,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
-        }
+        }} catch(t:Throwable){ photos.delete(photoName); throw t }
         return id
     }
 
-    suspend fun updateOrder(
-        orderId: String, dateEpochMillis: Long, customer: String, instagram: String, phone: String,
-        province: String, city: String, addressDetails: String, postalCode: String, shipping: Long, received: Long, note: String
-    ) {
-        require(customer.isNotBlank()) { "نام گیرنده الزامی است." }
-        require(shipping >= 0 && received >= 0) { "مبالغ نمی‌توانند منفی باشند." }
+    suspend fun updateOrder(orderId: String, input: OrderFormInput) {
+        require(input.customerName.isNotBlank()) { "نام گیرنده الزامی است." }
+        val paid=received(input)
         val existing = db.orderDao().getAll().firstOrNull { it.order.id == orderId }?.order
             ?: error("سفارش پیدا نشد.")
-        val actual = OrderMath.actualProfit(received, existing.productCostSnapshotToman, shipping)
-        db.orderDao().update(existing.copy(
-            dateEpochMillis = dateEpochMillis,
-            customerName = customer,
-            instagramId = instagram,
-            phone = phone,
-            province = province,
-            city = city,
-            addressDetails = addressDetails,
-            postalCode = postalCode,
-            shippingCostToman = shipping,
-            receivedToman = received,
+        val actual = OrderMath.actualProfit(paid, existing.productCostSnapshotToman, input.shippingCostToman)
+        val newPhoto=input.selectedPhotoUri?.let{photos.importSelected(it)}
+        val photoName=when { newPhoto!=null->newPhoto; input.removePhoto->""; else->existing.photoFileName }
+        try { db.orderDao().update(existing.copy(
+            dateEpochMillis = input.dateEpochMillis,
+            customerName = input.customerName,
+            instagramId = input.instagramId,
+            phone = input.phone,
+            province = input.province,
+            city = input.city,
+            addressDetails = input.addressDetails,
+            postalCode = input.postalCode,
+            shippingCostToman = input.shippingCostToman,
+            receivedToman = paid,
             actualProfitToman = actual,
-            note = note
-        ))
+            note = input.note,
+            frameColor = input.frameColor,
+            quotedTotalToman = input.quotedTotalToman,
+            depositToman = input.depositToman,
+            otherPaidToman = input.otherPaidToman,
+            codDueToman = input.codDueToman,
+            codCollectedToman = input.codCollectedToman,
+            photoFileName = photoName,
+        )) } catch(t:Throwable){ if(newPhoto!=null) photos.delete(newPhoto); throw t }
+        if(photoName!=existing.photoFileName) photos.delete(existing.photoFileName)
     }
 
     suspend fun deleteOrder(orderId: String) {
+        val photo=db.orderDao().getAll().firstOrNull{it.order.id==orderId}?.order?.photoFileName.orEmpty()
         db.withTransaction { db.orderDao().delete(orderId) }
+        photos.delete(photo)
     }
 
     suspend fun updateSettings(rounding: Long, shipping: Long, dark: Boolean) {
         require(rounding > 0 && shipping >= 0) { "تنظیمات مبلغ نامعتبر است." }
-        db.settingsDao().upsert(AppSettingsEntity(roundingStepToman=rounding,shippingDefaultToman=shipping,darkMode=dark,updatedAt=System.currentTimeMillis()))
+        val old=db.settingsDao().get() ?: AppSettingsEntity(updatedAt=System.currentTimeMillis())
+        db.settingsDao().upsert(old.copy(roundingStepToman=rounding,shippingDefaultToman=shipping,darkMode=dark,updatedAt=System.currentTimeMillis()))
+    }
+
+    suspend fun updateOrderPreferences(depositPercent:Int, defaultFrameColor:String, frameColorOptions:String, suggestCodRemainder:Boolean){
+        require(depositPercent in 0..100){"درصد بیعانه باید بین صفر تا صد باشد."}
+        val old=db.settingsDao().get() ?: AppSettingsEntity(updatedAt=System.currentTimeMillis())
+        db.settingsDao().upsert(old.copy(defaultDepositPercent=depositPercent,defaultFrameColor=defaultFrameColor.trim(),frameColorOptions=frameColorOptions.trim(),suggestCodRemainder=suggestCodRemainder,updatedAt=System.currentTimeMillis()))
     }
 
     suspend fun updateProfitRule(pieceCount: Int, amount: Long) {

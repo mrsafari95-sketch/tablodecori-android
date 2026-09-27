@@ -148,7 +148,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
 @Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String)->Unit){
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};val profitMode="FORMULA"
     val pieces=remember{mutableStateListOf<PieceInput>().apply{addAll(initial?.pieces?:listOf(PieceInput(40,60,1)))}}
-    val ids=remember(initial?.id,vars.map{it.id to it.enabled}){mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{v->put(v.id,v.enabled)}}}
+    val ids=remember(initial?.id,vars.map{it.id to it.enabled}){mutableStateMapOf<String,Boolean>().apply{vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{v->put(v.id,if(initial==null)v.enabled else v.id in initial.enabledMaterialIds)}}}
     val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
     val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
     val tapePrices by vm.sizePrices("pack_tape").collectAsState(initial=emptyList())
@@ -160,8 +160,8 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
     var selectedProductPackage by remember(initial?.id){mutableStateOf(initial?.packagingSizeKey.orEmpty())}
     var preview by remember{mutableStateOf<PricingResult?>(null)}
-    LaunchedEffect(pieces.toList(),ids.toMap(),vars,selectedProductPackage){
-        if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage)}catch(_:Throwable){}
+    LaunchedEffect(pieces.toList(),ids.toMap(),vars,selectedProductPackage,profitPercent){
+        if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage,"cost*"+(profitPercent.ifBlank{"0"})+"/100")}catch(_:Throwable){preview=null}
     }
     AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"ساخت ست جدید" else "ویرایش ست")},text={
         Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
@@ -175,7 +175,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             vars.filter{(!it.id.startsWith("photo_")||it.id=="photo_lab")&&!it.id.startsWith("pack_")&&it.id!="foam_packaging"&&it.id!="carton_packaging"}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(m.name);Switch(ids[m.id]?:false,{ids[m.id]=it})}}
             preview?.let{Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=MaterialTheme.shapes.medium){Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceBetween){Text("قیمت زنده");MoneyText(it.finalPriceToman)}}}
         }
-    },confirmButton={Button(onClick={onSave(initial?.id,name,pieces.toList(),ids.filterValues{it}.keys,0L,profitMode,if(profitPercent.isBlank()) "" else "cost*"+profitPercent+"/100",selectedProductPackage)},enabled=name.isNotBlank()&&pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
+    },confirmButton={Button(onClick={onSave(initial?.id,name,pieces.toList(),ids.filterValues{it}.keys,0L,profitMode,"cost*"+profitPercent.ifBlank{"0"}+"/100",selectedProductPackage)},enabled=name.isNotBlank()&&pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
 }
 
 @Composable fun PieceEditorRow(p:PieceInput,onChange:(PieceInput)->Unit,onDelete:()->Unit){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){SmallNumber("عرض",p.widthCm,{onChange(p.copy(widthCm=it))},Modifier.weight(1f));SmallNumber("ارتفاع",p.heightCm,{onChange(p.copy(heightCm=it))},Modifier.weight(1f));SmallNumber("تعداد",p.quantity,{onChange(p.copy(quantity=it))},Modifier.weight(.8f));TextButton(onClick=onDelete){Text("×",color=MaterialTheme.colorScheme.error)}}}
@@ -231,6 +231,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     var rounding by remember(current?.roundingStepToman){mutableStateOf((current?.roundingStepToman?:10000L).toString())}
     var shipping by remember(current?.shippingDefaultToman){mutableStateOf((current?.shippingDefaultToman?:0L).toString())}
     var dark by remember(current?.darkMode){mutableStateOf(current?.darkMode?:false)}
+    var depositPercent by remember(current?.defaultDepositPercent){mutableStateOf((current?.defaultDepositPercent?:0).toString())}
+    var defaultFrameColor by remember(current?.defaultFrameColor){mutableStateOf(current?.defaultFrameColor.orEmpty())}
+    var frameColorOptions by remember(current?.frameColorOptions){mutableStateOf(current?.frameColorOptions?:"مشکی، سفید، طلایی، نقره‌ای، چوبی")}
+    var suggestCodRemainder by remember(current?.suggestCodRemainder){mutableStateOf(current?.suggestCodRemainder?:true)}
     var pendingImport by remember{mutableStateOf<String?>(null)}
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) scope.launch {
@@ -258,8 +262,17 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             Button(onClick={vm.saveSettings(rounding.toLongOrNull()?:10000L,shipping.toLongOrNull()?:0L,dark)},modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات")}
         }}
         item{AppCard{
+            Text("تنظیمات سفارش",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+            Text("مقدارهای پیشنهادی هنگام ثبت سفارش جدید؛ هر سفارش جداگانه قابل تغییر است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(depositPercent,{depositPercent=it.filter(Char::isDigit)},label={Text("درصد بیعانه پیشنهادی")},suffix={Text("٪")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(defaultFrameColor,{defaultFrameColor=it},label={Text("رنگ قاب پیش‌فرض")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(frameColorOptions,{frameColorOptions=it},label={Text("رنگ‌های پیشنهادی قاب")},supportingText={Text("رنگ‌ها را با ویرگول جدا کنید؛ رنگ دلخواه در سفارش نیز قابل تایپ است.")},minLines=2,maxLines=3,modifier=Modifier.fillMaxWidth())
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("پیشنهاد مانده به‌عنوان پرداخت درب منزل",modifier=Modifier.weight(1f));Switch(suggestCodRemainder,{suggestCodRemainder=it})}
+            Button(onClick={vm.saveOrderPreferences(depositPercent.toInt(),defaultFrameColor,frameColorOptions,suggestCodRemainder)},enabled=depositPercent.toIntOrNull()?.let{it in 0..100}==true,modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات سفارش")}
+        }}
+        item{AppCard{
             Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-            Text("بکاپ کامل شامل متریال‌ها، جدول ابعاد، محصولات، سفارش‌ها، تاریخچه قیمت و تنظیمات برنامه است.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("بکاپ کامل شامل متریال‌ها، جدول ابعاد، محصولات، سفارش‌ها، عکس‌های سفارش، تاریخچه قیمت و تنظیمات برنامه است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
             OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
         }}

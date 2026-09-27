@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tablodecori.app.MainViewModel
+import com.tablodecori.app.data.outstandingToman
 import com.tablodecori.app.util.money
 
 private val HomeGold = Color(0xFFB78322)
@@ -103,7 +104,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     OverviewCard(Icons.Rounded.PhotoSizeSelectLarge, "تابلو ارسالی", orders.sumOf { it.order.pieceCountSnapshot }.toString(), Color(0xFF4D9B87), Modifier.weight(1f)) { onNavigate("orders") }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OverviewCard(Icons.Rounded.TrendingUp, "سود ثبت‌شده", money(orders.sumOf { maxOf(0, it.order.actualProfitToman) }), HomeGold, Modifier.weight(1f)) { onNavigate("orders") }
+                    OverviewCard(Icons.Rounded.TrendingUp, "سود تسویه‌شده", money(orders.filter { it.order.outstandingToman()==0L }.sumOf { maxOf(0L, it.order.actualProfitToman) }), HomeGold, Modifier.weight(1f)) { onNavigate("orders") }
                     OverviewCard(Icons.Rounded.History, "تغییر قیمت", history.size.toString(), QuickAccent, Modifier.weight(1f)) { onNavigate("variables") }
                 }
             }

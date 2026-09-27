@@ -103,6 +103,13 @@ data class SentOrderEntity(
     val createdAt: Long,
     val addressDetails: String = "",
     val postalCode: String = "",
+    val frameColor: String = "",
+    val quotedTotalToman: Long = 0L,
+    val depositToman: Long = 0L,
+    val otherPaidToman: Long = 0L,
+    val codDueToman: Long = 0L,
+    val codCollectedToman: Long = 0L,
+    val photoFileName: String = "",
 )
 
 @Entity(
@@ -143,6 +150,10 @@ data class AppSettingsEntity(
     val shippingDefaultToman: Long = 0L,
     val darkMode: Boolean = false,
     val updatedAt: Long,
+    val defaultDepositPercent: Int = 0,
+    val defaultFrameColor: String = "",
+    val frameColorOptions: String = "مشکی، سفید، طلایی، نقره‌ای، چوبی",
+    val suggestCodRemainder: Boolean = true,
 )
 
 data class ProductWithDetails(

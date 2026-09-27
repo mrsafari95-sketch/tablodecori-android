@@ -48,21 +48,23 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun duplicateProduct(id:String)=launch { repo.duplicateProduct(id); _message.emit("یک کپی از محصول ساخته شد.") }
     fun toggleProduct(id:String,on:Boolean)=launch { repo.toggleProduct(id,on) }
     fun deleteProduct(id:String)=launch { repo.deleteProduct(id); _message.emit("محصول حذف شد.") }
-    fun saveOrder(productId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,addressDetails:String,postalCode:String,shipping:Long,received:Long,note:String)=launch {
-        repo.createOrder(productId,date,customer,instagram,phone,province,city,addressDetails,postalCode,shipping,received,note); _message.emit("سفارش ارسالی ثبت شد.")
-    }
-    fun updateOrder(orderId:String,date:Long,customer:String,instagram:String,phone:String,province:String,city:String,addressDetails:String,postalCode:String,shipping:Long,received:Long,note:String)=launch {
-        repo.updateOrder(orderId,date,customer,instagram,phone,province,city,addressDetails,postalCode,shipping,received,note); _message.emit("سفارش ویرایش شد.")
-    }
+    suspend fun saveOrder(input:OrderFormInput):Boolean = runCatching { repo.createOrder(input) }
+        .fold(onSuccess={ _message.emit("سفارش ارسالی ثبت شد."); true },onFailure={ _message.emit(it.message?:"ثبت سفارش ناموفق بود."); false })
+    suspend fun updateOrder(orderId:String,input:OrderFormInput):Boolean = runCatching { repo.updateOrder(orderId,input) }
+        .fold(onSuccess={ _message.emit("سفارش ویرایش شد."); true },onFailure={ _message.emit(it.message?:"ویرایش سفارش ناموفق بود."); false })
     fun deleteOrder(orderId:String)=launch {
         repo.deleteOrder(orderId); _message.emit("سفارش حذف شد.")
     }
     fun saveSettings(rounding:Long,shipping:Long,dark:Boolean)=launch { repo.updateSettings(rounding,shipping,dark); _message.emit("تنظیمات ذخیره شد.") }
+    fun saveOrderPreferences(depositPercent:Int,defaultFrameColor:String,frameColorOptions:String,suggestCodRemainder:Boolean)=launch {
+        repo.updateOrderPreferences(depositPercent,defaultFrameColor,frameColorOptions,suggestCodRemainder)
+        _message.emit("تنظیمات سفارش ذخیره شد.")
+    }
     suspend fun exportFullBackup():String = repo.exportFullBackup()
     suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ کامل با موفقیت بازیابی شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
-    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String=""): PricingResult = repo.calculate(pieces,ids,packagingSizeKey)
+    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String="",profitFormula:String=""): PricingResult = repo.calculate(pieces,ids,packagingSizeKey,profitFormula)
     fun notify(text:String){ _message.tryEmit(text) }
     private fun launch(block:suspend()->Unit)=viewModelScope.launch { try { block() } catch (t: Throwable) { _message.emit(t.message ?: "خطای نامشخص") } }
 }

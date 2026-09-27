@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
         ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,10 +46,25 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE sent_orders ADD COLUMN postalCode TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_5_6 = object : Migration(5,6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN frameColor TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN quotedTotalToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN depositToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN otherPaidToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN codDueToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN codCollectedToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN photoFileName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE sent_orders SET quotedTotalToman = receivedToman, otherPaidToman = receivedToman")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultDepositPercent INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultFrameColor TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN frameColorOptions TEXT NOT NULL DEFAULT 'مشکی، سفید، طلایی، نقره‌ای، چوبی'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN suggestCodRemainder INTEGER NOT NULL DEFAULT 1")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                .fallbackToDestructiveMigration(true)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

@@ -17,6 +17,32 @@ data class ProductModel(
 
 data class PricedProduct(val product: ProductModel, val pricing: PricingResult)
 
+/** Money due at delivery is a promise, not money already received. */
+data class OrderFormInput(
+    val productId: String,
+    val dateEpochMillis: Long,
+    val customerName: String,
+    val instagramId: String,
+    val phone: String,
+    val province: String,
+    val city: String,
+    val addressDetails: String,
+    val postalCode: String,
+    val shippingCostToman: Long,
+    val quotedTotalToman: Long,
+    val depositToman: Long,
+    val otherPaidToman: Long,
+    val codDueToman: Long,
+    val codCollectedToman: Long,
+    val frameColor: String,
+    val note: String,
+    val selectedPhotoUri: String? = null,
+    val removePhoto: Boolean = false,
+)
+
+fun SentOrderEntity.outstandingToman(): Long = (quotedTotalToman - receivedToman).coerceAtLeast(0L)
+fun SentOrderEntity.expectedProfitToman(): Long = quotedTotalToman - productCostSnapshotToman - shippingCostToman
+
 data class MonthlySummary(
     val orderCount: Int = 0,
     val pieceCount: Int = 0,
@@ -26,6 +52,9 @@ data class MonthlySummary(
     val profitToman: Long = 0,
     val lossToman: Long = 0,
     val netToman: Long = 0,
+    val receivedToman: Long = 0,
+    val outstandingToman: Long = 0,
+    val expectedProfitToman: Long = 0,
 )
 
 fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(

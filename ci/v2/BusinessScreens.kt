@@ -29,6 +29,8 @@ import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.TablodecoriApp
 import com.tablodecori.app.data.MonthlySummary
 import com.tablodecori.app.data.PricedProduct
+import com.tablodecori.app.data.expectedProfitToman
+import com.tablodecori.app.data.outstandingToman
 import com.tablodecori.app.data.db.OrderWithCosts
 import com.tablodecori.app.data.db.SentOrderEntity
 import com.tablodecori.app.ui.*
@@ -70,12 +72,19 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     var add by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<OrderWithCosts?>(null)}
     var search by rememberSaveable{mutableStateOf("")}
+    if(add || editing!=null){
+        val selected=editing?.order
+        OrderEditorScreen(products,settings,selected,onDismiss={add=false;editing=null}){input->
+            if(selected==null) vm.saveOrder(input) else vm.updateOrder(selected.id,input)
+        }
+        return
+    }
     val months=orders.map{PersianDate.fromEpoch(it.order.dateEpochMillis)}.distinctBy{it.monthKey}.sortedByDescending{it.monthKey}
     val monthFiltered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
     val query=search.trim()
     val filtered=if(query.isBlank()) monthFiltered else monthFiltered.filter{x->
         val o=x.order
-        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber).any{it.contains(query,ignoreCase=true)}
+        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber,o.frameColor).any{it.contains(query,ignoreCase=true)}
     }
     val s=summary(filtered)
     val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->
@@ -98,15 +107,18 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
             }
         }
         item{SummaryGrid(s)}
-        item{AppCard{Text("نمودار فروش و سود",fontWeight=FontWeight.Bold);DailyChart(filtered)}}
+        item{AppCard{Text("نمودار دریافتی و سود سفارش‌های تسویه‌شده",fontWeight=FontWeight.Bold);DailyChart(filtered)}}
         items(filtered,key={it.order.id}){x->
             val o=x.order
             AppCard{
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
                     Column{Text(o.customerName,fontWeight=FontWeight.Bold);Text("${PersianDate.fromEpoch(o.dateEpochMillis).label} · ${o.province} ${o.city}",style=MaterialTheme.typography.bodySmall)}
-                    Text(if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
+                    Text(if(o.outstandingToman()>0)"مانده ${money(o.outstandingToman())}" else if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.outstandingToman()>0||o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
                 }
                 Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
+                if(o.photoFileName.isNotBlank()) OrderPhotoThumbnail(o.photoFileName)
+                if(o.frameColor.isNotBlank()) Text("رنگ قاب: ${o.frameColor}",style=MaterialTheme.typography.bodySmall)
+                if(o.outstandingToman()>0) Text("مبلغ سفارش: ${money(o.quotedTotalToman)} · دریافتی: ${money(o.receivedToman)} · سود پیش‌بینی‌شده: ${money(o.expectedProfitToman())}",style=MaterialTheme.typography.bodySmall)
                 if(o.addressDetails.isNotBlank()||o.postalCode.isNotBlank()) Text("آدرس: ${o.province} - ${o.city}${if(o.addressDetails.isNotBlank()) " - "+o.addressDetails else ""}${if(o.postalCode.isNotBlank()) " · کد پستی: "+o.postalCode else ""}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(o.note.isNotBlank()){
                     Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -125,7 +137,13 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                             append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city);if(o.addressDetails.isNotBlank()){append(" - ");append(o.addressDetails)}
                             if(o.postalCode.isNotBlank()){append("\nکد پستی : ");append(o.postalCode)}
                             append("\nهزینه ارسال : ");append(money(o.shippingCostToman))
-                            append("\nهزینه دریافتی : ");append(money(o.receivedToman))
+                            if(o.frameColor.isNotBlank()){append("\nرنگ قاب : ");append(o.frameColor)}
+                            append("\nمبلغ توافق‌شده : ");append(money(o.quotedTotalToman))
+                            append("\nبیعانه : ");append(money(o.depositToman))
+                            append("\nپرداخت درب منزل : ");append(money(o.codDueToman))
+                            append("\nدریافت‌شده درب منزل : ");append(money(o.codCollectedToman))
+                            append("\nجمع دریافتی : ");append(money(o.receivedToman))
+                            append("\nمانده : ");append(money(o.outstandingToman()))
                             append("\nیادداشت سفارش : ");append(o.note)
                         }
                         copy(context,allInfo);vm.notify("همه اطلاعات سفارش کپی شد.")
@@ -147,25 +165,31 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                 if(details) AlertDialog(onDismissRequest={details=false},title={Text(o.internalNumber)},text={
                     Column(Modifier.verticalScroll(rememberScrollState())){
                         x.costs.forEach{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(it.name);Text(money(it.amountToman))}}
-                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("ارسال: ${money(o.shippingCostToman)}");Text("دریافتی: ${money(o.receivedToman)}")
+                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("ارسال: ${money(o.shippingCostToman)}");Text("مبلغ توافق‌شده: ${money(o.quotedTotalToman)}");Text("بیعانه: ${money(o.depositToman)}");Text("درب منزل: ${money(o.codDueToman)}");Text("دریافت‌شده درب منزل: ${money(o.codCollectedToman)}");Text("جمع دریافتی: ${money(o.receivedToman)}");Text("مانده: ${money(o.outstandingToman())}");Text("سود پیش‌بینی‌شده: ${money(o.expectedProfitToman())}")
                     }
                 },confirmButton={Button(onClick={details=false}){Text("بستن")}})
             }
         }
     }
-    if(add) OrderDialog(products,settings?.shippingDefaultToman?:0,null,{add=false}){pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
-        vm.saveOrder(pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note);add=false
-    }
-    editing?.let{selected->
-        OrderDialog(products,settings?.shippingDefaultToman?:0,selected.order,{editing=null}){_,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
-            vm.updateOrder(selected.order.id,date,name,ig,phone,prov,city,address,postal,ship,recv,note);editing=null
-        }
-    }
 }
 
-private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sumOf{it.order.receivedToman};val cost=list.sumOf{it.order.productCostSnapshotToman};val shipping=list.sumOf{it.order.shippingCostToman};val profit=list.sumOf{maxOf(0,it.order.actualProfitToman)};val loss=list.sumOf{maxOf(0,-it.order.actualProfitToman)};return MonthlySummary(list.size,list.sumOf{it.order.pieceCountSnapshot},sales,cost,shipping,profit,loss,profit-loss)}
-@Composable private fun SummaryGrid(s:MonthlySummary){Column(verticalArrangement=Arrangement.spacedBy(7.dp)){listOf("سفارش" to fa(s.orderCount),"تابلو" to fa(s.pieceCount),"فروش کل" to money(s.salesToman),"هزینه کل" to money(s.costToman),"ارسال" to money(s.shippingToman),"سود" to money(s.profitToman),"ضرر" to money(s.lossToman),"سود خالص" to money(s.netToman)).chunked(2).forEach{r->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){r.forEach{(l,v)->Card(Modifier.weight(1f)){Column(Modifier.padding(10.dp)){Text(v,fontWeight=FontWeight.Bold);Text(l,style=MaterialTheme.typography.bodySmall)}}}}}}}
-@Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0,x.order.actualProfitToman)})}?:1).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
+private fun summary(list:List<OrderWithCosts>):MonthlySummary{
+    val settled=list.filter{it.order.outstandingToman()==0L}
+    val profit=settled.sumOf{maxOf(0L,it.order.actualProfitToman)}
+    val loss=settled.sumOf{maxOf(0L,-it.order.actualProfitToman)}
+    return MonthlySummary(
+        orderCount=list.size,pieceCount=list.sumOf{it.order.pieceCountSnapshot},
+        salesToman=list.sumOf{it.order.quotedTotalToman},
+        costToman=list.sumOf{it.order.productCostSnapshotToman},
+        shippingToman=list.sumOf{it.order.shippingCostToman},
+        profitToman=profit,lossToman=loss,netToman=profit-loss,
+        receivedToman=list.sumOf{it.order.receivedToman},
+        outstandingToman=list.sumOf{it.order.outstandingToman()},
+        expectedProfitToman=list.sumOf{it.order.expectedProfitToman()},
+    )
+}
+@Composable private fun SummaryGrid(s:MonthlySummary){Column(verticalArrangement=Arrangement.spacedBy(7.dp)){listOf("سفارش" to fa(s.orderCount),"تابلو" to fa(s.pieceCount),"فروش توافقی" to money(s.salesToman),"دریافتی" to money(s.receivedToman),"مانده وصول" to money(s.outstandingToman),"هزینه کل" to money(s.costToman),"ارسال" to money(s.shippingToman),"سود پیش‌بینی‌شده" to money(s.expectedProfitToman),"سود تسویه‌شده" to money(s.profitToman),"ضرر تسویه‌شده" to money(s.lossToman),"خالص تسویه‌شده" to money(s.netToman)).chunked(2).forEach{r->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){r.forEach{(l,v)->Card(Modifier.weight(1f)){Column(Modifier.padding(10.dp)){Text(v,fontWeight=FontWeight.Bold);Text(l,style=MaterialTheme.typography.bodySmall)}}}}}}}
+@Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.filter{x->x.order.outstandingToman()==0L}.sumOf{x->maxOf(0L,x.order.actualProfitToman)})}?:1).coerceAtLeast(1L).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.filter{it.order.outstandingToman()==0L}.sumOf{maxOf(0L,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,String,String,Long,Long,String)->Unit){

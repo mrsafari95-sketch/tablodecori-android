@@ -2,7 +2,7 @@ name: Build installable APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
   workflow_dispatch:
 
 permissions:
@@ -48,12 +48,16 @@ jobs:
             sed -i 's/room-ktx:2.8.5/room-ktx:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 2/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.1.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             # Apply V2 interface overrides maintained in the repository.
+            cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
             cp ci/v2/Components.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/Components.kt"
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
               cp ci/v2/BusinessScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             else
@@ -62,6 +66,8 @@ jobs:
             cp ci/v2/CoreScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/MainViewModel.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt"
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
+            cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
+            cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
             cp ci/v2/FormulaEvaluator.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/FormulaEvaluator.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
@@ -118,16 +124,16 @@ jobs:
           guard "home tab pops to real home" "$SRC/MainActivity.kt" 'nav.popBackStack("home",false)'
           guard "home shortcuts use top-level navigation" "$SRC/MainActivity.kt" 'HomeScreen(vm){target->navigateTopLevel(target)}'
           guard "settings is popped before bottom tab navigation" "$SRC/MainActivity.kt" 'if(route=="settings") nav.popBackStack()'
-          guard "order dialog scroll state survives recomposition" "$SRC/ui/screens/BusinessScreens.kt" 'val formScroll=rememberScrollState()'
-          guard "order dialog popup state is keyed" "$SRC/ui/screens/BusinessScreens.kt" 'var exp by rememberSaveable(initial?.id){mutableStateOf(false)}'
+          guard "order editor customer state survives recomposition" "$SRC/ui/screens/OrderEditorScreen.kt" 'var customer by rememberSaveable(initial?.id)'
+          guard "order editor selected product survives recomposition" "$SRC/ui/screens/OrderEditorScreen.kt" 'var pid by rememberSaveable(initial?.id)'
           guard "order note precedes action row" "$SRC/ui/screens/BusinessScreens.kt" 'Text("یادداشت: "+o.note'
           guard "frame adds 20cm" "$SRC/pricing/PricingEngine.kt" 'add(BigDecimal(20)).divide(hundred)'
           guard "backboard reacts to glass toggle" "$SRC/pricing/PricingEngine.kt" 'val glassEnabled = "glass" in enabledMaterialIds'
           guard "backboard threshold keeps 30x45" "$SRC/pricing/PricingEngine.kt" 'shortSide < 30 || (shortSide == 30 && longSide < 45)'
           guard "backboard exception is per piece" "$SRC/pricing/PricingEngine.kt" 'if(m.id=="backboard_3mm" && glassEnabled)'
           guard "manual packaging reaches pricing" "$SRC/pricing/PricingEngine.kt" 'val manualWh=selectedPackagingSizeKey.split("x")'
-          guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = addressDetails'
-          guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = postalCode'
+          guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = input.addressDetails'
+          guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = input.postalCode'
           guard "inflation default is one percent" "$SRC/data/WorkshopRepository.kt" '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100'
           guard "tape has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_tape" to 30000L'
           guard "pack labor has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_labor" to 60000L'
@@ -137,8 +143,8 @@ jobs:
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
-          guard "product editor defaults active variables on" "$SRC/ui/screens/CoreScreens.kt" 'forEach{v->put(v.id,v.enabled)}'
-          guard "order form state is keyed to order id" "$SRC/ui/screens/BusinessScreens.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
+          guard "product editor preserves saved variables" "$SRC/ui/screens/CoreScreens.kt" 'if(initial==null)v.enabled else v.id in initial.enabledMaterialIds'
+          guard "order form state is keyed to order id" "$SRC/ui/screens/OrderEditorScreen.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
           guard "pricebook copies dimensions and price" "$SRC/ui/screens/BusinessScreens.kt" 'کپی ابعاد و قیمت'
           guard "pricebook piece sort stays descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedPackage)'
@@ -155,11 +161,17 @@ jobs:
           guard "deleted package defaults do not return" "$SRC/data/WorkshopRepository.kt" 'val old=db.sizePriceDao().getAllFor(id).firstOrNull{it.id==key}'
           echo "GUARD: Quick scroll state stays inside QuickScreen"
           python3 -c 'from pathlib import Path; s=Path("'"$SRC"'/ui/screens/CoreScreens.kt").read_text(); pre,quick=s.split("fun QuickScreen",1); assert "state=quickListState" not in pre and "state=quickListState" in quick'
-          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage)'
+          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage,'
           guard "backup restore success feedback exists" "$SRC/MainViewModel.kt" 'بکاپ کامل با موفقیت بازیابی شد.'
           guard "backup restore is transactional" "$SRC/data/WorkshopRepository.kt" 'db.withTransaction {'
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
+          guard "database migration 5 to 6 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_5_6'
+          guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
+          guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
+          guard "order form tracks COD collection" "$SRC/ui/screens/OrderEditorScreen.kt" 'دریافت‌شده درب منزل'
+          guard "order form tracks frame color" "$SRC/ui/screens/OrderEditorScreen.kt" 'رنگ قاب'
+          guard "old customer payments survive migration" "$SRC/data/db/AppDatabase.kt" 'otherPaidToman = receivedToman'
           guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'
           guard "postal migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT'
           echo "GUARD: legacy piece-count profit stays removed"

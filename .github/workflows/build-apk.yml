@@ -217,12 +217,12 @@ jobs:
           base64 -d ci/v2/stable-debug-keystore.b64 > "$HOME/.android/debug.keystore"
           keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
 
-      - name: Build debug APK
+      - name: Test and build debug APK
         shell: bash
         run: |
           cd "$PROJECT_DIR"
           set -o pipefail
-          gradle --no-daemon assembleDebug 2>&1 | tee build-output.log
+          gradle --no-daemon testDebugUnitTest assembleDebug 2>&1 | tee build-output.log
 
       - name: Save failed build log
         if: failure()

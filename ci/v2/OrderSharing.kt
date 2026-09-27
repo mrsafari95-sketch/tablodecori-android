@@ -36,7 +36,7 @@ object OrderShareText {
         if (order.shippingCostToman > 0L) appendLine("🚛 هزینه ارسال: ${money(order.shippingCostToman)}")
         appendLine()
         appendLine("💰 اطلاعات پرداخت سفارش")
-        appendLine("💰 مبلغ محصول: ${money(order.quotedTotalToman)}")
+        appendLine("💰 مبلغ توافق‌شده سفارش: ${money(order.quotedTotalToman)}")
         appendLine("📥 بیعانه: ${money(order.depositToman)}")
         if (order.otherPaidToman > 0L) appendLine("📥 سایر دریافتی‌ها: ${money(order.otherPaidToman)}")
         if (order.codDueToman > 0L) appendLine("🏠 مبلغ محصول درب منزل: ${money(order.codDueToman)}")

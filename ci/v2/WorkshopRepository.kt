@@ -335,6 +335,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             } else if(!low && item.notifiedLow) db.stockDao().upsert(item.copy(notifiedLow=false))
         }
     }
+    suspend fun refreshStockAlerts() = checkStockAlerts()
 
     suspend fun createOrder(input: OrderFormInput): String {
         require(input.customerName.isNotBlank()) { "نام گیرنده الزامی است." }

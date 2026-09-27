@@ -30,11 +30,12 @@ import com.tablodecori.app.data.db.StockItemEntity
     val context=LocalContext.current
     val options=materials.filter { it.enabled && !it.deleted && StockPlanner.unitFor(it)!=null }
     val percent=settings?.lowStockPercent?:10
-    val low=stock.count { it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*percent }
+    fun needsAttention(item:StockItemEntity)=item.onHandMicros<0L || (item.targetMicros>0L && item.onHandMicros*100L<=item.targetMicros*percent)
+    val low=stock.count(::needsAttention)
     var onlyLow by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<StockItemEntity?>(null)}
     var adding by remember{mutableStateOf(false)}
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->vm.notify(if(granted)"اعلان موجودی فعال شد." else "اعلان موجودی به اجازه گوشی نیاز دارد.")}
+    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)vm.refreshStockAlerts();vm.notify(if(granted)"اعلان موجودی فعال شد." else "اعلان موجودی به اجازه گوشی نیاز دارد.")}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item {
             Text("کنترل انبار",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
@@ -50,10 +51,10 @@ import com.tablodecori.app.data.db.StockItemEntity
             Button(onClick={adding=true},modifier=Modifier.weight(1f)){Text("افزودن قلم انبار")}
             FilterChip(selected=onlyLow,onClick={onlyLow=!onlyLow},label={Text("کم‌موجود")})
         } }
-        val shown=if(onlyLow)stock.filter { it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*percent } else stock
+        val shown=if(onlyLow)stock.filter(::needsAttention) else stock
         if(shown.isEmpty()) item { Text(if(onlyLow)"قلم کم‌موجودی دیده نمی‌شود." else "هنوز موجودی ثبت نشده است. اقلام را اضافه کنید یا پس از ثبت سفارش، اقلام مصرفی اینجا ظاهر می‌شوند.",color=MaterialTheme.colorScheme.onSurfaceVariant) }
         items(shown,key={it.id}){item->
-            val status=when { item.targetMicros<=0L->"موجودی مطلوب تنظیم نشده";item.onHandMicros<=0L->"ناموجود";item.onHandMicros*100L<=item.targetMicros*percent->"کم‌موجود";else->"موجودی مناسب" }
+            val status=when { item.onHandMicros<0L->"مصرف ثبت‌شده بیشتر از موجودی است";item.targetMicros<=0L->"موجودی مطلوب تنظیم نشده";item.onHandMicros==0L->"ناموجود";item.onHandMicros*100L<=item.targetMicros*percent->"کم‌موجود";else->"موجودی مناسب" }
             ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
                 Text(item.materialName+(if(item.variantKey.isNotBlank())" · ${item.variantKey}" else ""),fontWeight=FontWeight.Bold)
                 Text("موجود: ${StockQuantity.format(item.onHandMicros)} ${StockQuantity.unitLabel(item.unit)}")

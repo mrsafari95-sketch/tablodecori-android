@@ -48,7 +48,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val dueToday=pendingShip.count{dateKey(it.plannedShipAtMillis)==todayKey}
     val overdue=pendingShip.count{dateKey(it.plannedShipAtMillis)<todayKey}
     val receivables=orders.sumOf{it.order.outstandingToman()}
-    val lowStock=stock.count{it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10)}
+    val lowStock=stock.count{it.onHandMicros<0L || (it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10))}
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),

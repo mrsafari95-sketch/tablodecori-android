@@ -1,9 +1,8 @@
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.13/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
 Daemon will be stopped at the end of the build 
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig
 > Task :app:checkDebugAarMetadata
 > Task :app:processDebugNavigationResources
@@ -18,8 +17,11 @@ Daemon will be stopped at the end of the build
 > Task :app:parseDebugLocalResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
-> Task :app:processDebugManifestForPackage
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
 > Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
@@ -30,6 +32,8 @@ Daemon will be stopped at the end of the build
 > Task :app:mergeDebugJniLibFolders
 > Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugNativeLibs
+> Task :app:kspDebugKotlin
+> Task :app:mergeExtDexDebug
 > Task :app:mergeLibDexDebug
 
 > Task :app:stripDebugDebugSymbols
@@ -38,19 +42,108 @@ Unable to strip the following libraries, packaging them as they are: libandroidx
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
-> Task :app:mergeExtDexDebug
-> Task :app:kspDebugKotlin
+> Task :app:compileDebugKotlin
+e: java.lang.OutOfMemoryError: GC overhead limit exceeded
+	at org.jetbrains.kotlin.fir.resolve.dfa.RealVariable.hashCode(DfaVariables.kt:76)
+	at org.jetbrains.kotlin.kotlinx.collections.immutable.implementations.immutableMap.PersistentHashMapBuilder.get(PersistentHashMapBuilder.kt:59)
+	at org.jetbrains.kotlin.fir.resolve.dfa.LogicSystem.containsAlready(LogicSystem.kt:95)
+	at org.jetbrains.kotlin.fir.resolve.dfa.LogicSystem.addImplication(LogicSystem.kt:83)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.addImplication(FirDataFlowAnalyzer.kt:1844)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.exitSafeCall$lambda$0(FirDataFlowAnalyzer.kt:1073)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer$$Lambda$935/0x00007f1535726c10.invoke(Unknown Source)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.buildDefaultFlow(FirDataFlowAnalyzer.kt:1701)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.mergeIncomingFlow(FirDataFlowAnalyzer.kt:1747)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.exitSafeCall(FirDataFlowAnalyzer.kt:1034)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformSafeCallExpression(FirExpressionsResolveTransformer.kt:496)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformSafeCallExpression(FirAbstractBodyResolveTransformerDispatcher.kt:424)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformSafeCallExpression(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.expressions.FirSafeCallExpression.transform(FirSafeCallExpression.kt:35)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformerUtilKt.transformInplace(FirTransformerUtil.kt:20)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformArguments(FirArgumentListImpl.kt:35)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformChildren(FirArgumentListImpl.kt:30)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformChildren(FirArgumentListImpl.kt:20)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformElement(FirAbstractBodyResolveTransformerDispatcher.kt:101)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformElement(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformer.transformArgumentList(FirTransformer.kt:167)
+	at org.jetbrains.kotlin.fir.expressions.FirArgumentList.transform(FirArgumentList.kt:29)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirPartialBodyResolveTransformer.transformElement(FirPartialBodyResolveTransformer.kt:36)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirPartialBodyResolveTransformer.transformElement(FirPartialBodyResolveTransformer.kt:13)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformer.transformArgumentList(FirTransformer.kt:167)
+	at org.jetbrains.kotlin.fir.expressions.FirArgumentList.transform(FirArgumentList.kt:29)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformFunctionCallInternal$resolve(FirExpressionsResolveTransformer.kt:585)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformFunctionCall(FirExpressionsResolveTransformer.kt:521)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformFunctionCall(FirAbstractBodyResolveTransformerDispatcher.kt:209)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformFunctionCall(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.expressions.FirFunctionCall.transform(FirFunctionCall.kt:45)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformerUtilKt.transformSingle(FirTransformerUtil.kt:13)
+
+java.lang.RuntimeException: java.lang.OutOfMemoryError: GC overhead limit exceeded
+	at org.jetbrains.kotlin.fir.resolve.dfa.RealVariable.hashCode(DfaVariables.kt:76)
+	at org.jetbrains.kotlin.kotlinx.collections.immutable.implementations.immutableMap.PersistentHashMapBuilder.get(PersistentHashMapBuilder.kt:59)
+	at org.jetbrains.kotlin.fir.resolve.dfa.LogicSystem.containsAlready(LogicSystem.kt:95)
+	at org.jetbrains.kotlin.fir.resolve.dfa.LogicSystem.addImplication(LogicSystem.kt:83)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.addImplication(FirDataFlowAnalyzer.kt:1844)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.exitSafeCall$lambda$0(FirDataFlowAnalyzer.kt:1073)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer$$Lambda$935/0x00007f1535726c10.invoke(Unknown Source)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.buildDefaultFlow(FirDataFlowAnalyzer.kt:1701)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.mergeIncomingFlow(FirDataFlowAnalyzer.kt:1747)
+	at org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer.exitSafeCall(FirDataFlowAnalyzer.kt:1034)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformSafeCallExpression(FirExpressionsResolveTransformer.kt:496)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformSafeCallExpression(FirAbstractBodyResolveTransformerDispatcher.kt:424)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformSafeCallExpression(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.expressions.FirSafeCallExpression.transform(FirSafeCallExpression.kt:35)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformerUtilKt.transformInplace(FirTransformerUtil.kt:20)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformArguments(FirArgumentListImpl.kt:35)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformChildren(FirArgumentListImpl.kt:30)
+	at org.jetbrains.kotlin.fir.expressions.impl.FirArgumentListImpl.transformChildren(FirArgumentListImpl.kt:20)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformElement(FirAbstractBodyResolveTransformerDispatcher.kt:101)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformElement(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformer.transformArgumentList(FirTransformer.kt:167)
+	at org.jetbrains.kotlin.fir.expressions.FirArgumentList.transform(FirArgumentList.kt:29)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirPartialBodyResolveTransformer.transformElement(FirPartialBodyResolveTransformer.kt:36)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirPartialBodyResolveTransformer.transformElement(FirPartialBodyResolveTransformer.kt:13)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformer.transformArgumentList(FirTransformer.kt:167)
+	at org.jetbrains.kotlin.fir.expressions.FirArgumentList.transform(FirArgumentList.kt:29)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformFunctionCallInternal$resolve(FirExpressionsResolveTransformer.kt:585)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirExpressionsResolveTransformer.transformFunctionCall(FirExpressionsResolveTransformer.kt:521)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformFunctionCall(FirAbstractBodyResolveTransformerDispatcher.kt:209)
+	at org.jetbrains.kotlin.fir.resolve.transformers.body.resolve.FirAbstractBodyResolveTransformerDispatcher.transformFunctionCall(FirAbstractBodyResolveTransformerDispatcher.kt:27)
+	at org.jetbrains.kotlin.fir.expressions.FirFunctionCall.transform(FirFunctionCall.kt:45)
+	at org.jetbrains.kotlin.fir.visitors.FirTransformerUtilKt.transformSingle(FirTransformerUtil.kt:13)
+
+	at org.jetbrains.kotlin.buildtools.internal.KotlinLoggerMessageCollectorAdapter.report(KotlinLoggerMessageCollectorAdapter.kt:19)
+	at org.jetbrains.kotlin.cli.common.messages.MessageCollector.report$default(MessageCollector.kt:12)
+	at org.jetbrains.kotlin.daemon.client.BasicCompilerServicesWithResultsFacadeServerKt.reportFromDaemon(BasicCompilerServicesWithResultsFacadeServer.kt:58)
+	at org.jetbrains.kotlin.daemon.client.BasicCompilerServicesWithResultsFacadeServer.report(BasicCompilerServicesWithResultsFacadeServer.kt:37)
+	at org.jetbrains.kotlin.buildtools.internal.jvm.operations.BtaCompilerServicesWithResultsFacade.report(JvmCompilationOperationImpl.kt:532)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:360)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:712)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
 
 > Task :app:compileDebugKotlin FAILED
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt:43:45 Unresolved reference 'quickListState'.
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1790448185913.json
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1790541655160.json
 
 FAILURE: Build failed with an exception.
 
 * What went wrong:
 Execution failed for task ':app:compileDebugKotlin'.
 > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
+   > Not enough memory to run compilation. Try to increase it via 'gradle.properties':
+     kotlin.daemon.jvmargs=-Xmx<size>
 
 * Try:
 > Run with --stacktrace option to get the stack trace.
@@ -58,5 +151,5 @@ Execution failed for task ':app:compileDebugKotlin'.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
 
-BUILD FAILED in 54s
-32 actionable tasks: 32 executed
+BUILD FAILED in 13m 7s
+33 actionable tasks: 33 executed

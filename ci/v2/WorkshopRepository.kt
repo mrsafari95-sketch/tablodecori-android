@@ -253,12 +253,8 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     suspend fun deleteProduct(id: String) = db.productDao().softDelete(id, System.currentTimeMillis())
 
     private fun received(input: OrderFormInput): Long {
-        require(input.shippingCostToman>=0 && input.quotedTotalToman>=0 && input.depositToman>=0 && input.otherPaidToman>=0 && input.codDueToman>=0 && input.codCollectedToman>=0){"مبالغ نمی‌توانند منفی باشند."}
-        require(input.codCollectedToman<=input.codDueToman){"پرداخت دریافت‌شده درب منزل از مبلغ درب منزل بیشتر است."}
-        val paid=Math.addExact(Math.addExact(input.depositToman,input.otherPaidToman),input.codCollectedToman)
-        require(paid<=input.quotedTotalToman){"دریافتی از مبلغ توافق‌شده بیشتر است."}
-        require(input.codDueToman<=input.quotedTotalToman-input.depositToman-input.otherPaidToman){"مبلغ درب منزل از مانده سفارش بیشتر است."}
-        return paid
+        require(input.shippingCostToman>=0){"هزینه ارسال نمی‌تواند منفی باشد."}
+        return OrderPaymentMath.received(input.quotedTotalToman,input.depositToman,input.otherPaidToman,input.codDueToman,input.codCollectedToman)
     }
 
     suspend fun createOrder(input: OrderFormInput): String {

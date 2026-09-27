@@ -40,6 +40,18 @@ data class OrderFormInput(
     val removePhoto: Boolean = false,
 )
 
+/** The amount due at delivery is only received after collection is recorded. */
+object OrderPaymentMath {
+    fun received(quotedTotal: Long, deposit: Long, otherPaid: Long, codDue: Long, codCollected: Long): Long {
+        require(listOf(quotedTotal, deposit, otherPaid, codDue, codCollected).all { it >= 0L }) { "مبالغ نمی‌توانند منفی باشند." }
+        require(codCollected <= codDue) { "پرداخت دریافت‌شده درب منزل از مبلغ درب منزل بیشتر است." }
+        val paid = Math.addExact(Math.addExact(deposit, otherPaid), codCollected)
+        require(paid <= quotedTotal) { "دریافتی از مبلغ توافق‌شده بیشتر است." }
+        require(deposit <= quotedTotal && otherPaid <= quotedTotal - deposit && codDue <= quotedTotal - deposit - otherPaid) { "مبلغ درب منزل از مانده سفارش بیشتر است." }
+        return paid
+    }
+}
+
 fun SentOrderEntity.outstandingToman(): Long = (quotedTotalToman - receivedToman).coerceAtLeast(0L)
 fun SentOrderEntity.expectedProfitToman(): Long = quotedTotalToman - productCostSnapshotToman - shippingCostToman
 

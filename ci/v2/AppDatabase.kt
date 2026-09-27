@@ -9,8 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
-        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class],
-    version = 7,
+        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class],
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun settingsDao(): SettingsDao
     abstract fun backupDao(): BackupDao
+    abstract fun stockDao(): StockDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2,3) {
@@ -71,9 +72,18 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE sent_orders ADD COLUMN trackingCode TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_7_8 = object : Migration(7,8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN lowStockPercent INTEGER NOT NULL DEFAULT 10")
+                db.execSQL("CREATE TABLE IF NOT EXISTS stock_items (id TEXT NOT NULL PRIMARY KEY, materialId TEXT NOT NULL, materialName TEXT NOT NULL, variantKey TEXT NOT NULL, unit TEXT NOT NULL, onHandMicros INTEGER NOT NULL DEFAULT 0, targetMicros INTEGER NOT NULL DEFAULT 0, notifiedLow INTEGER NOT NULL DEFAULT 0, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_stock_items_materialId_variantKey ON stock_items(materialId, variantKey)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS order_stock_usage (orderId TEXT NOT NULL, stockItemId TEXT NOT NULL, amountMicros INTEGER NOT NULL, PRIMARY KEY(orderId, stockItemId), FOREIGN KEY(orderId) REFERENCES sent_orders(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(stockItemId) REFERENCES stock_items(id) ON UPDATE NO ACTION ON DELETE RESTRICT)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_order_stock_usage_stockItemId ON order_stock_usage(stockItemId)")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build()
     }
 }

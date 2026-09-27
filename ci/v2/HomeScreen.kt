@@ -37,6 +37,8 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val products by vm.pricedProducts.collectAsState()
     val orders by vm.orders.collectAsState()
     val materials by vm.materials.collectAsState()
+    val stock by vm.stockItems.collectAsState()
+    val settings by vm.settings.collectAsState()
     val history by vm.history.collectAsState()
     val activeProducts = products.count { it.product.active }
     val today=PersianDate.fromEpoch(System.currentTimeMillis())
@@ -46,6 +48,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val dueToday=pendingShip.count{dateKey(it.plannedShipAtMillis)==todayKey}
     val overdue=pendingShip.count{dateKey(it.plannedShipAtMillis)<todayKey}
     val receivables=orders.sumOf{it.order.outstandingToman()}
+    val lowStock=stock.count{it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10)}
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -102,7 +105,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     HomeActionCard(Icons.Rounded.LocalShipping,"سفارش‌ها","ثبت، پیگیری و ارسال",MaterialTint,MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("orders")}
-                    HomeActionCard(Icons.Rounded.Settings,"تنظیمات","قیمت، سفارش و بکاپ",PriceTint,PriceAccent,Modifier.weight(1f)){onNavigate("settings")}
+                    HomeActionCard(Icons.Rounded.Inventory,"انبار","موجودی و هشدار کمبود",PriceTint,PriceAccent,Modifier.weight(1f)){onNavigate("inventory")}
                 }
             }
         }
@@ -117,6 +120,10 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
                     OverviewCard(Icons.Rounded.DoneAll,"آمادهٔ ارسال",orders.count{it.order.orderStatus=="READY"}.toString(),Color(0xFF39816C),Modifier.weight(1f)){onNavigate("orders")}
                     OverviewCard(Icons.Rounded.AccountBalanceWallet,"ماندهٔ وصول",money(receivables),HomeGold,Modifier.weight(1f)){onNavigate("orders")}
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                    OverviewCard(Icons.Rounded.WarningAmber,"کمبود انبار",lowStock.toString(),Color(0xFFA65D13),Modifier.weight(1f)){onNavigate("inventory")}
+                    OverviewCard(Icons.Rounded.Inventory,"اقلام انبار",stock.size.toString(),MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("inventory")}
                 }
             }
         }

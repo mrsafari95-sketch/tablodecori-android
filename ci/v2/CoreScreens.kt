@@ -235,6 +235,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     var defaultFrameColor by remember(current?.defaultFrameColor){mutableStateOf(current?.defaultFrameColor.orEmpty())}
     var frameColorOptions by remember(current?.frameColorOptions){mutableStateOf(current?.frameColorOptions?:"مشکی، سفید، طلایی، نقره‌ای، چوبی")}
     var suggestCodRemainder by remember(current?.suggestCodRemainder){mutableStateOf(current?.suggestCodRemainder?:true)}
+    var lowStockPercent by remember(current?.lowStockPercent){mutableStateOf((current?.lowStockPercent?:10).toString())}
     var pendingImport by remember{mutableStateOf<String?>(null)}
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) scope.launch {
@@ -271,8 +272,14 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             Button(onClick={vm.saveOrderPreferences(depositPercent.toInt(),defaultFrameColor,frameColorOptions,suggestCodRemainder)},enabled=depositPercent.toIntOrNull()?.let{it in 0..100}==true,modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات سفارش")}
         }}
         item{AppCard{
+            Text("هشدار موجودی انبار",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+            Text("وقتی موجودی هر قلم به این درصد از موجودی مطلوب یا کمتر برسد، اعلان فرستاده می‌شود.",style=MaterialTheme.typography.bodySmall)
+            OutlinedTextField(lowStockPercent,{lowStockPercent=it.filter(Char::isDigit)},label={Text("آستانه هشدار موجودی")},suffix={Text("٪")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+            Button(onClick={vm.saveStockThreshold(lowStockPercent.toInt())},enabled=lowStockPercent.toIntOrNull()?.let{it in 1..100}==true,modifier=Modifier.fillMaxWidth()){Text("ذخیره آستانه انبار")}
+        }}
+        item{AppCard{
             Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-            Text("بکاپ کامل شامل متریال‌ها، جدول ابعاد، محصولات، سفارش‌ها، عکس‌های سفارش، تاریخچه قیمت و تنظیمات برنامه است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، عکس‌ها و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
             OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
         }}

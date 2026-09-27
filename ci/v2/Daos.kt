@@ -75,6 +75,17 @@ interface SettingsDao {
 }
 
 @Dao
+interface StockDao {
+    @Query("SELECT * FROM stock_items ORDER BY materialName, variantKey") fun observeAll(): Flow<List<StockItemEntity>>
+    @Query("SELECT * FROM stock_items ORDER BY materialName, variantKey") suspend fun getAll(): List<StockItemEntity>
+    @Query("SELECT * FROM stock_items WHERE id = :id LIMIT 1") suspend fun get(id:String): StockItemEntity?
+    @Upsert suspend fun upsert(item:StockItemEntity)
+    @Query("SELECT * FROM order_stock_usage WHERE orderId = :orderId") suspend fun usages(orderId:String): List<OrderStockUsageEntity>
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun insertUsages(items:List<OrderStockUsageEntity>)
+    @Query("DELETE FROM order_stock_usage WHERE orderId = :orderId") suspend fun deleteUsages(orderId:String)
+}
+
+@Dao
 interface BackupDao {
     @Query("SELECT * FROM materials") suspend fun materials(): List<MaterialEntity>
     @Query("SELECT * FROM products") suspend fun products(): List<ProductEntity>
@@ -86,6 +97,8 @@ interface BackupDao {
     @Query("SELECT * FROM order_cost_snapshots") suspend fun costs(): List<OrderCostSnapshotEntity>
     @Query("SELECT * FROM price_change_history") suspend fun history(): List<PriceChangeHistoryEntity>
     @Query("SELECT * FROM app_settings") suspend fun settings(): List<AppSettingsEntity>
+    @Query("DELETE FROM order_stock_usage") suspend fun clearStockUsage()
+    @Query("DELETE FROM stock_items") suspend fun clearStockItems()
 
     @Query("DELETE FROM order_cost_snapshots") suspend fun clearCosts()
     @Query("DELETE FROM sent_orders") suspend fun clearOrders()

@@ -51,6 +51,7 @@ jobs:
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionCode = 1/versionCode = 3/' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionName = "1.0.0"/versionName = "1.2.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            printf '\norg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\norg.gradle.workers.max=2\n' >> "$PROJECT_DIR/gradle.properties"
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
@@ -58,6 +59,7 @@ jobs:
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            cp ci/v2/InventoryScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/InventoryScreen.kt"
             cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
               cp ci/v2/BusinessScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
@@ -69,6 +71,8 @@ jobs:
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
             cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
             cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
+            cp ci/v2/StockPlanner.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockPlanner.kt"
+            cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
             cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
             cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
@@ -77,6 +81,7 @@ jobs:
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data"
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
             cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
+            cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
             if [ ! -f ci/v2/PricingEngine.kt ]; then
               PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"
@@ -182,6 +187,9 @@ jobs:
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
           guard "database migration 5 to 6 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_5_6'
           guard "database migration 6 to 7 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_6_7'
+          guard "database migration 7 to 8 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_7_8'
+          guard "stock use saved per order" "$SRC/data/WorkshopRepository.kt" 'db.stockDao().insertUsages'
+          guard "photo excluded from stock" "$SRC/data/StockPlanner.kt" 'id=="photo_lab"'
           guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
           guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
           guard "order form tracks COD collection" "$SRC/ui/screens/OrderEditorScreen.kt" 'دریافت‌شده درب منزل'

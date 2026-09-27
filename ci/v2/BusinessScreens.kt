@@ -76,6 +76,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     var add by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<OrderWithCosts?>(null)}
     var search by rememberSaveable{mutableStateOf("")}
+    var statusFilter by rememberSaveable{mutableStateOf("ALL")}
     if(add || editing!=null){
         val selected=editing?.order
         OrderEditorScreen(products,settings,selected,onDismiss={add=false;editing=null}){input->
@@ -85,8 +86,18 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     }
     val months=orders.map{PersianDate.fromEpoch(it.order.dateEpochMillis)}.distinctBy{it.monthKey}.sortedByDescending{it.monthKey}
     val monthFiltered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
+    val today=PersianDate.fromEpoch(System.currentTimeMillis())
+    fun sameDay(millis:Long):Boolean=PersianDate.fromEpoch(millis).let{it.year==today.year&&it.month==today.month&&it.day==today.day}
+    val statusFiltered=monthFiltered.filter{x->when(statusFilter){
+        "PREPARING"->x.order.orderStatus=="PREPARING"
+        "READY"->x.order.orderStatus=="READY"
+        "SENT"->x.order.orderStatus=="SENT"
+        "DUE"->x.order.orderStatus!="SENT"&&x.order.plannedShipAtMillis>0L&&sameDay(x.order.plannedShipAtMillis)
+        "UNPAID"->x.order.outstandingToman()>0L
+        else->true
+    }}
     val query=search.trim()
-    val filtered=if(query.isBlank()) monthFiltered else monthFiltered.filter{x->
+    val filtered=if(query.isBlank()) statusFiltered else statusFiltered.filter{x->
         val o=x.order
         listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber,o.frameColor).any{it.contains(query,ignoreCase=true)}
     }
@@ -97,6 +108,9 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("سفارش‌های ارسالی","Snapshot مالی؛ تغییر قیمت آینده روی گذشته اثر ندارد"){Button(onClick={add=true},enabled=products.isNotEmpty()){Text("+ ثبت ارسال")}}}
         item{OutlinedTextField(search,{search=it},label={Text("جستجو در سفارش‌ها")},placeholder={Text("نام، آیدی اینستاگرام یا شماره تماس")},singleLine=true,modifier=Modifier.fillMaxWidth())}
+        item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+            listOf("ALL" to "همه","PREPARING" to "در آماده‌سازی","READY" to "آمادهٔ ارسال","DUE" to "ارسال امروز","UNPAID" to "مانده‌دار","SENT" to "ارسال‌شده").forEach{(key,label)->FilterChip(selected=statusFilter==key,onClick={statusFilter=key},label={Text(label)})}
+        }}
         item{
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){
                 var exp by remember{mutableStateOf(false)}

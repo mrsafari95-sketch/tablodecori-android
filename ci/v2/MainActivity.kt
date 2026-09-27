@@ -131,6 +131,7 @@ private val bottomItems=listOf(
             composable("quick"){QuickScreen(vm)}
             composable("pricebook"){PricebookScreen(vm)}
             composable("orders"){OrdersScreen(vm)}
+            composable("inventory"){InventoryScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
             composable("settings"){SettingsScreen(vm)}
         }
@@ -143,6 +144,7 @@ private fun titleFor(r:String)=when(r){
     "quick"->"محاسبه سریع"
     "pricebook"->"لیست قیمت"
     "orders"->"سفارش‌ها"
+    "inventory"->"کنترل انبار"
     "reports"->"گزارش‌ها"
     "settings"->"تنظیمات"
     else->"مدیریت کارگاه"

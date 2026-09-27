@@ -2,6 +2,7 @@ package com.tablodecori.app.data
 
 import com.tablodecori.app.data.db.SentOrderEntity
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,5 +23,8 @@ class OrderSharingTest {
         assertTrue(text.contains("📥 بیعانه:"))
         assertFalse(text.contains("هزینه تولید"))
         assertFalse(text.contains("سود"))
+        assertEquals(700_000L, order.outstandingToman())
+        assertEquals(400_000L, order.expectedProfitToman())
+        assertEquals(300_000L, order.copy(shippingPayer="SENDER").expectedProfitToman())
     }
 }

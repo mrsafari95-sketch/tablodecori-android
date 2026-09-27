@@ -35,6 +35,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     val history = repo.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val profitRules = repo.profitRules.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val settings = repo.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val stockItems = repo.stockItems.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val _message=MutableSharedFlow<String>(extraBufferCapacity=8); val messages=_message.asSharedFlow()
     init { viewModelScope.launch { repo.ensurePricingStructure() } }
 
@@ -56,6 +57,9 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
         repo.deleteOrder(orderId); _message.emit("سفارش حذف شد.")
     }
     fun saveSettings(rounding:Long,shipping:Long,dark:Boolean)=launch { repo.updateSettings(rounding,shipping,dark); _message.emit("تنظیمات ذخیره شد.") }
+    fun addStock(materialId:String,variant:String,onHand:Long,target:Long)=launch { repo.addStock(materialId,variant,onHand,target);_message.emit("قلم انبار ثبت شد.") }
+    fun saveStock(id:String,onHand:Long,target:Long)=launch { repo.saveStock(id,onHand,target);_message.emit("موجودی انبار ذخیره شد.") }
+    fun saveStockThreshold(percent:Int)=launch { repo.updateStockThreshold(percent);_message.emit("آستانه هشدار انبار ذخیره شد.") }
     fun saveOrderPreferences(depositPercent:Int,defaultFrameColor:String,frameColorOptions:String,suggestCodRemainder:Boolean)=launch {
         repo.updateOrderPreferences(depositPercent,defaultFrameColor,frameColorOptions,suggestCodRemainder)
         _message.emit("تنظیمات سفارش ذخیره شد.")

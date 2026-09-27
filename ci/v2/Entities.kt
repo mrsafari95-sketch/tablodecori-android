@@ -159,7 +159,27 @@ data class AppSettingsEntity(
     val defaultFrameColor: String = "",
     val frameColorOptions: String = "مشکی، سفید، طلایی، نقره‌ای، چوبی",
     val suggestCodRemainder: Boolean = true,
+    val lowStockPercent: Int = 10,
 )
+
+@Entity(tableName = "stock_items", indices = [Index(value=["materialId", "variantKey"], unique=true)])
+data class StockItemEntity(
+    @PrimaryKey val id: String,
+    val materialId: String,
+    val materialName: String,
+    val variantKey: String,
+    val unit: String,
+    val onHandMicros: Long = 0L,
+    val targetMicros: Long = 0L,
+    val notifiedLow: Boolean = false,
+    val updatedAt: Long,
+)
+
+@Entity(tableName = "order_stock_usage", primaryKeys = ["orderId", "stockItemId"],
+    foreignKeys = [ForeignKey(entity=SentOrderEntity::class,parentColumns=["id"],childColumns=["orderId"],onDelete=ForeignKey.CASCADE),
+        ForeignKey(entity=StockItemEntity::class,parentColumns=["id"],childColumns=["stockItemId"],onDelete=ForeignKey.RESTRICT)],
+    indices=[Index("stockItemId")])
+data class OrderStockUsageEntity(val orderId: String, val stockItemId: String, val amountMicros: Long)
 
 data class ProductWithDetails(
     @Embedded val product: ProductEntity,

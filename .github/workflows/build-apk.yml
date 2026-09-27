@@ -189,7 +189,7 @@ jobs:
           guard "database migration 6 to 7 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_6_7'
           guard "database migration 7 to 8 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_7_8'
           guard "stock use saved per order" "$SRC/data/WorkshopRepository.kt" 'db.stockDao().insertUsages'
-          guard "photo excluded from stock" "$SRC/data/StockPlanner.kt" 'id=="photo_lab"'
+          guard "photo excluded from stock" "$SRC/data/StockPlanner.kt" 'material.id=="photo_lab"'
           guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
           guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
           guard "order form tracks COD collection" "$SRC/ui/screens/OrderEditorScreen.kt" 'دریافت‌شده درب منزل'

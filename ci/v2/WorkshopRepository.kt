@@ -284,6 +284,19 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         db.stockDao().deleteUsages(orderId)
     }
 
+    private suspend fun recolorFrameStock(orderId:String,color:String) {
+        val newId="frame_pvc|${StockPlanner.colorKey(color)}"
+        db.stockDao().usages(orderId).filter { it.stockItemId.startsWith("frame_pvc|") && it.stockItemId!=newId }.forEach { usage ->
+            val old=db.stockDao().get(usage.stockItemId) ?: return@forEach
+            val now=System.currentTimeMillis()
+            db.stockDao().upsert(old.copy(onHandMicros=Math.addExact(old.onHandMicros,usage.amountMicros),updatedAt=now))
+            val next=db.stockDao().get(newId) ?: StockItemEntity(newId,"frame_pvc",old.materialName,StockPlanner.colorKey(color),"METER",updatedAt=now)
+            db.stockDao().upsert(next.copy(onHandMicros=Math.subtractExact(next.onHandMicros,usage.amountMicros),updatedAt=now))
+            db.stockDao().deleteUsage(orderId,usage.stockItemId)
+            db.stockDao().insertUsages(listOf(OrderStockUsageEntity(orderId,newId,usage.amountMicros)))
+        }
+    }
+
     suspend fun saveStock(id:String,onHandMicros:Long,targetMicros:Long) {
         require(targetMicros>0 && onHandMicros>=0){"موجودی فعلی باید صفر یا بیشتر و حد مطلوب بزرگ‌تر از صفر باشد."}
         db.withTransaction {
@@ -392,7 +405,8 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val newPhoto=input.selectedPhotoUri?.let{photos.importSelected(it)}
         val photoName=when { newPhoto!=null->newPhoto; input.removePhoto->""; else->existing.photoFileName }
         try { db.withTransaction {
-            if(replacement!=null || input.frameColor.trim()!=existing.frameColor.trim()) releaseStock(orderId)
+            if(replacement!=null) releaseStock(orderId)
+            else if(input.frameColor.trim()!=existing.frameColor.trim()) recolorFrameStock(orderId,input.frameColor)
             db.orderDao().update(existing.copy(
             dateEpochMillis = input.dateEpochMillis,
             customerName = input.customerName,
@@ -428,10 +442,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 db.orderDao().deleteCosts(orderId)
                 db.orderDao().insertCosts(replacement.second.lines.map { OrderCostSnapshotEntity(orderId=orderId,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
             }
-            if(replacement!=null || input.frameColor.trim()!=existing.frameColor.trim()) {
-                val stockModel=replacement?.first ?: db.productDao().get(input.productId)?.toModel()
-                if(stockModel!=null) consumeStock(orderId,stockModel,input.frameColor)
-            }
+            if(replacement!=null) consumeStock(orderId,replacement.first,input.frameColor)
         } } catch(t:Throwable){ if(newPhoto!=null) photos.delete(newPhoto); throw t }
         if(photoName!=existing.photoFileName) photos.delete(existing.photoFileName)
         runCatching { ShippingReminder.schedule(appContext,orderId,input.plannedShipAtMillis,input.orderStatus) }

@@ -12,9 +12,10 @@ object StockPlanner {
     const val SCALE=1_000_000L
     fun sizeKey(width:Int,height:Int)="${minOf(width,height)}x${maxOf(width,height)}"
     fun colorKey(color:String)=color.trim().ifBlank { "بدون رنگ" }
+    private fun isPhotoPrint(material:MaterialEntity)=material.id=="photo_lab" || material.id.startsWith("photo_") || material.name.contains("چاپ عکس") || material.name.contains("عکس لابراتوار") || material.name.trim()=="عکس"
     fun unitFor(material:MaterialEntity):String? {
         val id=material.id
-        if(material.category=="OVERHEAD" || id=="photo_lab" || id.startsWith("photo_") || id=="packaging_bundle" || id.contains("labor") || material.name.trim()=="عکس") return null
+        if(material.category=="OVERHEAD" || isPhotoPrint(material) || id=="packaging_bundle" || id.contains("labor")) return null
         return when(id){"backboard_3mm","pack_foam","pack_carton","pack_tape","frame_supplies"->"PIECE";"frame_pvc"->"METER";"glass"->"SQM"
             else->when(material.calculationType){"PER_PIECE","PER_SET","SMART_PACKAGING"->"PIECE";"PER_LINEAR_METER"->"METER";"PER_SQUARE_METER"->"SQM";else->null}}
     }
@@ -40,7 +41,7 @@ object StockPlanner {
         val pieceCount=pieces.sumOf { it.quantity.toLong() }
         val areaMicros=pieces.sumOf { Math.multiplyExact(Math.multiplyExact(it.widthCm.toLong(),it.heightCm.toLong()),Math.multiplyExact(it.quantity.toLong(),100L)) }
         val perimeterMicros=pieces.sumOf { Math.multiplyExact((2L*(it.widthCm+it.heightCm)+20L),Math.multiplyExact(it.quantity.toLong(),10_000L)) }
-        enabledIds.filter { it in active && it!="packaging_bundle" && !it.startsWith("pack_") && !it.startsWith("photo_") && it!="photo_lab" && !it.contains("labor") && it!="unexpected_cost" && it!="inflation" }.forEach { id ->
+        enabledIds.filter { id -> active[id]?.let { unitFor(it)!=null }==true && id!="packaging_bundle" && !id.startsWith("pack_") }.forEach { id ->
             val m=active.getValue(id)
             when(id){
                 "backboard_3mm" -> pieces.forEach { p ->

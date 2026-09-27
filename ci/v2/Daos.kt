@@ -83,6 +83,7 @@ interface StockDao {
     @Query("SELECT * FROM order_stock_usage WHERE orderId = :orderId") suspend fun usages(orderId:String): List<OrderStockUsageEntity>
     @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun insertUsages(items:List<OrderStockUsageEntity>)
     @Query("DELETE FROM order_stock_usage WHERE orderId = :orderId") suspend fun deleteUsages(orderId:String)
+    @Query("DELETE FROM order_stock_usage WHERE orderId = :orderId AND stockItemId = :stockItemId") suspend fun deleteUsage(orderId:String,stockItemId:String)
 }
 
 @Dao

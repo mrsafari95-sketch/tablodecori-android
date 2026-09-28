@@ -83,7 +83,7 @@ data class MonthlySummary(
 
 fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(
     id, name, MaterialCategory.valueOf(category), CalculationType.valueOf(calculationType), priceToman,
-    rateBasisPoints, wasteBasisPoints, enabled && !deleted, runCatching { SmartPackagingKind.valueOf(smartKind) }.getOrDefault(SmartPackagingKind.GENERIC)
+    rateBasisPoints, wasteBasisPoints, enabled && !deleted && smartKind!=MaterialCatalog.STOCK_ONLY, runCatching { SmartPackagingKind.valueOf(smartKind) }.getOrDefault(SmartPackagingKind.GENERIC)
 )
 
 fun ProductWithDetails.toModel(): ProductModel = ProductModel(

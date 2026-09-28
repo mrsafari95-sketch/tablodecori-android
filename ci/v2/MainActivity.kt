@@ -60,10 +60,10 @@ class MainActivity : ComponentActivity() {
 private data class NavItem(val route:String,val icon:ImageVector,val label:String)
 private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
-    NavItem("variables",Icons.Rounded.Inventory2,"متریال"),
+    NavItem("variables",Icons.Rounded.Tune,"متریال"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
     NavItem("quick",Icons.Rounded.Calculate,"سریع"),
-    NavItem("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت"),
+    NavItem("inventory",Icons.Rounded.Inventory2,"انبار"),
     NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
 )
 
@@ -75,12 +75,13 @@ private val bottomItems=listOf(
     val snackbar=remember{SnackbarHostState()}
     LaunchedEffect(Unit){vm.messages.collect{snackbar.showSnackbar(it)}}
     fun navigateTopLevel(target:String){
-        if(target=="home"){
+        val destination=if(target=="pricebook")"products" else target
+        if(destination=="home"){
             nav.popBackStack("home",false)
         }else{
             if(route=="settings") nav.popBackStack()
-            if(nav.currentDestination?.route!=target){
-                nav.navigate(target){
+            if(nav.currentDestination?.route!=destination){
+                nav.navigate(destination){
                     popUpTo("home"){inclusive=false;saveState=true}
                     launchSingleTop=true
                     restoreState=true
@@ -129,7 +130,10 @@ private val bottomItems=listOf(
             composable("variables"){VariablesScreen(vm)}
             composable("products"){ProductsScreen(vm)}
             composable("quick"){QuickScreen(vm)}
-            composable("pricebook"){PricebookScreen(vm)}
+            // Keep older in-app links valid without showing a second product list.
+            composable("pricebook"){
+                LaunchedEffect(Unit){nav.navigate("products"){popUpTo("pricebook"){inclusive=true};launchSingleTop=true}}
+            }
             composable("orders"){OrdersScreen(vm)}
             composable("inventory"){InventoryScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
@@ -143,7 +147,7 @@ private fun titleFor(r:String)=when(r){
     "variables"->"متریال‌ها و هزینه‌ها"
     "products"->"محصولات و ست‌ها"
     "quick"->"محاسبه سریع"
-    "pricebook"->"لیست قیمت"
+    "pricebook"->"محصولات و قیمت‌ها"
     "orders"->"سفارش‌ها"
     "inventory"->"کنترل انبار"
     "reports"->"گزارش‌ها"

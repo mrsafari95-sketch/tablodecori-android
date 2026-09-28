@@ -53,6 +53,10 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     init { viewModelScope.launch { repo.ensurePricingStructure() } }
 
     fun saveMaterial(e: MaterialEntity)=launch { val n=repo.saveMaterial(e); _message.emit(if(n>0) "قیمت تغییر کرد؛ $n محصول تحت تأثیر قرار گرفت." else "متغیر ذخیره شد.") }
+    suspend fun createReliefMaterial(name:String,price:Long,type:String):String? = runCatching { repo.createReliefMaterial(name,price,type) }
+        .fold(onSuccess={_message.emit("متغیر تابلو برجسته افزوده شد.");it},onFailure={_message.emit(it.message?:"افزودن متغیر انجام نشد.");null})
+    suspend fun createStockMaterial(name:String,unit:String,onHand:Long,target:Long):String? = runCatching { repo.createStockMaterial(name,unit,onHand,target) }
+        .fold(onSuccess={_message.emit("قلم سفارشی به پایش انبار افزوده شد.");it},onFailure={_message.emit(it.message?:"افزودن قلم انجام نشد.");null})
     fun sizePrices(id:String)=repo.sizePrices(id)
     fun saveSizePrice(e:SizePriceEntity)=launch { repo.saveSizePrice(e); _message.emit("قیمت ابعاد ذخیره شد.") }
     fun deleteSizePrice(id:String)=launch { repo.deleteSizePrice(id); _message.emit("قیمت ابعاد حذف شد.") }
@@ -74,6 +78,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun saveStock(id:String,onHand:Long,target:Long)=launch { repo.saveStock(id,onHand,target);_message.emit("موجودی انبار ذخیره شد.") }
     fun trackStock(materialId:String,variant:String)=launch { repo.trackStock(materialId,variant);_message.emit("قلم به پایش انبار اضافه شد؛ موجودی واقعی آن را ثبت کنید.") }
     fun hideStock(id:String)=launch { repo.hideStock(id);_message.emit("قلم از پایش انبار برداشته شد.") }
+    fun dismissStockSuggestion(materialId:String,variant:String)=launch { repo.dismissStockSuggestion(materialId,variant);_message.emit("قلم از پیشنهادهای انبار پنهان شد.") }
     fun saveExpense(id:String?,dateMillis:Long,category:String,title:String,payeeName:String,amount:Long,note:String,receiptUri:String?)=launch { repo.saveExpense(id,dateMillis,category,title,payeeName,amount,note,receiptUri);_message.emit("هزینه ثبت شد.") }
     fun deleteExpense(id:String)=launch { repo.deleteExpense(id);_message.emit("هزینه حذف شد.") }
     fun saveOpeningCash(amount:Long)=launch { repo.updateOpeningCash(amount);_message.emit("موجودی آغازین ذخیره شد.") }

@@ -265,6 +265,30 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         return affected
     }
 
+    suspend fun createReliefMaterial(name:String,priceToman:Long,calculationType:String):String {
+        require(calculationType in setOf("PER_SET","PER_PIECE","PER_SQUARE_METER","PER_LINEAR_METER")) { "روش محاسبه نامعتبر است." }
+        val now=System.currentTimeMillis()
+        val id=UUID.randomUUID().toString()
+        saveMaterial(MaterialEntity(id=id,name=name.trim(),category="PRODUCTION",calculationType=calculationType,
+            priceToman=priceToman,smartKind=MaterialCatalog.RELIEF_CUSTOM,createdAt=now,updatedAt=now))
+        return id
+    }
+
+    suspend fun createStockMaterial(name:String,unit:String,onHandMicros:Long,targetMicros:Long):String {
+        require(name.isNotBlank() && onHandMicros>=0L && targetMicros>0L) { "نام، موجودی و مقدار مطلوب را درست وارد کنید." }
+        if(unit=="PIECE")require(onHandMicros%StockPlanner.SCALE==0L && targetMicros%StockPlanner.SCALE==0L) { "برای اقلام شمارشی، عدد صحیح وارد کنید." }
+        val type=when(unit){"PIECE"->"PER_PIECE";"METER"->"PER_LINEAR_METER";"SQM"->"PER_SQUARE_METER";else->error("واحد انبار نامعتبر است.")}
+        val now=System.currentTimeMillis()
+        val id=UUID.randomUUID().toString()
+        db.withTransaction {
+            db.materialDao().upsert(MaterialEntity(id=id,name=name.trim(),category="PRODUCTION",calculationType=type,
+                priceToman=0L,smartKind=MaterialCatalog.STOCK_ONLY,createdAt=now,updatedAt=now))
+            db.stockDao().upsert(StockItemEntity("$id|",id,name.trim(),"",unit,onHandMicros,targetMicros,updatedAt=now,tracked=true))
+        }
+        checkStockAlerts()
+        return id
+    }
+
     suspend fun toggleMaterial(id: String, enabled: Boolean) {
         db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }
     }
@@ -382,7 +406,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         db.withTransaction {
             val old=db.stockDao().get(id)
             val now=System.currentTimeMillis()
-            db.stockDao().upsert(old?.copy(tracked=true,notifiedLow=false,updatedAt=now)
+            db.stockDao().upsert(old?.let{it.copy(tracked=true,targetMicros=it.targetMicros.coerceAtLeast(0L),notifiedLow=false,updatedAt=now)}
                 ?: StockItemEntity(id,materialId,material.name,variant,unit,updatedAt=now,tracked=true))
         }
         checkStockAlerts()
@@ -391,7 +415,21 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     suspend fun hideStock(id:String) {
         db.withTransaction {
             val old=db.stockDao().get(id) ?: return@withTransaction
-            db.stockDao().upsert(old.copy(tracked=false,notifiedLow=false,updatedAt=System.currentTimeMillis()))
+            db.stockDao().upsert(old.copy(tracked=false,targetMicros=-1L,notifiedLow=false,updatedAt=System.currentTimeMillis()))
+        }
+    }
+
+    suspend fun dismissStockSuggestion(materialId:String,variantText:String) {
+        val material=db.materialDao().get(materialId) ?: error("متریال پیدا نشد.")
+        val unit=StockPlanner.unitFor(material) ?: error("این قلم موجودی فیزیکی ندارد.")
+        val variant=StockPlanner.variantFor(materialId,variantText)
+        val id="$materialId|$variant"
+        db.withTransaction {
+            val old=db.stockDao().get(id)
+            require(old?.tracked!=true) { "این قلم اکنون پایش می‌شود؛ ابتدا آن را از پایش حذف کنید." }
+            val now=System.currentTimeMillis()
+            db.stockDao().upsert(old?.copy(targetMicros=-1L,notifiedLow=false,updatedAt=now)
+                ?: StockItemEntity(id,materialId,material.name,variant,unit,targetMicros=-1L,updatedAt=now,tracked=false))
         }
     }
 

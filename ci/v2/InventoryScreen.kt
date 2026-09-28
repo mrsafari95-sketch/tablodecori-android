@@ -27,6 +27,7 @@ import com.tablodecori.app.data.StockPlanner
 import com.tablodecori.app.data.StockQuantity
 import com.tablodecori.app.data.db.StockItemEntity
 import com.tablodecori.app.util.fa
+import kotlinx.coroutines.launch
 
 private data class StockView(val materialId:String,val name:String,val variant:String,val unit:String,val saved:StockItemEntity?) {
     val id:String get()="$materialId|$variant"
@@ -60,9 +61,10 @@ private data class StockView(val materialId:String,val name:String,val variant:S
     val glass=listOfNotNull(view("glass"))
     val frame=colorKeys.mapNotNull{view("frame_pvc",it)}
     val special=setOf("backboard_3mm","pack_carton","pack_foam","pack_tape","glass","frame_pvc")
+    val custom=materials.filter{it.smartKind==MaterialCatalog.STOCK_ONLY && !it.deleted && it.enabled}.mapNotNull{view(it.id)}
     val other=(MaterialCatalog.mainMaterials(materials)+materials.filter{it.id.startsWith("pack_")}).distinctBy{it.id}
         .filter{it.id !in special && it.enabled && StockPlanner.unitFor(it)!=null}.mapNotNull{view(it.id)}
-    val groups=listOf("شاسی ۳ میل" to chassis,"لوازم بسته‌بندی" to packaging,"شیشه" to glass,"فریم PVC بر اساس رنگ" to frame,"سایر اقلام" to other)
+    val groups=listOf("شاسی ۳ میل" to chassis,"لوازم بسته‌بندی" to packaging,"شیشه" to glass,"فریم PVC بر اساس رنگ" to frame,"اقلام سفارشی" to custom,"سایر اقلام" to other)
     val candidates=groups.flatMap{it.second}.distinctBy{it.id}
     val configured=saved.values.count{it.tracked}
     val attention=saved.values.count(::needsAttention)
@@ -73,6 +75,8 @@ private data class StockView(val materialId:String,val name:String,val variant:S
     var adding by remember{mutableStateOf(false)}
     var hideCandidate by remember{mutableStateOf<StockView?>(null)}
     var addColor by remember{mutableStateOf(false)}
+    var addCustom by remember{mutableStateOf(false)}
+    var showHiddenSuggestions by remember{mutableStateOf(false)}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)vm.refreshStockAlerts();vm.notify(if(granted)"اعلان موجودی فعال شد." else "اعلان موجودی به اجازه گوشی نیاز دارد.")}
 
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
@@ -81,6 +85,7 @@ private data class StockView(val materialId:String,val name:String,val variant:S
             Text("اقلام مهم کارگاه را برای پایش انتخاب کنید. موجودی هر اندازهٔ شاسی و هر رنگ فریم جداگانه ثبت می‌شود.",color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item{Button(onClick={adding=true},modifier=Modifier.fillMaxWidth()){Text("+ افزودن قلم به پایش انبار")}}
+        item{OutlinedButton(onClick={addCustom=true},modifier=Modifier.fillMaxWidth()){Text("+ ساخت قلم سفارشی و ثبت موجودی")}}
         item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
             Text("${fa(configured)} قلم زیر پایش",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
             Text(if(attention>0)"${fa(attention)} قلم نیازمند بررسی یا خرید" else "موجودی اقلام پایش‌شده کافی است.",color=if(attention>0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
@@ -91,13 +96,13 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         if(legacyStockCount>0) item { Surface(color=MaterialTheme.colorScheme.tertiaryContainer,shape=RoundedCornerShape(12.dp)){Text("${fa(legacyStockCount)} قلم با روش قدیمی انبار ثبت شده است. موجودی شاسی قدیمی را نمی‌توان به تعداد هر اندازه تبدیل کرد؛ لطفاً تعداد واقعی هر اندازه را یک‌بار ثبت کنید.",modifier=Modifier.padding(12.dp))} }
         item { OutlinedTextField(search,{search=it},label={Text("جستجوی اندازه، رنگ یا متریال")},modifier=Modifier.fillMaxWidth(),singleLine=true) }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-            listOf("همه","شاسی","بسته‌بندی","شیشه","فریم","سایر").forEach{label->FilterChip(selected=filter==label,onClick={filter=label},label={Text(label)})}
+            listOf("همه","شاسی","بسته‌بندی","شیشه","فریم","سفارشی","سایر").forEach{label->FilterChip(selected=filter==label,onClick={filter=label},label={Text(label)})}
         } }
         item { Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
-            Text("فقط اقلام کم‌موجود")
+            Text("فقط اقلام با موجودی کم")
             Switch(onlyLow,{onlyLow=it})
         } }
-        val names=mapOf("شاسی" to 0,"بسته‌بندی" to 1,"شیشه" to 2,"فریم" to 3,"سایر" to 4)
+        val names=mapOf("شاسی" to 0,"بسته‌بندی" to 1,"شیشه" to 2,"فریم" to 3,"سفارشی" to 4,"سایر" to 5)
         var visibleCount=0
         groups.forEachIndexed{index,(title,rows)->
             if(filter=="همه" || names[filter]==index){
@@ -121,28 +126,43 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         editing=null
     } }
     hideCandidate?.let { row -> AlertDialog(onDismissRequest={hideCandidate=null},title={Text("حذف از پایش انبار")},
-        text={Text("${row.name} ${row.variant.replace("x","×")} از فهرست و هشدارها برداشته می‌شود. تعداد ثبت‌شده و سوابق سفارش حفظ می‌شوند و هر زمان می‌توانید دوباره آن را اضافه کنید.")},
+        text={Text("${row.name} ${row.variant.replace("x","×")} از فهرست و هشدارها برداشته می‌شود. تعداد ثبت‌شده و سوابق سفارش حفظ می‌شوند. برای افزودن دوباره، «نمایش موارد پنهان» را روشن کنید.")},
         confirmButton={Button(onClick={vm.hideStock(row.id);hideCandidate=null}){Text("حذف از پایش")}},
         dismissButton={TextButton(onClick={hideCandidate=null}){Text("انصراف")}}) }
     if(adding){
         var find by remember{mutableStateOf("")}
-        val available=candidates.filter{it.saved?.tracked!=true && (find.isBlank() || it.name.contains(find,true) || it.variant.contains(find,true))}
+        val available=candidates.filter{it.saved?.tracked!=true && (showHiddenSuggestions || it.saved?.targetMicros!=-1L) && (find.isBlank() || it.name.contains(find,true) || it.variant.contains(find,true))}
         AlertDialog(onDismissRequest={adding=false},title={Text("افزودن قلم به پایش")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
             OutlinedTextField(find,{find=it},label={Text("جستجوی قلم، ابعاد یا رنگ")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-            Text("فقط اقلام فیزیکی انتخاب‌شده نمایش داده و برایشان هشدار صادر می‌شود.",style=MaterialTheme.typography.bodySmall)
+            Text("هر قلمی را که لازم دارید انتخاب کنید. پیشنهادهای اضافی را پنهان کنید؛ هر زمان قابل بازگردانی‌اند.",style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){Text("نمایش موارد پنهان",style=MaterialTheme.typography.bodySmall);Switch(showHiddenSuggestions,{showHiddenSuggestions=it})}
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                OutlinedButton(onClick={adding=false;addColor=true}){Text("+ رنگ فریم")}
+                OutlinedButton(onClick={adding=false;addCustom=true}){Text("+ قلم سفارشی")}
+            }
             LazyColumn(Modifier.heightIn(max=360.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
-                items(available,key={it.id}){row->TextButton(onClick={vm.trackStock(row.materialId,row.variant);adding=false},modifier=Modifier.fillMaxWidth()){
-                    Text("${row.name}${if(row.variant.isBlank())"" else " · "+row.variant.replace("x","×")}",modifier=Modifier.fillMaxWidth())
+                items(available,key={it.id}){row->Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                    Column(Modifier.weight(1f)){
+                        Text("${row.name}${if(row.variant.isBlank())"" else " · "+row.variant.replace("x","×")}",style=MaterialTheme.typography.bodyMedium,maxLines=2)
+                        if(row.saved?.targetMicros==-1L)Text("پنهان‌شده",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick={vm.trackStock(row.materialId,row.variant);adding=false}){Text("افزودن")}
+                    if(row.saved?.targetMicros!=-1L)TextButton(onClick={vm.dismissStockSuggestion(row.materialId,row.variant)}){Text("حذف",color=MaterialTheme.colorScheme.error)}
                 }}
                 if(available.isEmpty()) item{Text("قلم دیگری با این جستجو پیدا نشد.")}
             }
-        }},confirmButton={TextButton(onClick={adding=false;addColor=true}){Text("+ رنگ فریم جدید")}},dismissButton={TextButton(onClick={adding=false}){Text("بستن")}})
+        }},confirmButton={TextButton(onClick={adding=false}){Text("بستن")}})
     }
     if(addColor){
         var color by remember{mutableStateOf("")}
         AlertDialog(onDismissRequest={addColor=false},title={Text("رنگ فریم جدید")},text={OutlinedTextField(color,{color=it},label={Text("نام رنگ")},singleLine=true)},
             confirmButton={Button(onClick={val key=StockPlanner.colorKey(color);vm.trackStock("frame_pvc",key);addColor=false},enabled=color.isNotBlank()){Text("افزودن")}},
             dismissButton={TextButton(onClick={addColor=false}){Text("انصراف")}})
+    }
+    if(addCustom) CustomStockDialog(onDismiss={addCustom=false}){name,unit,onHand,target->
+        val id=vm.createStockMaterial(name,unit,onHand,target)
+        if(id!=null)addCustom=false
+        id!=null
     }
 }
 
@@ -153,8 +173,8 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         item.onHandMicros<0L->"مصرف بیش از موجودی ثبت‌شده"
         item.targetMicros<=0L->"مقدار مطلوب تعیین نشده"
         item.onHandMicros==0L->"ناموجود"
-        item.onHandMicros*100L<=item.targetMicros*threshold->"رو به اتمام"
-        else->"کافی"
+        item.onHandMicros*100L<=item.targetMicros*threshold->"موجودی کم"
+        else->"موجودی کافی"
     }
     val urgent=item!=null&&(item.onHandMicros<0L || (item.targetMicros>0L&&item.onHandMicros*100L<=item.targetMicros*threshold))
     val badgeColor=if(urgent)MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
@@ -172,7 +192,7 @@ private data class StockView(val materialId:String,val name:String,val variant:S
 
 @Composable private fun StockEditorDialog(row:StockView,onDismiss:()->Unit,onSave:(Long,Long)->Unit){
     var current by remember(row.id){mutableStateOf(row.saved?.let{StockQuantity.format(it.onHandMicros)}?.takeIf{!it.startsWith("-")}.orEmpty())}
-    var target by remember(row.id){mutableStateOf(row.saved?.let{StockQuantity.format(it.targetMicros)}?.takeIf{it!="0"}.orEmpty())}
+    var target by remember(row.id){mutableStateOf(row.saved?.targetMicros?.takeIf{it>0L}?.let(StockQuantity::format).orEmpty())}
     var error by remember(row.id){mutableStateOf("")}
     AlertDialog(onDismissRequest=onDismiss,title={Text("${row.name} ${row.variant}")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
         Text(if(row.unit=="PIECE")"تعداد واقعی را با عدد صحیح وارد کنید." else "مقدار واقعی را پس از اندازه‌گیری وارد کنید.",style=MaterialTheme.typography.bodySmall)
@@ -181,4 +201,31 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
     }},confirmButton={Button(onClick={runCatching{val onHand=StockQuantity.parse(current);val desired=StockQuantity.parse(target);require(onHand>=0L&&desired>0L){"موجودی فعلی باید صفر یا بیشتر و موجودی مطلوب بزرگ‌تر از صفر باشد."};if(row.unit=="PIECE")require(onHand%StockPlanner.SCALE==0L&&desired%StockPlanner.SCALE==0L){"برای اقلام شمارشی، عدد صحیح وارد کنید."};onSave(onHand,desired)}.onFailure{error=it.message?:"مقدار نامعتبر است."}}){Text("ذخیره")}},
         dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
+}
+
+@Composable private fun CustomStockDialog(onDismiss:()->Unit,onSave:suspend (String,String,Long,Long)->Boolean){
+    val scope=rememberCoroutineScope()
+    var name by remember{mutableStateOf("")}
+    var unit by remember{mutableStateOf("PIECE")}
+    var current by remember{mutableStateOf("")}
+    var target by remember{mutableStateOf("")}
+    var error by remember{mutableStateOf("")}
+    var saving by remember{mutableStateOf(false)}
+    AlertDialog(onDismissRequest=onDismiss,title={Text("قلم سفارشی انبار")},text={Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+        Text("قلم، واحد و موجودی را یک‌جا ثبت کنید. این مورد فقط برای کنترل انبار است و قیمت محصول را تغییر نمی‌دهد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(name,{name=it;error=""},label={Text("نام قلم")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+        Text("واحد شمارش",fontWeight=FontWeight.SemiBold)
+        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+            listOf("PIECE" to "عدد","METER" to "متر","SQM" to "مترمربع").forEach{(key,label)->FilterChip(selected=unit==key,onClick={unit=key},label={Text(label)})}
+        }
+        OutlinedTextField(current,{current=it;error=""},label={Text("موجودی فعلی")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+        OutlinedTextField(target,{target=it;error=""},label={Text("موجودی مطلوب برای هشدار")},modifier=Modifier.fillMaxWidth(),singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal))
+        if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+    }},confirmButton={Button(onClick={
+        val values=runCatching{StockQuantity.parse(current) to StockQuantity.parse(target)}
+        if(values.isFailure)error="موجودی فعلی و مطلوب را با عدد معتبر وارد کنید."
+        else { val (onHand,desired)=values.getOrThrow();if(onHand<0L||desired<=0L)error="موجودی فعلی باید صفر یا بیشتر و موجودی مطلوب بزرگ‌تر از صفر باشد."
+            else {saving=true;scope.launch {if(!onSave(name.trim(),unit,onHand,desired))saving=false}}
+        }
+    },enabled=!saving&&name.isNotBlank()){Text(if(saving)"در حال ثبت…" else "ثبت قلم")}},dismissButton={TextButton(onClick=onDismiss,enabled=!saving){Text("انصراف")}})
 }

@@ -253,9 +253,9 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
     AppCard{
         Text("پیشنهادهای کارگاه",fontWeight=FontWeight.Bold)
         val todayKey=PlannerEngine.dateKey(nowMillis)
-        if(low && tasks.none{it.title=="خرید اقلام کم‌موجود" && PlannerEngine.dateKey(it.plannedAtMillis)>=todayKey})
+        if(low && tasks.none{it.title in setOf("خرید اقلام با موجودی کم","خرید اقلام کم‌موجود") && PlannerEngine.dateKey(it.plannedAtMillis)>=todayKey})
             PlannerSuggestion("📦 چند قلم انبار به حد هشدار رسیده‌اند.","برنامه‌ریزی خرید"){
-                vm.savePlannerTask(templateTask(PlannerTemplate("خرید اقلام کم‌موجود","PURCHASE",10),nowMillis))
+                vm.savePlannerTask(templateTask(PlannerTemplate("خرید اقلام با موجودی کم","PURCHASE",10),nowMillis))
             }
         if(shipping)Text("🚚 امروز نوبت ارسال سفارش داری. جزئیات را در بخش سفارش‌ها ببین.")
         if(stalePrices && tasks.none{it.title=="بازبینی قیمت متریال"})

@@ -49,8 +49,8 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 5/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.4.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 6/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.5.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
             # Apply V2 interface overrides maintained in the repository.
@@ -165,7 +165,7 @@ jobs:
           if grep -Fq 'fun SettingsScreen(' "$SRC/ui/screens/BusinessScreens.kt"; then echo "FAILED GUARD: legacy settings removed" >&2; exit 1; fi
           echo "GUARD: exactly one active SettingsScreen"
           test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
-          guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
+          guard "piece count sort is descending" "$SRC/ui/screens/CoreScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "shared order includes postal code" "$SRC/data/OrderSharing.kt" 'کد پستی: ${order.postalCode}'
           guard "recipient shipping excludes seller cost" "$SRC/data/Models.kt" 'if(shippingPayer=="SENDER") shippingCostToman else 0L'
           guard "saved orders can change product snapshots" "$SRC/data/WorkshopRepository.kt" 'db.orderDao().deleteCosts(orderId)'
@@ -179,8 +179,8 @@ jobs:
           guard "order source is saved" "$SRC/data/WorkshopRepository.kt" 'orderSource = input.orderSource'
           guard "Persian date picker is used" "$SRC/ui/screens/OrderEditorScreen.kt" 'PersianCalendarPicker(date'
           guard "order form state is keyed to order id" "$SRC/ui/screens/OrderEditorScreen.kt" 'val orderKey=initial?.id'
-          guard "pricebook copies dimensions and price" "$SRC/ui/screens/BusinessScreens.kt" 'کپی ابعاد و قیمت'
-          guard "pricebook piece sort stays descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
+          guard "pricebook copies dimensions and price" "$SRC/ui/screens/CoreScreens.kt" 'کپی ابعاد و قیمت'
+          guard "pricebook piece sort stays descending" "$SRC/ui/screens/CoreScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
           guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),quickSelectedIds,selectedPackage'
           guard "quick pieces survive tab navigation" "$SRC/MainViewModel.kt" 'val pieces: List<PieceInput> = listOf(PieceInput(40,60,1))'
           guard "quick variable switches survive tab navigation" "$SRC/MainViewModel.kt" 'val enabledIds: Map<String,Boolean> = emptyMap()'
@@ -268,6 +268,15 @@ jobs:
           cd "$PROJECT_DIR"
           set -o pipefail
           gradle --no-daemon testDebugUnitTest assembleDebug 2>&1 | tee build-output.log
+
+      - name: Verify install identity and signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" > signing-info.txt
+          grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.tablodecori.app' versionCode='6'"
 
       - name: Save failed build log
         if: failure()

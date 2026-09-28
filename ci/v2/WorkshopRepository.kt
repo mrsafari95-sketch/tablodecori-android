@@ -42,11 +42,11 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         "profit_rules","stock_items","sent_orders","order_stock_usage","order_cost_snapshots","price_change_history","app_settings","expenses"
     )+plannerBackupTables
 
-    suspend fun exportFullBackup(): String {
+    suspend fun exportFullBackup(includePlanner:Boolean=true): String {
         val sql=db.openHelper.readableDatabase
-        val root=JSONObject().put("format","tablodecori-full-backup").put("version",5).put("createdAt",System.currentTimeMillis())
+        val root=JSONObject().put("format","tablodecori-full-backup").put("version",5).put("scope",if(includePlanner)"full" else "business").put("createdAt",System.currentTimeMillis())
         val tables=JSONObject()
-        backupTables.forEach { table ->
+        backupTables.filter{includePlanner || it !in plannerBackupTables}.forEach { table ->
             val rows=JSONArray()
             sql.query("SELECT * FROM $table").use { c ->
                 while(c.moveToNext()){
@@ -68,7 +68,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         }
         root.put("tables",tables)
         val images=JSONObject()
-        (db.orderDao().getAll().map{it.order.photoFileName}+expenses.first().map{it.receiptFileName}).filter{it.isNotBlank()}.distinct().forEach { name ->
+        (db.orderDao().getAll().map{it.order.photoFileName}+db.backupDao().products().map{it.photoFileName}+expenses.first().map{it.receiptFileName}).filter{it.isNotBlank()}.distinct().forEach { name ->
             val encoded=photos.exportBase64(name) ?: error("عکس یکی از سفارش‌ها برای بکاپ پیدا نشد: $name")
             images.put(name,encoded)
         }
@@ -82,6 +82,9 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         require(legacy || root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
         val version=root.optInt("version",0)
         require(if(legacy)version==1 else version in 1..5){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        val scope=if(legacy)"full" else root.optString("scope","full")
+        require(scope in setOf("full","business")){"نوع بکاپ شناخته‌شده نیست."}
+        val businessOnly=scope=="business"
         val tables=if(legacy) JSONObject().apply {
             mapOf("materials" to "materials","products" to "products","pieces" to "product_pieces",
                 "productVariables" to "product_variables","profitRules" to "profit_rules","orders" to "sent_orders",
@@ -90,7 +93,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             require(getJSONArray("materials").length()>0 && getJSONArray("app_settings").length()>0){"بکاپ قدیمی ناقص است."}
         } else root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
         val essential=setOf("materials","products","product_pieces","product_variables","profit_rules","sent_orders","order_cost_snapshots","price_change_history","app_settings")
-        backupTables.filter { it in essential || (!legacy && version>=3 && it!="expenses" && it !in plannerBackupTables) || (!legacy && version>=4 && it=="expenses") || (!legacy && version>=5 && it in plannerBackupTables) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        backupTables.filter { it in essential || (!legacy && version>=3 && it!="expenses" && it !in plannerBackupTables) || (!legacy && version>=4 && it=="expenses") || (!legacy && version>=5 && !businessOnly && it in plannerBackupTables) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
         val images=if(!legacy && version>=2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
         val restoredImages=mutableMapOf<String,ByteArray>()
         var totalImageBytes=0L
@@ -108,6 +111,11 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 val name=orders.getJSONObject(i).optString("photoFileName")
                 require(name.isBlank() || restoredImages.containsKey(name)){"عکس یکی از سفارش‌ها در بکاپ موجود نیست."}
             }
+            val productRows=tables.getJSONArray("products")
+            for(i in 0 until productRows.length()){
+                val name=productRows.getJSONObject(i).optString("photoFileName")
+                require(name.isBlank() || restoredImages.containsKey(name)){"عکس یکی از محصولات در بکاپ موجود نیست."}
+            }
         }
         if(!legacy && version>=4){
             val rows=tables.getJSONArray("expenses")
@@ -120,10 +128,10 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val sql=db.openHelper.writableDatabase
         db.withTransaction {
             val b=db.backupDao()
-            b.clearPlannerOccurrences();b.clearPlannerXp();b.clearPlannerRestDays();b.clearPlannerRewards();b.clearPlannerTasks();b.clearPlannerSettings()
+            if(!businessOnly){b.clearPlannerOccurrences();b.clearPlannerXp();b.clearPlannerRestDays();b.clearPlannerRewards();b.clearPlannerTasks();b.clearPlannerSettings()}
             b.clearStockUsage();b.clearCosts();b.clearOrders();b.clearStockItems();b.clearExpenses();b.clearHistory();b.clearVariables();b.clearPieces();b.clearProducts()
             b.clearSizePrices();b.clearProfits();b.clearSettings();b.clearMaterials()
-            backupTables.forEach { table ->
+            backupTables.filter{!businessOnly || it !in plannerBackupTables}.forEach { table ->
                 if(!tables.has(table)) return@forEach
                 val columns=mutableListOf<Pair<String,String>>()
                 sql.query("PRAGMA table_info($table)").use { schema ->
@@ -150,6 +158,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                             "formulaMode" -> "STANDARD"
                             "profitMode" -> "MANUAL"
                             "productType" -> "STANDARD"
+                            "photoFileName" -> ""
                             "orderSource" -> "OTHER"
                             "frameColorOptions" -> "مشکی، سفید، طلایی، نقره‌ای، چوبی"
                             "shippingPayer" -> "SENDER"
@@ -299,31 +308,38 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         return usage
     }
 
-    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = "", packagingSizeKey: String = "", productType:String="STANDARD", designMaterialsCostToman:Long=0L): String {
+    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = "", packagingSizeKey: String = "", productType:String="STANDARD", designMaterialsCostToman:Long=0L, selectedPhotoUri:String?=null, removePhoto:Boolean=false): String {
         require(name.isNotBlank()) { "نام محصول الزامی است." }
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
         require(productType in setOf("STANDARD","RELIEF") && designMaterialsCostToman>=0L){"نوع یا هزینه محصول نامعتبر است."}
-        if(productType=="RELIEF")require(enabledIds.all{it in setOf("frame_pvc","packaging_bundle")}){"تابلو برجسته فقط قاب و بسته‌بندی دارد."}
+        if(productType=="RELIEF"){
+            val reliefIds=db.materialDao().getAll().filter{it.smartKind==MaterialCatalog.RELIEF_CUSTOM}.map{it.id}.toSet()
+            require(enabledIds.all{it in setOf("frame_pvc","packaging_bundle") || it in reliefIds}){"متریال انتخابی برای تابلو برجسته مجاز نیست."}
+        }
         require(profitMode=="MANUAL" || profitMode=="FORMULA") { "روش محاسبه سود نامعتبر است." }
         if(profitMode=="FORMULA") require(profitFormula.isNotBlank()) { "فرمول سود خالی است." }
         val now = System.currentTimeMillis()
         val productId = id ?: UUID.randomUUID().toString()
         val old = id?.let { db.productDao().get(it)?.product }
-        db.withTransaction {
-            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,packagingSizeKey=packagingSizeKey,productType=productType,designMaterialsCostToman=if(productType=="RELIEF")designMaterialsCostToman else 0L,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
+        val importedPhoto=selectedPhotoUri?.let{photos.importSelected(it)}
+        val photoName=importedPhoto?:if(removePhoto)"" else old?.photoFileName.orEmpty()
+        try { db.withTransaction {
+            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,packagingSizeKey=packagingSizeKey,productType=productType,designMaterialsCostToman=if(productType=="RELIEF")designMaterialsCostToman else 0L,photoFileName=photoName,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
             db.productDao().deletePieces(productId)
             db.productDao().deleteVariables(productId)
             db.productDao().insertPieces(pieces.mapIndexed { i, p -> ProductPieceEntity(productId=productId,widthCm=p.widthCm,heightCm=p.heightCm,quantity=p.quantity,sortOrder=i) })
             db.productDao().insertVariables(enabledIds.map { ProductVariableEntity(productId, it, true) })
-        }
+        }} catch(t:Throwable){ importedPhoto?.let{photos.delete(it)}; throw t }
         return productId
     }
 
     suspend fun duplicateProduct(id: String): String? {
         val p = db.productDao().get(id) ?: return null
         val m = p.toModel()
-        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula, m.packagingSizeKey,m.productType,m.designMaterialsCostToman)
+        val copyId=saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula, m.packagingSizeKey,m.productType,m.designMaterialsCostToman)
+        db.productDao().get(copyId)?.product?.let{db.productDao().upsert(it.copy(photoFileName=m.photoFileName))}
+        return copyId
     }
 
     suspend fun toggleProduct(id: String, active: Boolean) {

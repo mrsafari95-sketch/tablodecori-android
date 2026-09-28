@@ -62,7 +62,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun deleteSizePrice(id:String)=launch { repo.deleteSizePrice(id); _message.emit("قیمت ابعاد حذف شد.") }
     fun toggleMaterial(id:String,on:Boolean)=launch { repo.toggleMaterial(id,on) }
     fun deleteMaterial(id:String)=launch { val n=repo.deleteMaterial(id); _message.emit(if(n>0) "متغیر غیرفعال شد؛ در $n محصول استفاده شده بود." else "متغیر حذف شد.") }
-    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="",packagingSizeKey:String="",productType:String="STANDARD",designMaterialsCostToman:Long=0L)=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula,packagingSizeKey,productType,designMaterialsCostToman); _message.emit("محصول ذخیره شد.") }
+    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="",packagingSizeKey:String="",productType:String="STANDARD",designMaterialsCostToman:Long=0L,selectedPhotoUri:String?=null,removePhoto:Boolean=false)=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula,packagingSizeKey,productType,designMaterialsCostToman,selectedPhotoUri,removePhoto); _message.emit("محصول ذخیره شد.") }
     fun duplicateProduct(id:String)=launch { repo.duplicateProduct(id); _message.emit("یک کپی از محصول ساخته شد.") }
     fun toggleProduct(id:String,on:Boolean)=launch { repo.toggleProduct(id,on) }
     fun deleteProduct(id:String)=launch { repo.deleteProduct(id); _message.emit("محصول حذف شد.") }
@@ -96,8 +96,8 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
         repo.updateOrderPreferences(depositPercent,defaultFrameColor,frameColorOptions,suggestCodRemainder,defaultShippingPayer,defaultOrderStatus)
         _message.emit("تنظیمات سفارش ذخیره شد.")
     }
-    suspend fun exportFullBackup():String = repo.exportFullBackup()
-    suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ کامل با موفقیت بازیابی شد.") }
+    suspend fun exportFullBackup(includePlanner:Boolean=true):String = repo.exportFullBackup(includePlanner)
+    suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ با موفقیت بازیابی شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
     suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String="",profitFormula:String="",manualProfitToman:Long=0L,designMaterialsCostToman:Long=0L): PricingResult = repo.calculate(pieces,ids,packagingSizeKey,profitFormula,manualProfitToman,designMaterialsCostToman)

@@ -123,13 +123,17 @@ class PricingEngine {
         }
 
         packagingParent?.let { parent ->
+            val manualPackaging=if(selectedPackagingSizeKey.startsWith("manual:"))
+                selectedPackagingSizeKey.removePrefix("manual:").toLongOrNull()?.takeIf{it>=0L}
+                    ?: error("مبلغ بسته‌بندی دستی نامعتبر است.")
+            else null
             val packageKey=choosePackagingSize(pieces,sizePrices,selectedPackagingSizeKey)
             val wh=packageKey.split('x').mapNotNull{it.toIntOrNull()}
             val targetW=wh.getOrNull(0)?:0
             val targetH=wh.getOrNull(1)?:0
             val packs=((count+2)/3).coerceAtLeast(1)
             var packageTotal=0L
-            packagingComponents.forEach{component->
+            if(manualPackaging!=null) packageTotal=manualPackaging else packagingComponents.forEach{component->
                 val rules=sizePrices.filter{it.materialId==component.id&&it.enabled&&(it.pieceCount==0||it.pieceCount==count)}
                 val fitting=rules.filter{minOf(it.widthCm,it.heightCm)>=targetW&&maxOf(it.widthCm,it.heightCm)>=targetH}
                 val rule=fitting.sortedWith(compareBy<SizePriceEntity>{it.widthCm.toLong()*it.heightCm}.thenByDescending{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull()

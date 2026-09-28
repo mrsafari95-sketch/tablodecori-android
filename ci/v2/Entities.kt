@@ -47,6 +47,7 @@ data class ProductEntity(
     val packagingSizeKey: String = "",
     val productType: String = "STANDARD",
     val designMaterialsCostToman: Long = 0L,
+    val photoFileName: String = "",
 )
 
 @Entity(

@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
@@ -35,6 +36,7 @@ import com.tablodecori.app.data.db.MaterialEntity
 import com.tablodecori.app.data.db.SizePriceEntity
 import com.tablodecori.app.pricing.*
 import com.tablodecori.app.ui.*
+import org.json.JSONObject
 import com.tablodecori.app.util.*
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -191,13 +193,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             FilterChip(selected=onlyActive,onClick={onlyActive=!onlyActive},label={Text("فقط فعال")})
         }}
         item{AppCard{
-            Text("خروجی قیمت‌ها",fontWeight=FontWeight.SemiBold)
-            Text("فقط محصولات فعالِ همین فهرست صادر می‌شوند.",style=MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){
-                Button(onClick={csvLauncher.launch("tablodecori-pricebook.csv")},enabled=exportList.isNotEmpty()){Text("CSV")}
-                Button(onClick={pdfLauncher.launch("tablodecori-pricebook.pdf")},enabled=exportList.isNotEmpty()){Text("PDF")}
-                OutlinedButton(onClick={Exporters.printPricebook(context,exportList)},enabled=exportList.isNotEmpty()){Text("چاپ")}
-                OutlinedButton(onClick={shareProductPriceList(context,exportList)},enabled=exportList.isNotEmpty()){Text("اشتراک")}
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                listOf("CSV","PDF","چاپ","اشتراک").forEach{label->
+                    TextButton(onClick={when(label){"CSV"->{csvLauncher.launch("tablodecori-pricebook.csv")};"PDF"->{pdfLauncher.launch("tablodecori-pricebook.pdf")};"چاپ"->{Exporters.printPricebook(context,exportList)};else->{shareProductPriceList(context,exportList)}}},enabled=exportList.isNotEmpty(),contentPadding=PaddingValues(0.dp),modifier=Modifier.weight(1f).height(36.dp)){Text(label,style=MaterialTheme.typography.labelMedium,maxLines=1)}
+                }
             }
         }}
         if(list.isEmpty())item{AppCard{Text(if(onlyActive)"محصول فعالِ مطابق جستجو پیدا نشد." else "محصولی مطابق جستجو پیدا نشد.")}}
@@ -210,14 +209,15 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
                 }
                 MoneyText(p.pricing.finalPriceToman)
             }
+            if(p.product.photoFileName.isNotBlank())OrderPhotoThumbnail(p.product.photoFileName)
             Spacer(Modifier.height(8.dp))
             Text("هزینه بدون سود: ${money(p.pricing.costBeforeProfitToman)} · سود: ${money(p.pricing.profitToman)}",style=MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement=Arrangement.spacedBy(4.dp)){
                 TextButton(onClick={copyProductText(context,"💰 قیمت: ${money(p.pricing.finalPriceToman)}");vm.notify("قیمت کپی شد.")}){Text("کپی قیمت")}
                 TextButton(onClick={
                     val dimensions=p.product.pieces.joinToString("\n"){piece->"${piece.quantity} عدد ${piece.widthCm} در ${piece.heightCm}"}
-                    copyProductText(context,"📐 ابعاد ست:\n$dimensions\n\n💰 قیمت: ${money(p.pricing.finalPriceToman)}")
-                    vm.notify("ابعاد و قیمت کپی شد.")
+                    copyProductText(context,"🖼️ ${p.product.name}\n📐 ابعاد ست:\n$dimensions\n\n💰 قیمت: ${money(p.pricing.finalPriceToman)}")
+                    vm.notify("نام ست، ابعاد و قیمت کپی شد.")
                 }){Text("کپی ابعاد و قیمت")}
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(4.dp)){
@@ -229,13 +229,13 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             }
         }}
     }
-    if(create||edit!=null) ProductDialog(vm,vars,edit,{create=false;edit=null}){id,name,pieces,ids,profit,mode,formula,packageKey,type,designCost->vm.saveProduct(id,name,pieces,ids,manualProfit=profit,profitMode=mode,profitFormula=formula,packagingSizeKey=packageKey,productType=type,designMaterialsCostToman=designCost);create=false;edit=null}
+    if(create||edit!=null) ProductDialog(vm,vars,edit,{create=false;edit=null}){id,name,pieces,ids,profit,mode,formula,packageKey,type,designCost,photoUri,removePhoto->vm.saveProduct(id,name,pieces,ids,manualProfit=profit,profitMode=mode,profitFormula=formula,packagingSizeKey=packageKey,productType=type,designMaterialsCostToman=designCost,selectedPhotoUri=photoUri,removePhoto=removePhoto);create=false;edit=null}
     details?.let{p->AlertDialog(onDismissRequest={details=null},title={Text(p.product.name)},text={Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())){PieceChips(p.product.pieces);Spacer(Modifier.height(10.dp));PricingBreakdown(p.pricing)}},confirmButton={Button(onClick={details=null}){Text("بستن")}})}
     del?.let{p->AlertDialog(onDismissRequest={del=null},title={Text("حذف محصول")},text={Text("این محصول از فهرست فعال حذف می‌شود؛ سفارش‌های تاریخی و Snapshot مالی دست‌نخورده می‌مانند.")},confirmButton={Button(onClick={vm.deleteProduct(p.id);del=null}){Text("حذف")}},dismissButton={TextButton(onClick={del=null}){Text("انصراف")}})}
 }
 
 private fun shareProductPriceList(context:Context,list:List<PricedProduct>){
-    val text=list.joinToString("\n\n"){"${it.product.name}\n💰 قیمت: ${money(it.pricing.finalPriceToman)}"}
+    val text=list.joinToString("\n\n"){p->"🖼️ ${p.product.name}\n📐 ابعاد: ${p.product.pieces.joinToString(" + "){ "${it.quantity} عدد ${it.widthCm}×${it.heightCm}" }}\n💰 قیمت: ${money(p.pricing.finalPriceToman)}"}
     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,text)},"اشتراک فهرست قیمت"))
 }
 
@@ -243,12 +243,15 @@ private fun copyProductText(context:Context,text:String){
     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("tablodecori",text))
 }
 
-@Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long)->Unit){
+@Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long,String?,Boolean)->Unit){
     var addingReliefMaterial by remember{mutableStateOf(false)}
     val newReliefIds=remember{mutableStateListOf<String>()}
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};var profitMode by remember(initial?.id){mutableStateOf(if(initial?.profitMode=="FORMULA")"FORMULA" else "MANUAL")};var manualProfit by remember(initial?.id){mutableStateOf((initial?.manualProfitToman?:0L).toString())}
     var productType by remember(initial?.id){mutableStateOf(initial?.productType?:"STANDARD")}
     var designCost by remember(initial?.id){mutableStateOf((initial?.designMaterialsCostToman?:0L).toString())}
+    var productPhotoUri by remember(initial?.id){mutableStateOf<String?>(null)}
+    var removeProductPhoto by remember(initial?.id){mutableStateOf(false)}
+    val productPhotoPicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()){uri->if(uri!=null){productPhotoUri=uri.toString();removeProductPhoto=false}}
     val pieces=remember{mutableStateListOf<PieceInput>().apply{addAll(initial?.pieces?:listOf(PieceInput(40,60,1)))}}
     val selectable=MaterialCatalog.selectableForProduct(vars)
     val shownMaterials=if(productType=="RELIEF")selectable.filter(MaterialCatalog::selectableForRelief) else selectable.filter{it.smartKind!=MaterialCatalog.RELIEF_CUSTOM}
@@ -268,6 +271,7 @@ private fun copyProductText(context:Context,text:String){
         .distinct()
         .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
     var selectedProductPackage by remember(initial?.id){mutableStateOf(initial?.packagingSizeKey.orEmpty())}
+    var manualPackaging by remember(initial?.id){mutableStateOf(initial?.packagingSizeKey?.takeIf{it.startsWith("manual:")}?.removePrefix("manual:")?:"0")}
     var preview by remember{mutableStateOf<PricingResult?>(null)}
     LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,tapePrices,laborPrices,selectedProductPackage,profitPercent,profitMode,manualProfit,productType,designCost){
         if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),selectedIds,selectedProductPackage,if(profitMode=="FORMULA")"cost*"+(profitPercent.ifBlank{"0"})+"/100" else "",if(profitMode=="MANUAL")manualProfit.toLongOrNull()?:0L else 0L,if(productType=="RELIEF")designCost.toLongOrNull()?:0L else 0L)}catch(_:Throwable){preview=null}
@@ -275,6 +279,12 @@ private fun copyProductText(context:Context,text:String){
     if(!addingReliefMaterial) AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"ساخت ست جدید" else "ویرایش ست")},text={
         Column(Modifier.fillMaxWidth().heightIn(max=560.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
             OutlinedTextField(name,{name=it},label={Text("نام محصول")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+            Text("عکس ست (اختیاری)",fontWeight=FontWeight.SemiBold)
+            OrderPhotoPreview(productPhotoUri,if(removeProductPhoto)"" else initial?.photoFileName.orEmpty(),compact=true)
+            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                OutlinedButton(onClick={productPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))}){Text(if(productPhotoUri!=null||(!removeProductPhoto&&initial?.photoFileName?.isNotBlank()==true))"تغییر عکس" else "افزودن عکس")}
+                if(productPhotoUri!=null||(!removeProductPhoto&&initial?.photoFileName?.isNotBlank()==true))TextButton(onClick={productPhotoUri=null;removeProductPhoto=true}){Text("حذف عکس")}
+            }
             preview?.let{Surface(color=MaterialTheme.colorScheme.primaryContainer,shape=MaterialTheme.shapes.medium){Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceBetween){Text("قیمت برآوردی",fontWeight=FontWeight.Bold);MoneyText(it.finalPriceToman)}}}
             Divider()
             Text("نوع محصول",fontWeight=FontWeight.Bold)
@@ -294,14 +304,15 @@ private fun copyProductText(context:Context,text:String){
             Divider()
             Text("اجزای فعال",fontWeight=FontWeight.Bold)
             Text("بسته‌بندی محصول",fontWeight=FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=selectedProductPackage.isBlank(),onClick={selectedProductPackage="";ids["packaging_bundle"]=true},label={Text("خودکار")},leadingIcon=if(selectedProductPackage.isBlank()){{Text("✓")}}else null);productPackageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedProductPackage==key,onClick={selectedProductPackage=key;ids["packaging_bundle"]=true},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedProductPackage==key){{Text("✓")}}else null)}}
+            Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=selectedProductPackage.isBlank(),onClick={selectedProductPackage="";ids["packaging_bundle"]=true},label={Text("خودکار")});productPackageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedProductPackage==key,onClick={selectedProductPackage=key;ids["packaging_bundle"]=true},label={Text("بسته‌بندی "+w+"×"+h)})};FilterChip(selected=selectedProductPackage.startsWith("manual:"),onClick={selectedProductPackage="manual:${manualPackaging.ifBlank{"0"}}";ids["packaging_bundle"]=true},label={Text("قیمت دستی")})}
+            if(selectedProductPackage.startsWith("manual:"))OutlinedTextField(manualPackaging,{manualPackaging=it.filter(Char::isDigit);selectedProductPackage="manual:${manualPackaging.ifBlank{"0"}}"},label={Text("هزینه بسته‌بندی برای کل ست (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
             if(ids["packaging_bundle"]==true){
                 val key=PricingEngine.choosePackagingSize(pieces.toList(),foamPrices+cartonPrices,selectedProductPackage)
-                Text("اندازه بسته انتخابی: ${key.replace("x","×")} · هزینه برآوردشده: ${money(preview?.packagingCostToman?:0L)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
+                Text(if(selectedProductPackage.startsWith("manual:"))"هزینه بسته‌بندی دستی: ${money(preview?.packagingCostToman?:0L)}" else "اندازه بسته انتخابی: ${key.replace("x","×")} · هزینه برآوردشده: ${money(preview?.packagingCostToman?:0L)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
             }
             shownMaterials.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(m.name);Switch(ids[m.id]?:false,{ids[m.id]=it})}}
         }
-    },confirmButton={Button(onClick={onSave(initial?.id,name,pieces.toList(),selectedIds,if(profitMode=="MANUAL")manualProfit.toLongOrNull()?:0L else 0L,profitMode,if(profitMode=="FORMULA")"cost*"+profitPercent.ifBlank{"0"}+"/100" else "",selectedProductPackage,productType,if(productType=="RELIEF")designCost.toLongOrNull()?:0L else 0L)},enabled=name.isNotBlank()&&pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}&&(profitMode!="MANUAL"||manualProfit.toLongOrNull()!=null)&&(productType!="RELIEF"||designCost.toLongOrNull()!=null)){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
+    },confirmButton={Button(onClick={onSave(initial?.id,name,pieces.toList(),selectedIds,if(profitMode=="MANUAL")manualProfit.toLongOrNull()?:0L else 0L,profitMode,if(profitMode=="FORMULA")"cost*"+profitPercent.ifBlank{"0"}+"/100" else "",selectedProductPackage,productType,if(productType=="RELIEF")designCost.toLongOrNull()?:0L else 0L,productPhotoUri,removeProductPhoto)},enabled=name.isNotBlank()&&pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}&&(profitMode!="MANUAL"||manualProfit.toLongOrNull()!=null)&&(productType!="RELIEF"||designCost.toLongOrNull()!=null)){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
     if(addingReliefMaterial) CustomMaterialDialog("متغیر تابلو برجسته","قیمت این متغیر در محاسبهٔ ست برجسته لحاظ می‌شود.",onDismiss={addingReliefMaterial=false}){materialName,price,type->
         val id=vm.createReliefMaterial(materialName,price,type)
         if(id!=null){newReliefIds.add(id);ids[id]=true;addingReliefMaterial=false}
@@ -342,6 +353,7 @@ private fun copyProductText(context:Context,text:String){
     val pieces=draft.pieces
     val ids=draft.enabledIds
     val selectedPackage=draft.selectedPackage
+    var quickManualPackaging by rememberSaveable{mutableStateOf("0")}
     val packageOpen=draft.packageOpen
     val manualProfit=draft.manualProfitToman
     val productType=draft.productType
@@ -369,15 +381,16 @@ private fun copyProductText(context:Context,text:String){
         item{AppCard{
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("بسته‌بندی",fontWeight=FontWeight.Bold);Text("یک بسته‌بندی برای کل ست انتخاب کنید.",style=MaterialTheme.typography.bodySmall)};TextButton(onClick={vm.toggleQuickPackage()}){Text(if(packageOpen)"بستن" else "انتخاب")}}
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                FilterChip(selected=selectedPackage.isBlank(),onClick={vm.setQuickPackage("")},label={Text("خودکار")},leadingIcon=if(selectedPackage.isBlank()){{Text("✓")}}else null);packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={vm.setQuickPackage(key)},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
+                FilterChip(selected=selectedPackage.isBlank(),onClick={vm.setQuickPackage("")},label={Text("خودکار")});packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={vm.setQuickPackage(key)},label={Text("بسته‌بندی "+w+"×"+h)})};FilterChip(selected=selectedPackage.startsWith("manual:"),onClick={vm.setQuickPackage("manual:${quickManualPackaging.ifBlank{"0"}}")},label={Text("قیمت دستی")})
             }
+            if(selectedPackage.startsWith("manual:"))OutlinedTextField(quickManualPackaging,{quickManualPackaging=it.filter(Char::isDigit);vm.setQuickPackage("manual:${quickManualPackaging.ifBlank{"0"}}")},label={Text("هزینه بسته‌بندی برای کل ست (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
             if("packaging_bundle" in quickSelectedIds){
                 val key=PricingEngine.choosePackagingSize(pieces,foamPrices+cartonPrices,selectedPackage)
-                Text("${if(selectedPackage.isBlank())"خودکار" else "انتخاب دستی"}: بسته‌بندی ${key.replace("x","×")} · ${money(result?.packagingCostToman?:0L)}",fontWeight=FontWeight.SemiBold)
+                Text(if(selectedPackage.startsWith("manual:"))"هزینه بسته‌بندی دستی: ${money(result?.packagingCostToman?:0L)}" else "${if(selectedPackage.isBlank())"خودکار" else "اندازهٔ انتخابی"}: بسته‌بندی ${key.replace("x","×")} · ${money(result?.packagingCostToman?:0L)}",fontWeight=FontWeight.SemiBold)
                 if(selectedPackage.isBlank())Text("اندازه مناسب با جاگیری تابلوها انتخاب می‌شود؛ برای ابعاد بیرون از جدول، هزینه از اندازه‌های ثبت‌شده برآورد می‌شود.",style=MaterialTheme.typography.bodySmall)
             }
         }}
-        item{AppCard{Text(if(productType=="RELIEF")"اجزای تابلو برجسته" else "متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.filter{if(productType=="RELIEF")MaterialCatalog.selectableForRelief(it) else it.smartKind!=MaterialCatalog.RELIEF_CUSTOM}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{vm.setQuickId(m.id,it)})}};Divider();Text(if(selectedPackage.isBlank()) "بسته‌بندی خودکار" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
+        item{AppCard{Text(if(productType=="RELIEF")"اجزای تابلو برجسته" else "متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.filter{if(productType=="RELIEF")MaterialCatalog.selectableForRelief(it) else it.smartKind!=MaterialCatalog.RELIEF_CUSTOM}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{vm.setQuickId(m.id,it)})}};Divider();Text(if(selectedPackage.isBlank())"بسته‌بندی خودکار" else if(selectedPackage.startsWith("manual:"))"بسته‌بندی با قیمت دستی" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
         result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")}}}}
     }
     if(saveDialog){var name by remember{mutableStateOf("ست جدید")};AlertDialog(onDismissRequest={saveDialog=false},title={Text("ذخیره محصول")},text={OutlinedTextField(name,{name=it},label={Text("نام محصول")})},confirmButton={Button(onClick={vm.saveProduct(null,name,pieces.toList(),quickSelectedIds,manualProfit=manualProfit,packagingSizeKey=selectedPackage,productType=productType,designMaterialsCostToman=if(productType=="RELIEF")designCost else 0L);saveDialog=false}){Text("ذخیره")}},dismissButton={TextButton(onClick={saveDialog=false}){Text("انصراف")}})}
@@ -408,15 +421,16 @@ private fun copyProductText(context:Context,text:String){
     var openingCash by remember(current?.openingCashToman){mutableStateOf((current?.openingCashToman?:0L).toString())}
     val stockPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)vm.refreshStockAlerts()}
     var pendingImport by remember{mutableStateOf<String?>(null)}
+    var exportIncludesPlanner by remember{mutableStateOf(true)}
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
         if(uri!=null) scope.launch {
             runCatching {
-                val data=vm.exportFullBackup()
+                val data=vm.exportFullBackup(exportIncludesPlanner)
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use{it.write(data)}
                     ?: error("فایل بکاپ قابل نوشتن نیست.")
             }.onSuccess{
                 context.getSharedPreferences("workshop_backup",Context.MODE_PRIVATE).edit().putLong("last_export_at",System.currentTimeMillis()).apply()
-                vm.notify("بکاپ کامل با موفقیت ذخیره شد.")
+                vm.notify(if(exportIncludesPlanner)"بکاپ کامل ذخیره شد." else "بکاپ اطلاعات کارگاه ذخیره شد.")
             }.onFailure{vm.notify(it.message?:"ذخیرهٔ بکاپ انجام نشد.")}
         }
     }
@@ -464,8 +478,9 @@ private fun copyProductText(context:Context,text:String){
         }}
         item{AppCard{
             Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، هزینه‌ها، عکس‌ها، برنامهٔ کارگاه و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
+            Text("بکاپ کامل همهٔ اطلاعات را نگه می‌دارد. بکاپ کارگاه شامل سفارش‌ها، قیمت و موجودی متریال، محصولات، هزینه‌ها و عکس‌هاست؛ برنامه‌ریز شخصی در آن نیست.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick={exportIncludesPlanner=true;exportLauncher.launch("tablodecori-full-backup.json")},modifier=Modifier.fillMaxWidth()){Text("بکاپ کامل اپ")}
+            OutlinedButton(onClick={exportIncludesPlanner=false;exportLauncher.launch("tablodecori-business-backup.json")},modifier=Modifier.fillMaxWidth()){Text("بکاپ اطلاعات کارگاه، بدون برنامه‌ریز")}
             OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
         }}
     }
@@ -473,7 +488,7 @@ private fun copyProductText(context:Context,text:String){
         AlertDialog(
             onDismissRequest={pendingImport=null},
             title={Text("بازیابی بکاپ")},
-            text={Text("با بازیابی، تمام اطلاعات فعلی این گوشی با اطلاعات فایل بکاپ جایگزین می‌شود. آیا مطمئن هستید؟")},
+            text={Text(if(runCatching{JSONObject(data).optString("scope")=="business"}.getOrDefault(false))"اطلاعات کارگاه با این بکاپ جایگزین می‌شود؛ برنامه‌ریز شخصی فعلی باقی می‌ماند. ادامه می‌دهید؟" else "با بازیابی، تمام اطلاعات فعلی این گوشی با اطلاعات فایل بکاپ جایگزین می‌شود. ادامه می‌دهید؟")},
             confirmButton={Button(onClick={
                 pendingImport=null
                 scope.launch{runCatching{vm.importFullBackup(data)}.onFailure{vm.notify(it.message?:"بازیابی بکاپ ناموفق بود.")}}

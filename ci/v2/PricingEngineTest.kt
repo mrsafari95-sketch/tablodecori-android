@@ -43,6 +43,12 @@ class PricingEngineTest {
         assertTrue(oversized.packagingCostToman>90000L)
         assertTrue(oversized.packagingCostToman>medium.packagingCostToman)
     }
+    @Test fun manualPackagingOverridesAutomaticCostForRelief(){
+        val mats=listOf(m("frame_pvc",CalculationType.PER_LINEAR_METER,100000),m("packaging_bundle",CalculationType.PER_SET,cat=MaterialCategory.PACKAGING),m("pack_foam",CalculationType.PER_SET,90000,cat=MaterialCategory.PACKAGING))
+        val result=engine.calculate(listOf(PieceInput(40,60,1)),mats,setOf("frame_pvc","packaging_bundle"),profits,1,manualProfitToman=0,selectedPackagingSizeKey="manual:220000",designMaterialsCostToman=150000)
+        assertEquals(220000L,result.packagingCostToman)
+        assertEquals(150000L,result.lines.first{it.materialId=="design_materials"}.amountToman)
+    }
     @Test fun formulaProfitIsPerProduct(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("base",CalculationType.PER_SET,100000)),setOf("base"),profits,1,profitFormula="cost*20/100");assertEquals(20000,r.profitToman);assertEquals(120000,r.finalPriceToman)}
     @Test fun shippingNeverEntersBasePrice(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("labor",CalculationType.PER_PIECE,65000)),setOf("labor"),profits,1);assertEquals(65000,r.finalPriceToman);assertEquals(65000,r.costBeforeProfitToman)}
     @Test fun realOrderProfitIncludesShipping(){assertEquals(235000,OrderMath.actualProfit(500000,200000,65000))}

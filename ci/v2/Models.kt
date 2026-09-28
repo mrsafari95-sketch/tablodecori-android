@@ -13,6 +13,7 @@ data class ProductModel(
     val packagingSizeKey: String,
     val productType: String,
     val designMaterialsCostToman: Long,
+    val photoFileName: String,
     val pieces: List<PieceInput>,
     val enabledMaterialIds: Set<String>,
 )
@@ -87,7 +88,7 @@ fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(
 )
 
 fun ProductWithDetails.toModel(): ProductModel = ProductModel(
-    product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula, product.packagingSizeKey, product.productType, product.designMaterialsCostToman,
+    product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula, product.packagingSizeKey, product.productType, product.designMaterialsCostToman, product.photoFileName,
     pieces.sortedBy { it.sortOrder }.map { PieceInput(it.widthCm, it.heightCm, it.quantity) },
     MaterialCatalog.selectedCanonicalIds(materials.filter { !it.deleted }.map { it.id }.toSet())
 )

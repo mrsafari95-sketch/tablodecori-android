@@ -247,7 +247,7 @@ fun OrderEditorScreen(
     OutlinedTextField(value,{onChange(it.filter(Char::isDigit))},label={Text(label)},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true,modifier=Modifier.fillMaxWidth())
 }
 
-@Composable private fun OrderPhotoPreview(selectedUri:String?,storedName:String,compact:Boolean=false){
+@Composable fun OrderPhotoPreview(selectedUri:String?,storedName:String,compact:Boolean=false){
     val context=LocalContext.current
     val key=selectedUri?:storedName
     var expanded by remember(key){mutableStateOf(false)}

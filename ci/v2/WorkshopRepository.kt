@@ -26,18 +26,25 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     val settings: Flow<AppSettingsEntity?> = db.settingsDao().observe()
     val stockItems: Flow<List<StockItemEntity>> = db.stockDao().observeAll()
     val expenses: Flow<List<ExpenseEntity>> = db.expenseDao().observeAll()
+    val plannerTasks:Flow<List<PlannerTaskEntity>> = db.plannerDao().observeTasks()
+    val plannerOccurrences:Flow<List<PlannerOccurrenceEntity>> = db.plannerDao().observeOccurrences()
+    val plannerSettings:Flow<PlannerSettingsEntity?> = db.plannerDao().observeSettings()
+    val plannerRewards:Flow<List<PlannerRewardEntity>> = db.plannerDao().observeRewards()
+    val plannerXp:Flow<List<PlannerXpEntity>> = db.plannerDao().observeXp()
+    val plannerRestDays:Flow<List<PlannerRestDayEntity>> = db.plannerDao().observeRestDays()
     fun sizePrices(materialId:String): Flow<List<SizePriceEntity>> = db.sizePriceDao().observeFor(materialId)
     suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
     suspend fun deleteSizePrice(id:String)=db.sizePriceDao().disable(id,System.currentTimeMillis())
 
+    private val plannerBackupTables=listOf("planner_tasks","planner_occurrences","planner_settings","planner_rewards","planner_xp_ledger","planner_rest_days")
     private val backupTables = listOf(
         "materials","size_prices","products","product_pieces","product_variables",
         "profit_rules","stock_items","sent_orders","order_stock_usage","order_cost_snapshots","price_change_history","app_settings","expenses"
-    )
+    )+plannerBackupTables
 
     suspend fun exportFullBackup(): String {
         val sql=db.openHelper.readableDatabase
-        val root=JSONObject().put("format","tablodecori-full-backup").put("version",4).put("createdAt",System.currentTimeMillis())
+        val root=JSONObject().put("format","tablodecori-full-backup").put("version",5).put("createdAt",System.currentTimeMillis())
         val tables=JSONObject()
         backupTables.forEach { table ->
             val rows=JSONArray()
@@ -74,7 +81,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val legacy=root.optString("format")=="tablodecori-backup"
         require(legacy || root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
         val version=root.optInt("version",0)
-        require(if(legacy)version==1 else version in 1..4){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        require(if(legacy)version==1 else version in 1..5){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
         val tables=if(legacy) JSONObject().apply {
             mapOf("materials" to "materials","products" to "products","pieces" to "product_pieces",
                 "productVariables" to "product_variables","profitRules" to "profit_rules","orders" to "sent_orders",
@@ -83,7 +90,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             require(getJSONArray("materials").length()>0 && getJSONArray("app_settings").length()>0){"بکاپ قدیمی ناقص است."}
         } else root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
         val essential=setOf("materials","products","product_pieces","product_variables","profit_rules","sent_orders","order_cost_snapshots","price_change_history","app_settings")
-        backupTables.filter { it in essential || (!legacy && version>=3 && it!="expenses") || (!legacy && version>=4) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        backupTables.filter { it in essential || (!legacy && version>=3 && it!="expenses" && it !in plannerBackupTables) || (!legacy && version>=4 && it=="expenses") || (!legacy && version>=5 && it in plannerBackupTables) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
         val images=if(!legacy && version>=2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
         val restoredImages=mutableMapOf<String,ByteArray>()
         var totalImageBytes=0L
@@ -113,6 +120,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val sql=db.openHelper.writableDatabase
         db.withTransaction {
             val b=db.backupDao()
+            b.clearPlannerOccurrences();b.clearPlannerXp();b.clearPlannerRestDays();b.clearPlannerRewards();b.clearPlannerTasks();b.clearPlannerSettings()
             b.clearStockUsage();b.clearCosts();b.clearOrders();b.clearStockItems();b.clearExpenses();b.clearHistory();b.clearVariables();b.clearPieces();b.clearProducts()
             b.clearSizePrices();b.clearProfits();b.clearSettings();b.clearMaterials()
             backupTables.forEach { table ->
@@ -163,6 +171,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         }
         if(legacy || version<3) ensurePricingStructure()
         runCatching { ShippingReminder.refreshAll(appContext,db.orderDao().getAll().map{it.order}) }
+        runCatching { PlannerScheduler.refreshAll(appContext,db.plannerDao().tasks(),db.plannerDao().settings()) }
     }
 
     suspend fun ensurePricingStructure() {
@@ -426,6 +435,90 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     suspend fun updateOpeningCash(amount:Long){
         val old=db.settingsDao().get()?:AppSettingsEntity(updatedAt=System.currentTimeMillis())
         db.settingsDao().upsert(old.copy(openingCashToman=amount,updatedAt=System.currentTimeMillis()))
+    }
+
+    suspend fun savePlannerTask(input:PlannerTaskEntity):String {
+        require(input.title.isNotBlank() && input.plannedAtMillis>0L){"عنوان و زمان کار لازم است."}
+        require(input.priority in 1..3 && input.durationMinutes in 0..1440 && input.reminderMinutes in 0..1440){"تنظیمات کار نامعتبر است."}
+        require(input.recurrence in setOf("NONE","DAILY","WEEKLY","MONTHLY")){"تکرار کار نامعتبر است."}
+        val old=input.id.takeIf{it.isNotBlank()}?.let{db.plannerDao().task(it)}
+        val now=System.currentTimeMillis()
+        val task=input.copy(id=input.id.ifBlank{UUID.randomUUID().toString()},title=input.title.trim(),createdAt=old?.createdAt?:now,updatedAt=now)
+        db.plannerDao().upsertTask(task)
+        PlannerScheduler.schedule(appContext,task,db.plannerDao().settings())
+        return task.id
+    }
+
+    suspend fun deletePlannerTask(id:String){
+        db.plannerDao().deactivateTask(id,System.currentTimeMillis())
+        PlannerScheduler.cancel(appContext,id)
+    }
+
+    suspend fun setPlannerStatus(id:String,dayMillis:Long,status:String,reason:String=""){
+        require(status in setOf("DONE","SKIPPED","DEFERRED")){"وضعیت کار نامعتبر است."}
+        val task=db.plannerDao().task(id)?:error("کار پیدا نشد.")
+        require(PlannerEngine.due(task,dayMillis)){"این کار برای روز انتخابی نیست."}
+        require(PlannerEngine.dateKey(dayMillis)<=PlannerEngine.dateKey(System.currentTimeMillis())){"کار آینده را نمی‌توان انجام‌شده ثبت کرد."}
+        val day=PlannerEngine.dateKey(dayMillis)
+        val now=System.currentTimeMillis()
+        var deferred:PlannerTaskEntity?=null
+        db.withTransaction {
+            val dao=db.plannerDao()
+            val previous=dao.occurrence(id,day)
+            if(previous?.status=="DONE" && status!="DONE"){
+                val oldXp=dao.xpFor(id,day).sumOf{it.amount}
+                if(oldXp>0)dao.addXp(PlannerXpEntity(UUID.randomUUID().toString(),id,day,-oldXp,"برگرداندن وضعیت",now))
+            }
+            if(status=="DONE" && previous?.status!="DONE"){
+                val due=PlannerEngine.occurrenceTime(task,dayMillis)
+                val desired=PlannerEngine.xpForCompletion(task.priority,now<=due+3600000L,task.createdAt>due,PlannerEngine.dateKey(now)>day)
+                val earned=dao.xpForDay(day).sumOf{it.amount}.coerceAtLeast(0)
+                val grant=desired.coerceAtMost((100-earned).coerceAtLeast(0))
+                if(grant>0)dao.addXp(PlannerXpEntity(UUID.randomUUID().toString(),id,day,grant,"انجام کار",now))
+            }
+            dao.upsertOccurrence(PlannerOccurrenceEntity(id,day,status,reason.trim(),now,previous?.focusMinutes?:0))
+            if(status=="DEFERRED" && previous?.status!="DEFERRED"){
+                val next=java.util.Calendar.getInstance().apply{timeInMillis=PlannerEngine.occurrenceTime(task,dayMillis);add(java.util.Calendar.DAY_OF_MONTH,1)}.timeInMillis
+                if(!PlannerEngine.due(task,next)){
+                    deferred=task.copy(id=UUID.randomUUID().toString(),plannedAtMillis=next,recurrence="NONE",weekDays="",createdAt=now,updatedAt=now)
+                    dao.upsertTask(deferred!!)
+                }
+            }
+        }
+        PlannerScheduler.schedule(appContext,task,db.plannerDao().settings(),maxOf(now,PlannerEngine.occurrenceTime(task,dayMillis)+1L))
+        deferred?.let{PlannerScheduler.schedule(appContext,it,db.plannerDao().settings())}
+    }
+
+    suspend fun addPlannerFocus(id:String,dayMillis:Long,minutes:Int){
+        require(minutes in 1..120){"مدت تمرکز نامعتبر است."}
+        val day=PlannerEngine.dateKey(dayMillis)
+        val old=db.plannerDao().occurrence(id,day)
+        db.plannerDao().upsertOccurrence(old?.copy(focusMinutes=old.focusMinutes+minutes,changedAt=System.currentTimeMillis())
+            ?:PlannerOccurrenceEntity(id,day,"PENDING",changedAt=System.currentTimeMillis(),focusMinutes=minutes))
+    }
+
+    suspend fun setPlannerRestDay(day:Int,rest:Boolean){
+        if(rest)db.plannerDao().upsertRestDay(PlannerRestDayEntity(day)) else db.plannerDao().deleteRestDay(day)
+    }
+
+    suspend fun savePlannerSettings(settings:PlannerSettingsEntity){
+        require(settings.quietStartHour in 0..23 && settings.quietEndHour in 0..23 && settings.dailyNotificationLimit in 1..20 && settings.morningBriefHour in 0..23 && settings.eveningReviewHour in 0..23){"تنظیمات یادآوری نامعتبر است."}
+        db.plannerDao().upsertSettings(settings.copy(updatedAt=System.currentTimeMillis()))
+        PlannerScheduler.refreshAll(appContext,db.plannerDao().tasks(),settings)
+    }
+
+    suspend fun addPlannerReward(title:String,cost:Int){
+        require(title.isNotBlank() && cost in 1..100000){"پاداش یا امتیاز نامعتبر است."}
+        db.plannerDao().upsertReward(PlannerRewardEntity(UUID.randomUUID().toString(),title.trim(),cost,createdAt=System.currentTimeMillis()))
+    }
+
+    suspend fun redeemPlannerReward(id:String){
+        val reward=db.plannerDao().reward(id)?:error("پاداش پیدا نشد.")
+        require(reward.redeemedAt==0L){"این پاداش قبلاً دریافت شده است."}
+        val xp=plannerXp.first().sumOf{it.amount}
+        val used=plannerRewards.first().filter{it.redeemedAt>0L}.sumOf{it.xpCost}
+        require(xp-used>=reward.xpCost){"امتیاز برای این پاداش کافی نیست."}
+        db.plannerDao().upsertReward(reward.copy(redeemedAt=System.currentTimeMillis()))
     }
 
     suspend fun createOrder(input: OrderFormInput): String {

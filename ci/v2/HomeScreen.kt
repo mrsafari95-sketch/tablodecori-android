@@ -20,8 +20,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.outstandingToman
+import com.tablodecori.app.data.PlannerEngine
 import com.tablodecori.app.util.PersianDate
 import com.tablodecori.app.util.money
+import com.tablodecori.app.util.fa
 
 private val HomeGold = Color(0xFFB78322)
 private val ProductTint = Color(0xFFFFF6E8)
@@ -40,6 +42,8 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val stock by vm.stockItems.collectAsState()
     val settings by vm.settings.collectAsState()
     val history by vm.history.collectAsState()
+    val plannerTasks by vm.plannerTasks.collectAsState()
+    val plannerOccurrences by vm.plannerOccurrences.collectAsState()
     val activeProducts = products.count { it.product.active }
     val today=PersianDate.fromEpoch(System.currentTimeMillis())
     fun dateKey(millis:Long):Int=PersianDate.fromEpoch(millis).let{it.year*10000+it.month*100+it.day}
@@ -49,6 +53,8 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val overdue=pendingShip.count{dateKey(it.plannedShipAtMillis)<todayKey}
     val receivables=orders.sumOf{it.order.outstandingToman()}
     val lowStock=stock.count{it.tracked && (it.onHandMicros<0L || (it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10)))}
+    val todayTasks=plannerTasks.filter{PlannerEngine.due(it,System.currentTimeMillis())}
+    val doneTasks=plannerOccurrences.count{it.dateKey==todayKey && it.status=="DONE" && todayTasks.any{task->task.id==it.taskId}}
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -64,6 +70,12 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
         }
 
         item { CenteredSectionTitle("دسترسی سریع", "کارهای روزمره کارگاه، یک‌جا و در دسترس") }
+        item{ElevatedCard(onClick={onNavigate("planner")},modifier=Modifier.fillMaxWidth()){
+            Row(Modifier.fillMaxWidth().padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                Column(Modifier.weight(1f)){Text("🌿 امروز من",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium);Text("${fa(doneTasks)} از ${fa(todayTasks.size)} کار انجام شد · برنامه روزانه و یادآوری",style=MaterialTheme.typography.bodySmall)}
+                Text("باز کردن ←",color=MaterialTheme.colorScheme.primary)
+            }
+        }}
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

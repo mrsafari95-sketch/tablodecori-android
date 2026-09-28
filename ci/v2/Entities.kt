@@ -196,6 +196,41 @@ data class ExpenseEntity(
     val updatedAt: Long,
 )
 
+@Entity(tableName="planner_tasks", indices=[Index("plannedAtMillis")])
+data class PlannerTaskEntity(
+    @PrimaryKey val id:String,
+    val title:String,
+    val plannedAtMillis:Long,
+    val category:String="PERSONAL",
+    val priority:Int=2,
+    val durationMinutes:Int=0,
+    val recurrence:String="NONE",
+    val weekDays:String="",
+    val note:String="",
+    val checklist:String="",
+    val reminderMinutes:Int=0,
+    val alarm:Boolean=false,
+    val active:Boolean=true,
+    val createdAt:Long,
+    val updatedAt:Long,
+)
+
+@Entity(tableName="planner_occurrences",primaryKeys=["taskId","dateKey"],
+    foreignKeys=[ForeignKey(entity=PlannerTaskEntity::class,parentColumns=["id"],childColumns=["taskId"],onDelete=ForeignKey.CASCADE)],indices=[Index("dateKey")])
+data class PlannerOccurrenceEntity(val taskId:String,val dateKey:Int,val status:String,val reason:String="",val changedAt:Long=0L,val focusMinutes:Int=0)
+
+@Entity(tableName="planner_settings")
+data class PlannerSettingsEntity(@PrimaryKey val id:Int=1,val quietStartHour:Int=22,val quietEndHour:Int=7,val dailyNotificationLimit:Int=8,val eveningReviewHour:Int=20,val morningBriefHour:Int=8,val morningBriefEnabled:Boolean=false,val eveningReviewEnabled:Boolean=true,val updatedAt:Long)
+
+@Entity(tableName="planner_rewards")
+data class PlannerRewardEntity(@PrimaryKey val id:String,val title:String,val xpCost:Int,val redeemedAt:Long=0L,val createdAt:Long)
+
+@Entity(tableName="planner_xp_ledger",indices=[Index("dateKey"),Index("taskId")])
+data class PlannerXpEntity(@PrimaryKey val id:String,val taskId:String,val dateKey:Int,val amount:Int,val reason:String,val createdAt:Long)
+
+@Entity(tableName="planner_rest_days")
+data class PlannerRestDayEntity(@PrimaryKey val dateKey:Int,val reason:String="")
+
 @Entity(tableName = "order_stock_usage", primaryKeys = ["orderId", "stockItemId"],
     foreignKeys = [ForeignKey(entity=SentOrderEntity::class,parentColumns=["id"],childColumns=["orderId"],onDelete=ForeignKey.CASCADE),
         ForeignKey(entity=StockItemEntity::class,parentColumns=["id"],childColumns=["stockItemId"],onDelete=ForeignKey.RESTRICT)],

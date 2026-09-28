@@ -95,8 +95,39 @@ interface ExpenseDao {
 }
 
 @Dao
+interface PlannerDao {
+    @Query("SELECT * FROM planner_tasks WHERE active = 1 ORDER BY plannedAtMillis") fun observeTasks():Flow<List<PlannerTaskEntity>>
+    @Query("SELECT * FROM planner_tasks WHERE active = 1 ORDER BY plannedAtMillis") suspend fun tasks():List<PlannerTaskEntity>
+    @Query("SELECT * FROM planner_tasks WHERE id = :id LIMIT 1") suspend fun task(id:String):PlannerTaskEntity?
+    @Upsert suspend fun upsertTask(item:PlannerTaskEntity)
+    @Query("UPDATE planner_tasks SET active = 0, updatedAt = :now WHERE id = :id") suspend fun deactivateTask(id:String,now:Long)
+    @Query("SELECT * FROM planner_occurrences") fun observeOccurrences():Flow<List<PlannerOccurrenceEntity>>
+    @Query("SELECT * FROM planner_occurrences WHERE taskId=:id AND dateKey=:day LIMIT 1") suspend fun occurrence(id:String,day:Int):PlannerOccurrenceEntity?
+    @Upsert suspend fun upsertOccurrence(item:PlannerOccurrenceEntity)
+    @Query("SELECT * FROM planner_settings WHERE id = 1") fun observeSettings():Flow<PlannerSettingsEntity?>
+    @Query("SELECT * FROM planner_settings WHERE id = 1") suspend fun settings():PlannerSettingsEntity?
+    @Upsert suspend fun upsertSettings(item:PlannerSettingsEntity)
+    @Query("SELECT * FROM planner_xp_ledger") fun observeXp():Flow<List<PlannerXpEntity>>
+    @Query("SELECT * FROM planner_xp_ledger WHERE taskId=:id AND dateKey=:day") suspend fun xpFor(id:String,day:Int):List<PlannerXpEntity>
+    @Query("SELECT * FROM planner_xp_ledger WHERE dateKey=:day") suspend fun xpForDay(day:Int):List<PlannerXpEntity>
+    @Insert suspend fun addXp(item:PlannerXpEntity)
+    @Query("SELECT * FROM planner_rewards ORDER BY createdAt DESC") fun observeRewards():Flow<List<PlannerRewardEntity>>
+    @Upsert suspend fun upsertReward(item:PlannerRewardEntity)
+    @Query("SELECT * FROM planner_rewards WHERE id=:id LIMIT 1") suspend fun reward(id:String):PlannerRewardEntity?
+    @Query("SELECT * FROM planner_rest_days") fun observeRestDays():Flow<List<PlannerRestDayEntity>>
+    @Upsert suspend fun upsertRestDay(item:PlannerRestDayEntity)
+    @Query("DELETE FROM planner_rest_days WHERE dateKey=:day") suspend fun deleteRestDay(day:Int)
+}
+
+@Dao
 interface BackupDao {
     @Query("DELETE FROM expenses") suspend fun clearExpenses()
+    @Query("DELETE FROM planner_occurrences") suspend fun clearPlannerOccurrences()
+    @Query("DELETE FROM planner_tasks") suspend fun clearPlannerTasks()
+    @Query("DELETE FROM planner_settings") suspend fun clearPlannerSettings()
+    @Query("DELETE FROM planner_rewards") suspend fun clearPlannerRewards()
+    @Query("DELETE FROM planner_xp_ledger") suspend fun clearPlannerXp()
+    @Query("DELETE FROM planner_rest_days") suspend fun clearPlannerRestDays()
     @Query("SELECT * FROM materials") suspend fun materials(): List<MaterialEntity>
     @Query("SELECT * FROM products") suspend fun products(): List<ProductEntity>
     @Query("SELECT * FROM size_prices") suspend fun sizePrices(): List<SizePriceEntity>

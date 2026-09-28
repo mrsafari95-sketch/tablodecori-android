@@ -43,6 +43,12 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     val settings = repo.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val stockItems = repo.stockItems.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val expenses = repo.expenses.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val plannerTasks=repo.plannerTasks.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
+    val plannerOccurrences=repo.plannerOccurrences.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
+    val plannerSettings=repo.plannerSettings.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),null)
+    val plannerRewards=repo.plannerRewards.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
+    val plannerXp=repo.plannerXp.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
+    val plannerRestDays=repo.plannerRestDays.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),emptyList())
     private val _message=MutableSharedFlow<String>(extraBufferCapacity=8); val messages=_message.asSharedFlow()
     init { viewModelScope.launch { repo.ensurePricingStructure() } }
 
@@ -71,6 +77,14 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun saveExpense(id:String?,dateMillis:Long,category:String,title:String,payeeName:String,amount:Long,note:String,receiptUri:String?)=launch { repo.saveExpense(id,dateMillis,category,title,payeeName,amount,note,receiptUri);_message.emit("هزینه ثبت شد.") }
     fun deleteExpense(id:String)=launch { repo.deleteExpense(id);_message.emit("هزینه حذف شد.") }
     fun saveOpeningCash(amount:Long)=launch { repo.updateOpeningCash(amount);_message.emit("موجودی آغازین ذخیره شد.") }
+    fun savePlannerTask(task:PlannerTaskEntity)=launch { repo.savePlannerTask(task);_message.emit("کار ذخیره شد.") }
+    fun deletePlannerTask(id:String)=launch { repo.deletePlannerTask(id);_message.emit("کار از برنامه برداشته شد.") }
+    fun plannerStatus(id:String,dayMillis:Long,status:String,reason:String="")=launch { repo.setPlannerStatus(id,dayMillis,status,reason);_message.emit("وضعیت کار ثبت شد.") }
+    fun plannerFocus(id:String,dayMillis:Long,minutes:Int)=launch { repo.addPlannerFocus(id,dayMillis,minutes);_message.emit("زمان تمرکز ثبت شد.") }
+    fun plannerRest(day:Int,rest:Boolean)=launch { repo.setPlannerRestDay(day,rest) }
+    fun savePlannerSettings(value:PlannerSettingsEntity)=launch { repo.savePlannerSettings(value);_message.emit("تنظیمات پلنر ذخیره شد.") }
+    fun addPlannerReward(title:String,cost:Int)=launch { repo.addPlannerReward(title,cost);_message.emit("پاداش افزوده شد.") }
+    fun redeemPlannerReward(id:String)=launch { repo.redeemPlannerReward(id);_message.emit("پاداش دریافت شد 🌿") }
     fun saveStockThreshold(percent:Int)=launch { repo.updateStockThreshold(percent);_message.emit("آستانه هشدار انبار ذخیره شد.") }
     fun refreshStockAlerts()=launch { repo.refreshStockAlerts() }
     fun saveOrderPreferences(depositPercent:Int,defaultFrameColor:String,frameColorOptions:String,suggestCodRemainder:Boolean,defaultShippingPayer:String,defaultOrderStatus:String)=launch {

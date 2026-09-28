@@ -9,8 +9,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
-        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class, ExpenseEntity::class],
-    version = 9,
+        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class, ExpenseEntity::class,
+        PlannerTaskEntity::class, PlannerOccurrenceEntity::class, PlannerSettingsEntity::class, PlannerRewardEntity::class, PlannerXpEntity::class, PlannerRestDayEntity::class],
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun backupDao(): BackupDao
     abstract fun stockDao(): StockDao
     abstract fun expenseDao(): ExpenseDao
+    abstract fun plannerDao(): PlannerDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2,3) {
@@ -97,9 +99,23 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
             }
         }
+        private val MIGRATION_9_10 = object:Migration(9,10){
+            override fun migrate(db:SupportSQLiteDatabase){
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_tasks (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, plannedAtMillis INTEGER NOT NULL, category TEXT NOT NULL, priority INTEGER NOT NULL, durationMinutes INTEGER NOT NULL, recurrence TEXT NOT NULL, weekDays TEXT NOT NULL, note TEXT NOT NULL, checklist TEXT NOT NULL, reminderMinutes INTEGER NOT NULL, alarm INTEGER NOT NULL, active INTEGER NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_tasks_plannedAtMillis ON planner_tasks(plannedAtMillis)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_occurrences (taskId TEXT NOT NULL, dateKey INTEGER NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL, changedAt INTEGER NOT NULL, focusMinutes INTEGER NOT NULL, PRIMARY KEY(taskId,dateKey), FOREIGN KEY(taskId) REFERENCES planner_tasks(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_occurrences_dateKey ON planner_occurrences(dateKey)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_settings (id INTEGER NOT NULL PRIMARY KEY, quietStartHour INTEGER NOT NULL, quietEndHour INTEGER NOT NULL, dailyNotificationLimit INTEGER NOT NULL, eveningReviewHour INTEGER NOT NULL, morningBriefHour INTEGER NOT NULL, morningBriefEnabled INTEGER NOT NULL, eveningReviewEnabled INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_rewards (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, xpCost INTEGER NOT NULL, redeemedAt INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_xp_ledger (id TEXT NOT NULL PRIMARY KEY, taskId TEXT NOT NULL, dateKey INTEGER NOT NULL, amount INTEGER NOT NULL, reason TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_xp_ledger_dateKey ON planner_xp_ledger(dateKey)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_xp_ledger_taskId ON planner_xp_ledger(taskId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_rest_days (dateKey INTEGER NOT NULL PRIMARY KEY, reason TEXT NOT NULL)")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,MIGRATION_9_10)
                 .build()
     }
 }

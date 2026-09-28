@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -49,8 +49,8 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 4/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.3.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 5/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.4.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\norg.gradle.workers.max=2\n' >> "$PROJECT_DIR/gradle.properties"
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
@@ -61,6 +61,7 @@ jobs:
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
             cp ci/v2/InventoryScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/InventoryScreen.kt"
             cp ci/v2/ReportsScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/ReportsScreen.kt"
+            cp ci/v2/PlannerScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PlannerScreen.kt"
             cp ci/v2/PersianCalendarPicker.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PersianCalendarPicker.kt"
             cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
@@ -75,6 +76,8 @@ jobs:
             cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
             cp ci/v2/StockPlanner.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockPlanner.kt"
             cp ci/v2/ReportsMath.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ReportsMath.kt"
+            cp ci/v2/PlannerEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerEngine.kt"
+            cp ci/v2/PlannerScheduler.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerScheduler.kt"
             cp ci/v2/MaterialCatalog.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/MaterialCatalog.kt"
             cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
             cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
@@ -86,6 +89,7 @@ jobs:
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
             cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
             cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
+            cp ci/v2/PlannerEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PlannerEngineTest.kt"
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens"
             cp ci/v2/JalaliCalendarTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens/JalaliCalendarTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
@@ -206,6 +210,11 @@ jobs:
           guard "order form counts COD immediately" "$SRC/ui/screens/OrderEditorScreen.kt" 'پرداخت درب منزل (واریز آنی)'
           guard "old backup format is accepted" "$SRC/data/WorkshopRepository.kt" 'tablodecori-backup'
           guard "database migration 8 to 9 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_8_9'
+          guard "planner migration 9 to 10 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_9_10'
+          guard "planner backup includes tasks" "$SRC/data/WorkshopRepository.kt" '"planner_tasks","planner_occurrences","planner_settings"'
+          guard "planner alarms recover after reboot" "$SRC/data/PlannerScheduler.kt" 'Intent.ACTION_BOOT_COMPLETED'
+          guard "planner status uses immutable XP ledger" "$SRC/data/WorkshopRepository.kt" 'dao.addXp(PlannerXpEntity('
+          guard "planner streak has a weekly shield" "$SRC/data/PlannerEngine.kt" 'if(!shields.add(week))return success'
           guard "order form tracks frame color" "$SRC/ui/screens/OrderEditorScreen.kt" 'رنگ قاب'
           guard "old customer payments survive migration" "$SRC/data/db/AppDatabase.kt" 'otherPaidToman = receivedToman'
           guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'

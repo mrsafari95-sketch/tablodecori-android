@@ -14,14 +14,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val Green = Color(0xFF185B49)
-private val GreenDark = Color(0xFF0F4538)
-private val Mint = Color(0xFFDCEFE8)
-private val MintSoft = Color(0xFFEEF6F2)
-private val Gold = Color(0xFF8F681F)
-private val GoldContainer = Color(0xFFF5E8C5)
-private val Ink = Color(0xFF17221E)
-private val MutedInk = Color(0xFF53615C)
+private val Green = Color(0xFF165745)
+private val GreenDark = Color(0xFF103F34)
+private val Mint = Color(0xFFE0EFE8)
+private val MintSoft = Color(0xFFEDF4EF)
+private val Gold = Color(0xFF93691F)
+private val GoldContainer = Color(0xFFF5E9CB)
+private val Ink = Color(0xFF1B2922)
+private val MutedInk = Color(0xFF58645D)
 
 private val Light = lightColorScheme(
     primary = Green,
@@ -35,9 +35,9 @@ private val Light = lightColorScheme(
     secondaryContainer = GoldContainer,
     onSecondaryContainer = Color(0xFF3E2D08),
 
-    background = Color(0xFFF7F8F6),
+    background = Color(0xFFF8F8F4),
     onBackground = Ink,
-    surface = Color.White,
+    surface = Color(0xFFFFFEFB),
     onSurface = Ink,
     surfaceVariant = MintSoft,
     onSurfaceVariant = MutedInk,
@@ -52,16 +52,16 @@ private val Light = lightColorScheme(
     onErrorContainer = Color(0xFF410002),
 
     outline = Color(0xFFA9B7B1),
-    outlineVariant = Color(0xFFD2DDD8),
+    outlineVariant = Color(0xFFDDE5DD),
     scrim = Color.Black,
 
-    surfaceBright = Color.White,
+    surfaceBright = Color(0xFFFFFEFB),
     surfaceDim = Color(0xFFD9DFDB),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFF4F6F4),
-    surfaceContainer = Color(0xFFEEF2EF),
-    surfaceContainerHigh = Color(0xFFE8EDE9),
-    surfaceContainerHighest = Color(0xFFE1E7E3)
+    surfaceContainerLowest = Color(0xFFFFFEFB),
+    surfaceContainerLow = Color(0xFFF5F7F1),
+    surfaceContainer = Color(0xFFEEF2EB),
+    surfaceContainerHigh = Color(0xFFE7ECE4),
+    surfaceContainerHighest = Color(0xFFE0E7DE)
 )
 
 private val Dark = darkColorScheme(

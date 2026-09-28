@@ -51,6 +51,7 @@ jobs:
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionCode = 1/versionCode = 6/' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionName = "1.0.0"/versionName = "1.5.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
             # Apply V2 interface overrides maintained in the repository.
@@ -258,9 +259,10 @@ jobs:
       - name: Prepare stable debug signing
         shell: bash
         run: |
-          mkdir -p "$HOME/.android"
-          base64 -d ci/v2/stable-debug-keystore.b64 > "$HOME/.android/debug.keystore"
-          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
+          KEYSTORE="$RUNNER_TEMP/tablodecori-debug.keystore"
+          base64 -d ci/v2/stable-debug-keystore.b64 > "$KEYSTORE"
+          echo "TABLODECORI_SIGNING_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
+          keytool -list -keystore "$KEYSTORE" -storepass android -alias androiddebugkey >/dev/null
 
       - name: Test and build debug APK
         shell: bash
@@ -274,9 +276,11 @@ jobs:
         run: |
           set -euo pipefail
           APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" > signing-info.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | tee signing-info.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
+          head -n 1 badging-info.txt
           grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.tablodecori.app' versionCode='6'"
+          grep -F "package: name='com.tablodecori.app' versionCode='6'" badging-info.txt
 
       - name: Save failed build log
         if: failure()

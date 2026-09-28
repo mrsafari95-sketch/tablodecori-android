@@ -27,4 +27,12 @@ class StockPlannerTest {
         assertEquals(1_000_000L,needs.single{it.stockId=="backboard_3mm|30x45"}.amountMicros)
         assertEquals("50x70",StockPlanner.variantFor("backboard_3mm","70x50"))
     }
+
+    @Test fun packagingLaborAndOldWorkerCostAreNeverInventoryItems() {
+        assertNull(StockPlanner.unitFor(material("pack_labor","PER_SET","PACKAGING")))
+        assertNull(StockPlanner.unitFor(material("packWorker","PER_SET","PACKAGING")))
+        val materials=listOf(material("packaging_bundle","PER_SET","PACKAGING"),material("pack_labor","PER_SET","PACKAGING"))
+        val needs=StockPlanner.needs(listOf(PieceInput(40,60,1)),setOf("packaging_bundle","pack_labor"),materials,"","")
+        assertFalse(needs.any{it.materialId=="pack_labor"})
+    }
 }

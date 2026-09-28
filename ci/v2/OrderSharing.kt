@@ -50,13 +50,14 @@ object OrderShareText {
 }
 
 object OrderSharing {
-    fun share(context: Context, order: SentOrderEntity) {
+    fun share(context: Context, order: SentOrderEntity):Boolean {
         val text = OrderShareText.format(order)
         val photo = order.photoFileName.takeIf { it.matches(Regex("[a-f0-9-]{36}\\.jpg")) }
             ?.let { File(context.filesDir, "order_photos/$it") }
             ?.takeIf { it.isFile }
         val intent = Intent(Intent.ACTION_SEND).apply {
             putExtra(Intent.EXTRA_TEXT, text)
+            putExtra(Intent.EXTRA_TITLE, "سفارش ${order.internalNumber}")
             if (photo != null) {
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photo)
                 type = "image/jpeg"
@@ -65,6 +66,9 @@ object OrderSharing {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } else type = "text/plain"
         }
+        (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager)
+            .setPrimaryClip(ClipData.newPlainText("جزئیات سفارش",text))
         context.startActivity(Intent.createChooser(intent, "اشتراک سفارش"))
+        return photo!=null
     }
 }

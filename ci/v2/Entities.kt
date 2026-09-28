@@ -165,6 +165,7 @@ data class AppSettingsEntity(
     val lowStockPercent: Int = 10,
     val defaultShippingPayer: String = "RECIPIENT",
     val defaultOrderStatus: String = "PREPARING",
+    val openingCashToman: Long = 0L,
 )
 
 @Entity(tableName = "stock_items", indices = [Index(value=["materialId", "variantKey"], unique=true)])
@@ -177,6 +178,21 @@ data class StockItemEntity(
     val onHandMicros: Long = 0L,
     val targetMicros: Long = 0L,
     val notifiedLow: Boolean = false,
+    val updatedAt: Long,
+    @ColumnInfo(defaultValue = "1") val tracked: Boolean = true,
+)
+
+@Entity(tableName = "expenses", indices = [Index("dateEpochMillis"), Index("category")])
+data class ExpenseEntity(
+    @PrimaryKey val id: String,
+    val dateEpochMillis: Long,
+    val category: String,
+    val title: String,
+    val payeeName: String = "",
+    val amountToman: Long,
+    val note: String = "",
+    val receiptFileName: String = "",
+    val createdAt: Long,
     val updatedAt: Long,
 )
 

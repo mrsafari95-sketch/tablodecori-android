@@ -41,13 +41,14 @@ private data class StockView(val materialId:String,val name:String,val variant:S
     val context=LocalContext.current
     val threshold=settings?.lowStockPercent?:10
     val saved=stock.filterNot{MaterialCatalog.isLegacy(it.materialId)}.associateBy{it.id}
+    val legacyStockCount=stock.count{MaterialCatalog.isLegacy(it.materialId)}
     val active=materials.filter{it.enabled&&!it.deleted}.associateBy{it.id}
     fun view(id:String,variant:String=""):StockView? {
         val material=active[id]?:return null
         val unit=StockPlanner.unitFor(material)?:return null
         return StockView(id,material.name,variant,unit,saved["$id|$variant"])
     }
-    fun needsAttention(item:StockItemEntity)=item.onHandMicros<0L || (item.targetMicros>0L && item.onHandMicros*100L<=item.targetMicros*threshold)
+    fun needsAttention(item:StockItemEntity)=item.tracked && (item.onHandMicros<0L || (item.targetMicros>0L && item.onHandMicros*100L<=item.targetMicros*threshold))
     val photoKeys=(photoSizes.filter{it.enabled}.map{StockPlanner.sizeKey(it.widthCm,it.heightCm)}+saved.values.filter{it.materialId=="backboard_3mm"}.map{it.variantKey}).distinct().sorted()
     val packageKeys=(foamSizes+cartonSizes).filter{it.enabled}.map{StockPlanner.sizeKey(it.widthCm,it.heightCm)}
         .plus(saved.values.filter{it.materialId in setOf("pack_foam","pack_carton")}.map{it.variantKey}).distinct().sorted()
@@ -61,27 +62,32 @@ private data class StockView(val materialId:String,val name:String,val variant:S
     val other=(MaterialCatalog.mainMaterials(materials)+materials.filter{it.id.startsWith("pack_")}).distinctBy{it.id}
         .filter{it.id !in special && it.enabled && StockPlanner.unitFor(it)!=null}.mapNotNull{view(it.id)}
     val groups=listOf("شاسی ۳ میل" to chassis,"لوازم بسته‌بندی" to packaging,"شیشه" to glass,"فریم PVC بر اساس رنگ" to frame,"سایر اقلام" to other)
-    val configured=saved.values.count{it.targetMicros>0L}
+    val candidates=groups.flatMap{it.second}.distinctBy{it.id}
+    val configured=saved.values.count{it.tracked}
     val attention=saved.values.count(::needsAttention)
     var filter by remember{mutableStateOf("همه")}
     var onlyLow by remember{mutableStateOf(false)}
     var search by remember{mutableStateOf("")}
     var editing by remember{mutableStateOf<StockView?>(null)}
+    var adding by remember{mutableStateOf(false)}
+    var hideCandidate by remember{mutableStateOf<StockView?>(null)}
     var addColor by remember{mutableStateOf(false)}
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)vm.refreshStockAlerts();vm.notify(if(granted)"اعلان موجودی فعال شد." else "اعلان موجودی به اجازه گوشی نیاز دارد.")}
 
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item {
             Text("موجودی کارگاه",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
-            Text("هر ابعاد و هر رنگ، موجودی جداگانه دارد. برای شروع، تعداد واقعی هر قلم و مقدار مطلوب آن را ثبت کنید.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("فقط اقلامی را که می‌خواهید کنترل کنید به پایش اضافه کنید. هر ابعاد و هر رنگ موجودی جداگانه دارد.",color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        item{Button(onClick={adding=true},modifier=Modifier.fillMaxWidth()){Text("+ افزودن قلم به پایش انبار")}}
         item { ElevatedCard(Modifier.fillMaxWidth()) { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-            Text("$configured قلم شمارش‌شده",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+            Text("$configured قلم زیر پایش",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
             Text(if(attention>0)"$attention قلم نیازمند بررسی یا خرید" else "موجودی ثبت‌شده در وضعیت عادی است",color=if(attention>0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             Text("هشدار وقتی موجودی به $threshold٪ مقدار مطلوب برسد · تغییر از تنظیمات",style=MaterialTheme.typography.bodySmall)
             if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
                 TextButton(onClick={permission.launch(Manifest.permission.POST_NOTIFICATIONS)}){Text("فعال‌کردن اعلان کمبود")}
         } } }
+        if(legacyStockCount>0) item { Surface(color=MaterialTheme.colorScheme.tertiaryContainer,shape=RoundedCornerShape(12.dp)){Text("$legacyStockCount قلم از شیوه قدیمی انبار پیدا شد. موجودی شاسی قدیمی قابل تبدیل دقیق به تعداد هر ابعاد نیست؛ لطفاً هر اندازه را یک‌بار بر اساس شمارش واقعی ثبت کنید.",modifier=Modifier.padding(12.dp))} }
         item { OutlinedTextField(search,{search=it},label={Text("جستجوی اندازه، رنگ یا متریال")},modifier=Modifier.fillMaxWidth(),singleLine=true) }
         item { Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
             listOf("همه","شاسی","بسته‌بندی","شیشه","فریم","سایر").forEach{label->FilterChip(selected=filter==label,onClick={filter=label},label={Text(label)})}
@@ -95,33 +101,51 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         groups.forEachIndexed{index,(title,rows)->
             if(filter=="همه" || names[filter]==index){
                 val shown=rows.filter{r->
+                    r.saved?.tracked==true &&
                     (search.isBlank() || r.name.contains(search,true) || r.variant.contains(search,true)) &&
                     (!onlyLow || r.saved?.let(::needsAttention)==true)
                 }
                 if(shown.isNotEmpty()){
                     visibleCount+=shown.size
                     item{Row(Modifier.fillMaxWidth().padding(top=10.dp),horizontalArrangement=Arrangement.SpaceBetween){Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("${shown.size} قلم",color=MaterialTheme.colorScheme.onSurfaceVariant)}}
-                    items(shown,key={it.id}){row->StockItemCard(row,threshold){editing=row}}
+                    items(shown,key={it.id}){row->StockItemCard(row,threshold,onEdit={editing=row},onHide={hideCandidate=row})}
                 }
             }
         }
-        if(visibleCount==0) item{Text("قلمی با این فیلتر پیدا نشد.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
-        if(filter=="فریم" || filter=="همه") item{OutlinedButton(onClick={addColor=true},modifier=Modifier.fillMaxWidth()){Text("افزودن رنگ فریم دیگر")}}
+        if(visibleCount==0) item{Text(if(configured==0)"هنوز قلمی برای پایش انتخاب نشده است. از دکمه افزودن، موارد مهم کارگاه را انتخاب کنید." else "قلمی با این فیلتر پیدا نشد.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
         item { Text("شاسی: تعداد هر ابعاد عکس  ·  شیشه: مترمربع  ·  فریم: متر هر رنگ. قیمت شاسی همچنان بر اساس مترمربع است. چاپ عکس و دستمزد در انبار محاسبه نمی‌شوند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
     }
     editing?.let { row -> StockEditorDialog(row,onDismiss={editing=null}){current,target->
         if(row.saved==null) vm.addStock(row.materialId,row.variant,current,target) else vm.saveStock(row.id,current,target)
         editing=null
     } }
+    hideCandidate?.let { row -> AlertDialog(onDismissRequest={hideCandidate=null},title={Text("حذف از پایش انبار")},
+        text={Text("${row.name} ${row.variant.replace("x","×")} از فهرست و هشدارها برداشته می‌شود. تعداد ثبت‌شده و سوابق سفارش حفظ می‌شوند و هر زمان می‌توانید دوباره آن را اضافه کنید.")},
+        confirmButton={Button(onClick={vm.hideStock(row.id);hideCandidate=null}){Text("حذف از پایش")}},
+        dismissButton={TextButton(onClick={hideCandidate=null}){Text("انصراف")}}) }
+    if(adding){
+        var find by remember{mutableStateOf("")}
+        val available=candidates.filter{it.saved?.tracked!=true && (find.isBlank() || it.name.contains(find,true) || it.variant.contains(find,true))}
+        AlertDialog(onDismissRequest={adding=false},title={Text("افزودن قلم به پایش")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+            OutlinedTextField(find,{find=it},label={Text("جستجوی قلم، ابعاد یا رنگ")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+            Text("فقط اقلام فیزیکی انتخاب‌شده نمایش داده و برایشان هشدار صادر می‌شود.",style=MaterialTheme.typography.bodySmall)
+            LazyColumn(Modifier.heightIn(max=360.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+                items(available,key={it.id}){row->TextButton(onClick={vm.trackStock(row.materialId,row.variant);adding=false},modifier=Modifier.fillMaxWidth()){
+                    Text("${row.name}${if(row.variant.isBlank())"" else " · "+row.variant.replace("x","×")}",modifier=Modifier.fillMaxWidth())
+                }}
+                if(available.isEmpty()) item{Text("قلم دیگری با این جستجو پیدا نشد.")}
+            }
+        }},confirmButton={TextButton(onClick={adding=false;addColor=true}){Text("+ رنگ فریم جدید")}},dismissButton={TextButton(onClick={adding=false}){Text("بستن")}})
+    }
     if(addColor){
         var color by remember{mutableStateOf("")}
         AlertDialog(onDismissRequest={addColor=false},title={Text("رنگ فریم جدید")},text={OutlinedTextField(color,{color=it},label={Text("نام رنگ")},singleLine=true)},
-            confirmButton={Button(onClick={val key=StockPlanner.colorKey(color);editing=view("frame_pvc",key);addColor=false},enabled=color.isNotBlank()){Text("ادامه")}},
+            confirmButton={Button(onClick={val key=StockPlanner.colorKey(color);vm.trackStock("frame_pvc",key);addColor=false},enabled=color.isNotBlank()){Text("افزودن")}},
             dismissButton={TextButton(onClick={addColor=false}){Text("انصراف")}})
     }
 }
 
-@Composable private fun StockItemCard(row:StockView,threshold:Int,onEdit:()->Unit){
+@Composable private fun StockItemCard(row:StockView,threshold:Int,onEdit:()->Unit,onHide:()->Unit){
     val item=row.saved
     val status=when{
         item==null->"موجودی ثبت نشده"
@@ -141,6 +165,7 @@ private data class StockView(val materialId:String,val name:String,val variant:S
         Text(if(item==null)"هنوز شمارش نشده" else "موجودی فعلی: ${StockQuantity.format(item.onHandMicros)} ${StockQuantity.unitLabel(row.unit)}",fontWeight=FontWeight.Bold,color=if(urgent)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
         if(item!=null&&item.targetMicros>0L) Text("مقدار مطلوب: ${StockQuantity.format(item.targetMicros)} ${StockQuantity.unitLabel(row.unit)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick=onEdit,modifier=Modifier.fillMaxWidth()){Text(if(item==null)"ثبت موجودی این قلم" else "ویرایش موجودی")}
+        TextButton(onClick=onHide,modifier=Modifier.align(Alignment.End)){Text("حذف از پایش",color=MaterialTheme.colorScheme.error)}
     }}
 }
 

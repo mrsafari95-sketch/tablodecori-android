@@ -152,7 +152,9 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     TextButton(onClick={editing=x}){Text("ویرایش سفارش")}
                 }
                 OutlinedButton(onClick={copy(context,OrderShareText.format(o));vm.notify("اطلاعات کامل سفارش کپی شد.")},modifier=Modifier.fillMaxWidth()){Text("کپی کامل اطلاعات سفارش")}
-                Button(onClick={runCatching{OrderSharing.share(context,o)}.onFailure{vm.notify("اشتراک‌گذاری ناموفق بود: ${it.message.orEmpty()}")}},modifier=Modifier.fillMaxWidth()){Text("اشتراک عکس و متن سفارش")}
+                Button(onClick={runCatching{OrderSharing.share(context,o)}.onSuccess{hasPhoto->vm.notify(if(hasPhoto)"عکس و متن کامل آماده ارسال است؛ متن برای پیام‌رسان‌های بدون پشتیبانی از کپشن نیز کپی شد." else "عکس سفارش پیدا نشد؛ متن کامل برای ارسال و کپی آماده است.")}.onFailure{vm.notify("اشتراک‌گذاری ناموفق بود: ${it.message.orEmpty()}")}},modifier=Modifier.fillMaxWidth()){
+                    Text("📤 ارسال عکس و متن کامل به پیام‌رسان",maxLines=2)
+                }
                 var details by remember{mutableStateOf(false)}
                 var confirmDelete by remember{mutableStateOf(false)}
                 Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){

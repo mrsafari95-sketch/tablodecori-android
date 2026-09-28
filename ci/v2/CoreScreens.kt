@@ -170,7 +170,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
     var selectedProductPackage by remember(initial?.id){mutableStateOf(initial?.packagingSizeKey.orEmpty())}
     var preview by remember{mutableStateOf<PricingResult?>(null)}
-    LaunchedEffect(pieces.toList(),ids.toMap(),vars,selectedProductPackage,profitPercent,profitMode,manualProfit,productType,designCost){
+    LaunchedEffect(pieces.toList(),ids.toMap(),vars,foamPrices,cartonPrices,tapePrices,laborPrices,selectedProductPackage,profitPercent,profitMode,manualProfit,productType,designCost){
         if(vars.isNotEmpty() && pieces.all{it.widthCm>0&&it.heightCm>0&&it.quantity>0}) try{preview=vm.calculate(pieces.toList(),ids.filterValues{it}.keys.let{if(productType=="RELIEF")it.intersect(allowedForRelief) else it},selectedProductPackage,if(profitMode=="FORMULA")"cost*"+(profitPercent.ifBlank{"0"})+"/100" else "",if(profitMode=="MANUAL")manualProfit.toLongOrNull()?:0L else 0L,if(productType=="RELIEF")designCost.toLongOrNull()?:0L else 0L)}catch(_:Throwable){preview=null}
     }
     AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"ساخت ست جدید" else "ویرایش ست")},text={
@@ -181,7 +181,6 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             if(productType=="RELIEF"){
                 OutlinedTextField(designCost,{designCost=it.filter(Char::isDigit)},label={Text("هزینه دستی مواد طراحی (تومان)")},supportingText={Text("فقط برای این ست؛ قاب و بسته‌بندی از قیمت‌های فعلی محاسبه می‌شوند.")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
             }
-            if(initial?.enabledMaterialIds?.any(MaterialCatalog::isLegacy)==true) Text("این ست با متریال‌های قدیمی ساخته شده است. پس از ذخیره، متریال‌های تکراری یکسان می‌شوند و قیمت بر اساس تنظیمات فعلی محاسبه خواهد شد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error)
             Text("تابلوهای داخل ست",fontWeight=FontWeight.Bold)
             pieces.forEachIndexed{i,p->PieceEditorRow(p,{pieces[i]=it},{if(pieces.size>1)pieces.removeAt(i)})}
             OutlinedButton(onClick={pieces.add(PieceInput(20,30,1))},modifier=Modifier.fillMaxWidth()){Text("+ افزودن سایز")}
@@ -192,6 +191,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             Text("اجزای فعال",fontWeight=FontWeight.Bold)
             Text("بسته‌بندی محصول",fontWeight=FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=selectedProductPackage.isBlank(),onClick={selectedProductPackage="";ids["packaging_bundle"]=true},label={Text("خودکار")},leadingIcon=if(selectedProductPackage.isBlank()){{Text("✓")}}else null);productPackageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedProductPackage==key,onClick={selectedProductPackage=key;ids["packaging_bundle"]=true},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedProductPackage==key){{Text("✓")}}else null)}}
+            if(ids["packaging_bundle"]==true){
+                val key=PricingEngine.choosePackagingSize(pieces.toList(),foamPrices+cartonPrices,selectedProductPackage)
+                Text("اندازه بسته انتخابی: ${key.replace("x","×")} · هزینه برآوردشده: ${money(preview?.packagingCostToman?:0L)}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.primary)
+            }
             shownMaterials.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text(m.name);Switch(ids[m.id]?:false,{ids[m.id]=it})}}
             preview?.let{Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=MaterialTheme.shapes.medium){Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.SpaceBetween){Text("قیمت زنده");MoneyText(it.finalPriceToman)}}}
         }
@@ -239,7 +242,11 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             if(packageOpen) Row(Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
                 FilterChip(selected=selectedPackage.isBlank(),onClick={vm.setQuickPackage("")},label={Text("خودکار")},leadingIcon=if(selectedPackage.isBlank()){{Text("✓")}}else null);packageSizes.forEach{(w,h)->val key=w.toString()+"x"+h.toString();FilterChip(selected=selectedPackage==key,onClick={vm.setQuickPackage(key)},label={Text("بسته‌بندی "+w+"×"+h)},leadingIcon=if(selectedPackage==key){{Text("✓")}}else null)}
             }
-            if(selectedPackage.isBlank()){Text("انتخاب‌شده: خودکار — "+money(result?.lines?.firstOrNull{it.materialId=="packaging_bundle"}?.amountToman?:0L),fontWeight=FontWeight.SemiBold)}else{val wh=selectedPackage.split("x").map{it.toInt()};val foam=foamPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_foam"}?.priceToman?:0L;val carton=cartonPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_carton"}?.priceToman?:0L;val tape=tapePrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_tape"}?.priceToman?:0L;val labor=laborPrices.firstOrNull{(it.widthCm==wh[0]&&it.heightCm==wh[1])||(it.widthCm==wh[1]&&it.heightCm==wh[0])}?.priceToman?:vars.firstOrNull{it.id=="pack_labor"}?.priceToman?:0L;Text("انتخاب‌شده: بسته‌بندی "+wh[0]+"×"+wh[1]+" — "+money(foam+carton+tape+labor),fontWeight=FontWeight.SemiBold)}
+            if("packaging_bundle" in quickSelectedIds){
+                val key=PricingEngine.choosePackagingSize(pieces,foamPrices+cartonPrices,selectedPackage)
+                Text("${if(selectedPackage.isBlank())"خودکار" else "انتخاب دستی"}: بسته‌بندی ${key.replace("x","×")} · ${money(result?.packagingCostToman?:0L)}",fontWeight=FontWeight.SemiBold)
+                if(selectedPackage.isBlank())Text("اندازه مناسب با جاگیری تابلوها انتخاب می‌شود؛ برای ابعاد بیرون از جدول، هزینه از اندازه‌های ثبت‌شده برآورد می‌شود.",style=MaterialTheme.typography.bodySmall)
+            }
         }}
         item{AppCard{Text(if(productType=="RELIEF")"اجزای تابلو برجسته" else "متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.filter{productType!="RELIEF"||it.id=="frame_pvc"}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{vm.setQuickId(m.id,it)})}};Divider();Text(if(selectedPackage.isBlank()) "بسته‌بندی خودکار" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
         result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")}}}}
@@ -264,6 +271,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     var defaultShippingPayer by remember(current?.defaultShippingPayer){mutableStateOf(current?.defaultShippingPayer?:"RECIPIENT")}
     var defaultOrderStatus by remember(current?.defaultOrderStatus){mutableStateOf(current?.defaultOrderStatus?:"PREPARING")}
     var lowStockPercent by remember(current?.lowStockPercent){mutableStateOf((current?.lowStockPercent?:10).toString())}
+    var openingCash by remember(current?.openingCashToman){mutableStateOf((current?.openingCashToman?:0L).toString())}
     val stockPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)vm.refreshStockAlerts()}
     var pendingImport by remember{mutableStateOf<String?>(null)}
     val exportLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
@@ -312,8 +320,14 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
             Button(onClick={vm.saveStockThreshold(lowStockPercent.toInt());if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)stockPermission.launch(Manifest.permission.POST_NOTIFICATIONS)},enabled=lowStockPercent.toIntOrNull()?.let{it in 1..100}==true,modifier=Modifier.fillMaxWidth()){Text("ذخیره آستانه انبار")}
         }}
         item{AppCard{
+            Text("موجودی آغازین گزارش مالی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+            Text("اگر از قبل پولی برای کارگاه مانده است، اینجا وارد کنید. مانده ماه‌های بعد از دریافتی‌ها و هزینه‌های ثبت‌شده محاسبه می‌شود.",style=MaterialTheme.typography.bodySmall)
+            OutlinedTextField(openingCash,{openingCash=it.filter{ch->ch.isDigit()||ch=='-'}},label={Text("موجودی آغازین (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
+            Button(onClick={vm.saveOpeningCash(openingCash.toLong())},enabled=openingCash.toLongOrNull()!=null,modifier=Modifier.fillMaxWidth()){Text("ذخیره موجودی آغازین")}
+        }}
+        item{AppCard{
             Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، عکس‌ها و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، هزینه‌ها، عکس فیش‌ها و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
             OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
         }}

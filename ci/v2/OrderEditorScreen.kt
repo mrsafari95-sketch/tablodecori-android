@@ -68,9 +68,11 @@ fun OrderEditorScreen(
     var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
     var shipping by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:settings?.shippingDefaultToman?:0L).toString())}
     var shippingPayer by rememberSaveable(initial?.id){mutableStateOf(initial?.shippingPayer?:settings?.defaultShippingPayer?:"RECIPIENT")}
+    var shippingPayerTouched by rememberSaveable(initial?.id){mutableStateOf(false)}
     var dimensionsText by rememberSaveable(initial?.id){mutableStateOf(initial?.dimensionsText.orEmpty())}
     var plannedShipAt by rememberSaveable(initial?.id){mutableLongStateOf(initial?.plannedShipAtMillis?:0L)}
     var orderStatus by rememberSaveable(initial?.id){mutableStateOf(initial?.orderStatus?:settings?.defaultOrderStatus?:"PREPARING")}
+    var orderStatusTouched by rememberSaveable(initial?.id){mutableStateOf(false)}
     var trackingCode by rememberSaveable(initial?.id){mutableStateOf(initial?.trackingCode.orEmpty())}
     var orderSource by rememberSaveable(initial?.id){mutableStateOf(initial?.orderSource?:"OTHER")}
     var quote by rememberSaveable(initial?.id){mutableStateOf(initial?.quotedTotalToman?.toString().orEmpty())}
@@ -89,6 +91,12 @@ fun OrderEditorScreen(
     BackHandler(enabled=!saving,onBack=onDismiss)
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){ }
     LaunchedEffect(products){ if(initial==null&&pid.isBlank()) pid=products.firstOrNull()?.product?.id.orEmpty() }
+    LaunchedEffect(settings?.defaultShippingPayer,settings?.defaultOrderStatus){
+        if(initial==null){
+            if(!shippingPayerTouched) shippingPayer=settings?.defaultShippingPayer?:"RECIPIENT"
+            if(!orderStatusTouched) orderStatus=settings?.defaultOrderStatus?:"PREPARING"
+        }
+    }
 
     val photoPicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()){uri->
         if(uri!=null){photoUri=uri.toString();removePhoto=false}
@@ -170,8 +178,8 @@ fun OrderEditorScreen(
             OrderSection("مبالغ و پرداخت"){
                 Text("🚚 روش پرداخت هزینه ارسال",fontWeight=FontWeight.Bold)
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    FilterChip(selected=shippingPayer=="RECIPIENT",onClick={shippingPayer="RECIPIENT"},label={Text("پس‌کرایه؛ پرداخت مشتری به حمل‌کننده")})
-                    FilterChip(selected=shippingPayer=="SENDER",onClick={shippingPayer="SENDER"},label={Text("پرداخت فروشنده")})
+                    FilterChip(selected=shippingPayer=="RECIPIENT",onClick={shippingPayer="RECIPIENT";shippingPayerTouched=true},label={Text("پس‌کرایه؛ پرداخت مشتری به حمل‌کننده")})
+                    FilterChip(selected=shippingPayer=="SENDER",onClick={shippingPayer="SENDER";shippingPayerTouched=true},label={Text("پرداخت فروشنده")})
                 }
                 MoneyField(if(shippingPayer=="RECIPIENT")"مبلغ پس‌کرایه (جدا از قیمت محصول)" else "هزینه ارسال پرداختی فروشنده",shipping){shipping=it}
                 if(shippingPayer=="RECIPIENT") Text("پس‌کرایه به درآمد، ماندهٔ محصول و سود کارگاه افزوده نمی‌شود؛ مشتری آن را مستقیم به حمل‌کننده می‌پردازد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -186,7 +194,7 @@ fun OrderEditorScreen(
             OrderSection("پیگیری و ارسال"){
                 Text("وضعیت سفارش",fontWeight=FontWeight.Bold)
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    listOf("PREPARING" to "در آماده‌سازی","READY" to "آمادهٔ ارسال","SENT" to "ارسال‌شده").forEach{(key,label)->FilterChip(selected=orderStatus==key,onClick={orderStatus=key},label={Text(label)})}
+                    listOf("PREPARING" to "در آماده‌سازی","READY" to "آمادهٔ ارسال","SENT" to "ارسال‌شده").forEach{(key,label)->FilterChip(selected=orderStatus==key,onClick={orderStatus=key;orderStatusTouched=true},label={Text(label)})}
                 }
                 OutlinedButton(onClick={shippingDatePicker=true},modifier=Modifier.fillMaxWidth()){Text(if(plannedShipAt>0L)"نوبت ارسال: ${PersianDate.fromEpoch(plannedShipAt).label}" else "انتخاب تاریخ یادآوری ارسال")}
                 if(plannedShipAt>0L) TextButton(onClick={plannedShipAt=0L}){Text("حذف یادآوری")}

@@ -48,7 +48,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
     val dueToday=pendingShip.count{dateKey(it.plannedShipAtMillis)==todayKey}
     val overdue=pendingShip.count{dateKey(it.plannedShipAtMillis)<todayKey}
     val receivables=orders.sumOf{it.order.outstandingToman()}
-    val lowStock=stock.count{it.onHandMicros<0L || (it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10))}
+    val lowStock=stock.count{it.tracked && (it.onHandMicros<0L || (it.targetMicros>0L && it.onHandMicros*100L<=it.targetMicros*(settings?.lowStockPercent?:10)))}
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -107,6 +107,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                     HomeActionCard(Icons.Rounded.LocalShipping,"سفارش‌ها","ثبت، پیگیری و ارسال",MaterialTint,MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("orders")}
                     HomeActionCard(Icons.Rounded.Inventory,"انبار","موجودی و هشدار کمبود",PriceTint,PriceAccent,Modifier.weight(1f)){onNavigate("inventory")}
                 }
+                HomeActionCard(Icons.Rounded.BarChart,"گزارش‌های مالی و فروش","هزینه‌ها، حقوق و تحلیل مشتریان",QuickTint,QuickAccent,Modifier.fillMaxWidth()){onNavigate("reports")}
             }
         }
 
@@ -123,7 +124,7 @@ fun HomeScreen(vm: MainViewModel, onNavigate: (String) -> Unit) {
                 }
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)){
                     OverviewCard(Icons.Rounded.WarningAmber,"کمبود انبار",lowStock.toString(),Color(0xFFA65D13),Modifier.weight(1f)){onNavigate("inventory")}
-                    OverviewCard(Icons.Rounded.Inventory,"اقلام انبار",stock.size.toString(),MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("inventory")}
+                    OverviewCard(Icons.Rounded.Inventory,"اقلام انبار",stock.count{it.tracked}.toString(),MaterialTheme.colorScheme.primary,Modifier.weight(1f)){onNavigate("inventory")}
                 }
             }
         }

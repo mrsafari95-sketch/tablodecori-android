@@ -11,6 +11,7 @@ import android.util.Base64
 import com.tablodecori.app.data.db.*
 import com.tablodecori.app.pricing.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import java.util.UUID
 
@@ -24,18 +25,19 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     val history: Flow<List<PriceChangeHistoryEntity>> = db.historyDao().observeAll()
     val settings: Flow<AppSettingsEntity?> = db.settingsDao().observe()
     val stockItems: Flow<List<StockItemEntity>> = db.stockDao().observeAll()
+    val expenses: Flow<List<ExpenseEntity>> = db.expenseDao().observeAll()
     fun sizePrices(materialId:String): Flow<List<SizePriceEntity>> = db.sizePriceDao().observeFor(materialId)
     suspend fun saveSizePrice(entity:SizePriceEntity){ require(entity.widthCm>0&&entity.heightCm>0&&entity.priceToman>=0){"ابعاد یا قیمت نامعتبر است."}; db.sizePriceDao().upsert(entity) }
     suspend fun deleteSizePrice(id:String)=db.sizePriceDao().disable(id,System.currentTimeMillis())
 
     private val backupTables = listOf(
         "materials","size_prices","products","product_pieces","product_variables",
-        "profit_rules","stock_items","sent_orders","order_stock_usage","order_cost_snapshots","price_change_history","app_settings"
+        "profit_rules","stock_items","sent_orders","order_stock_usage","order_cost_snapshots","price_change_history","app_settings","expenses"
     )
 
     suspend fun exportFullBackup(): String {
         val sql=db.openHelper.readableDatabase
-        val root=JSONObject().put("format","tablodecori-full-backup").put("version",3).put("createdAt",System.currentTimeMillis())
+        val root=JSONObject().put("format","tablodecori-full-backup").put("version",4).put("createdAt",System.currentTimeMillis())
         val tables=JSONObject()
         backupTables.forEach { table ->
             val rows=JSONArray()
@@ -59,7 +61,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         }
         root.put("tables",tables)
         val images=JSONObject()
-        db.orderDao().getAll().map{it.order.photoFileName}.filter{it.isNotBlank()}.distinct().forEach { name ->
+        (db.orderDao().getAll().map{it.order.photoFileName}+expenses.first().map{it.receiptFileName}).filter{it.isNotBlank()}.distinct().forEach { name ->
             val encoded=photos.exportBase64(name) ?: error("عکس یکی از سفارش‌ها برای بکاپ پیدا نشد: $name")
             images.put(name,encoded)
         }
@@ -72,7 +74,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val legacy=root.optString("format")=="tablodecori-backup"
         require(legacy || root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
         val version=root.optInt("version",0)
-        require(if(legacy)version==1 else version in 1..3){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        require(if(legacy)version==1 else version in 1..4){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
         val tables=if(legacy) JSONObject().apply {
             mapOf("materials" to "materials","products" to "products","pieces" to "product_pieces",
                 "productVariables" to "product_variables","profitRules" to "profit_rules","orders" to "sent_orders",
@@ -81,7 +83,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             require(getJSONArray("materials").length()>0 && getJSONArray("app_settings").length()>0){"بکاپ قدیمی ناقص است."}
         } else root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
         val essential=setOf("materials","products","product_pieces","product_variables","profit_rules","sent_orders","order_cost_snapshots","price_change_history","app_settings")
-        backupTables.filter { it in essential || (!legacy && version>=3) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        backupTables.filter { it in essential || (!legacy && version>=3 && it!="expenses") || (!legacy && version>=4) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
         val images=if(!legacy && version>=2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
         val restoredImages=mutableMapOf<String,ByteArray>()
         var totalImageBytes=0L
@@ -100,11 +102,18 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 require(name.isBlank() || restoredImages.containsKey(name)){"عکس یکی از سفارش‌ها در بکاپ موجود نیست."}
             }
         }
+        if(!legacy && version>=4){
+            val rows=tables.getJSONArray("expenses")
+            for(i in 0 until rows.length()){
+                val name=rows.getJSONObject(i).optString("receiptFileName")
+                require(name.isBlank() || restoredImages.containsKey(name)){"عکس فیش یکی از هزینه‌ها در بکاپ موجود نیست."}
+            }
+        }
         restoredImages.forEach { (name,bytes) -> photos.restoreBytes(name,bytes) }
         val sql=db.openHelper.writableDatabase
         db.withTransaction {
             val b=db.backupDao()
-            b.clearStockUsage();b.clearCosts();b.clearOrders();b.clearStockItems();b.clearHistory();b.clearVariables();b.clearPieces();b.clearProducts()
+            b.clearStockUsage();b.clearCosts();b.clearOrders();b.clearStockItems();b.clearExpenses();b.clearHistory();b.clearVariables();b.clearPieces();b.clearProducts()
             b.clearSizePrices();b.clearProfits();b.clearSettings();b.clearMaterials()
             backupTables.forEach { table ->
                 if(!tables.has(table)) return@forEach
@@ -140,6 +149,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                             "defaultOrderStatus" -> "PREPARING"
                             "orderStatus" -> "SENT"
                             "lowStockPercent" -> 10
+                            "tracked" -> 1
                             "enabled","active","suggestCodRemainder" -> 1
                             else -> if(type.contains("CHAR",true)||type.contains("TEXT",true))"" else 0L
                         }
@@ -151,7 +161,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             }
             sql.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
         }
-        ensurePricingStructure()
+        if(legacy || version<3) ensurePricingStructure()
         runCatching { ShippingReminder.refreshAll(appContext,db.orderDao().getAll().map{it.order}) }
     }
 
@@ -261,7 +271,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
         require(productType in setOf("STANDARD","RELIEF") && designMaterialsCostToman>=0L){"نوع یا هزینه محصول نامعتبر است."}
-        if(productType=="RELIEF")require(enabledMaterialIds.all{it in setOf("frame_pvc","packaging_bundle")}){"تابلو برجسته فقط قاب و بسته‌بندی دارد."}
+        if(productType=="RELIEF")require(enabledIds.all{it in setOf("frame_pvc","packaging_bundle")}){"تابلو برجسته فقط قاب و بسته‌بندی دارد."}
         require(profitMode=="MANUAL" || profitMode=="FORMULA") { "روش محاسبه سود نامعتبر است." }
         if(profitMode=="FORMULA") require(profitFormula.isNotBlank()) { "فرمول سود خالی است." }
         val now = System.currentTimeMillis()
@@ -300,11 +310,12 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     }
 
     private suspend fun consumeStock(orderId:String, model:ProductModel, color:String) {
-        val needs=StockPlanner.needs(model.pieces,model.enabledMaterialIds,db.materialDao().getAll(),color,model.packagingSizeKey)
+        val packageKey=com.tablodecori.app.pricing.PricingEngine.choosePackagingSize(model.pieces,db.sizePriceDao().getAll(),model.packagingSizeKey)
+        val needs=StockPlanner.needs(model.pieces,model.enabledMaterialIds,db.materialDao().getAll(),color,packageKey)
         val now=System.currentTimeMillis()
         needs.forEach { need ->
             val old=db.stockDao().get(need.stockId)
-            val item=old ?: StockItemEntity(need.stockId,need.materialId,need.materialName,need.variantKey,need.unit,updatedAt=now)
+            val item=old ?: StockItemEntity(need.stockId,need.materialId,need.materialName,need.variantKey,need.unit,updatedAt=now,tracked=false)
             db.stockDao().upsert(item.copy(materialName=need.materialName,onHandMicros=Math.subtractExact(item.onHandMicros,need.amountMicros),updatedAt=now))
         }
         db.stockDao().insertUsages(needs.map { OrderStockUsageEntity(orderId,it.stockId,it.amountMicros) })
@@ -336,7 +347,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         require(targetMicros>0 && onHandMicros>=0){"موجودی فعلی باید صفر یا بیشتر و حد مطلوب بزرگ‌تر از صفر باشد."}
         db.withTransaction {
             val item=db.stockDao().get(id) ?: error("قلم انبار پیدا نشد.")
-            db.stockDao().upsert(item.copy(onHandMicros=onHandMicros,targetMicros=targetMicros,notifiedLow=false,updatedAt=System.currentTimeMillis()))
+            db.stockDao().upsert(item.copy(onHandMicros=onHandMicros,targetMicros=targetMicros,notifiedLow=false,updatedAt=System.currentTimeMillis(),tracked=true))
         }
         checkStockAlerts()
     }
@@ -354,6 +365,27 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         checkStockAlerts()
     }
 
+    suspend fun trackStock(materialId:String,variantText:String) {
+        val material=db.materialDao().get(materialId) ?: error("متریال پیدا نشد.")
+        val unit=StockPlanner.unitFor(material) ?: error("این قلم موجودی فیزیکی ندارد.")
+        val variant=StockPlanner.variantFor(materialId,variantText)
+        val id="$materialId|$variant"
+        db.withTransaction {
+            val old=db.stockDao().get(id)
+            val now=System.currentTimeMillis()
+            db.stockDao().upsert(old?.copy(tracked=true,notifiedLow=false,updatedAt=now)
+                ?: StockItemEntity(id,materialId,material.name,variant,unit,updatedAt=now,tracked=true))
+        }
+        checkStockAlerts()
+    }
+
+    suspend fun hideStock(id:String) {
+        db.withTransaction {
+            val old=db.stockDao().get(id) ?: return@withTransaction
+            db.stockDao().upsert(old.copy(tracked=false,notifiedLow=false,updatedAt=System.currentTimeMillis()))
+        }
+    }
+
     suspend fun updateStockThreshold(percent:Int) {
         require(percent in 1..100){"آستانه هشدار باید بین ۱ تا ۱۰۰ درصد باشد."}
         val old=db.settingsDao().get() ?: AppSettingsEntity(updatedAt=System.currentTimeMillis())
@@ -364,6 +396,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     private suspend fun checkStockAlerts() {
         val threshold=db.settingsDao().get()?.lowStockPercent ?: 10
         db.stockDao().getAll().forEach { item ->
+            if(!item.tracked) return@forEach
             val low=item.targetMicros>0L && item.onHandMicros <= item.targetMicros * threshold / 100L
             if(low && !item.notifiedLow) {
                 if(StockAlert.show(appContext,item)) db.stockDao().upsert(item.copy(notifiedLow=true))
@@ -371,6 +404,29 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         }
     }
     suspend fun refreshStockAlerts() = checkStockAlerts()
+
+    suspend fun saveExpense(id:String?,dateMillis:Long,category:String,title:String,payeeName:String,amountToman:Long,note:String,receiptUri:String?):String {
+        require(category in setOf("MATERIAL","PAYROLL","OTHER")){"دسته‌بندی هزینه نامعتبر است."}
+        require(title.isNotBlank() && amountToman>0L && dateMillis>0L){"عنوان، تاریخ و مبلغ معتبر لازم است."}
+        val old=id?.let{db.expenseDao().get(it)}
+        val photo=receiptUri?.takeIf{it.isNotBlank()}?.let{photos.importSelected(it)} ?: old?.receiptFileName.orEmpty()
+        val now=System.currentTimeMillis()
+        val expense=ExpenseEntity(id?:UUID.randomUUID().toString(),dateMillis,category,title.trim(),payeeName.trim(),amountToman,note.trim(),photo,old?.createdAt?:now,now)
+        try { db.expenseDao().upsert(expense) } catch(t:Throwable){if(photo!=old?.receiptFileName)photos.delete(photo);throw t}
+        if(old!=null && old.receiptFileName.isNotBlank() && old.receiptFileName!=photo)photos.delete(old.receiptFileName)
+        return expense.id
+    }
+
+    suspend fun deleteExpense(id:String) {
+        val item=db.expenseDao().get(id)?:return
+        db.expenseDao().delete(id)
+        if(item.receiptFileName.isNotBlank())photos.delete(item.receiptFileName)
+    }
+
+    suspend fun updateOpeningCash(amount:Long){
+        val old=db.settingsDao().get()?:AppSettingsEntity(updatedAt=System.currentTimeMillis())
+        db.settingsDao().upsert(old.copy(openingCashToman=amount,updatedAt=System.currentTimeMillis()))
+    }
 
     suspend fun createOrder(input: OrderFormInput): String {
         require(input.customerName.isNotBlank()) { "نام گیرنده الزامی است." }

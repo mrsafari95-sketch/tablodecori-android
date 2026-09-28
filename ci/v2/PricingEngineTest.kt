@@ -1,5 +1,6 @@
 package com.tablodecori.app.pricing
 
+import com.tablodecori.app.data.db.SizePriceEntity
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -26,6 +27,21 @@ class PricingEngineTest {
         assertEquals(470000,result.finalPriceToman)
         assertTrue(result.lines.any{it.materialId=="design_materials"&&it.amountToman==150000L})
         assertFalse(result.lines.any{it.materialId=="glass"})
+    }
+    @Test fun automaticPackagingFitsNonstandardSizesAndNeverDropsFoamOrCarton(){
+        val now=1L
+        val rules=listOf(
+            SizePriceEntity("f40","pack_foam",40,60,0,70000,true,now,now),
+            SizePriceEntity("c40","pack_carton",40,60,0,120000,true,now,now),
+            SizePriceEntity("f50","pack_foam",50,70,0,200000,true,now,now),
+            SizePriceEntity("c50","pack_carton",50,70,0,130000,true,now,now))
+        val mats=listOf(m("packaging_bundle",CalculationType.PER_SET,cat=MaterialCategory.PACKAGING),m("pack_foam",CalculationType.PER_SET,cat=MaterialCategory.PACKAGING),m("pack_carton",CalculationType.PER_SET,cat=MaterialCategory.PACKAGING),m("pack_tape",CalculationType.PER_SET,30000,cat=MaterialCategory.PACKAGING),m("pack_labor",CalculationType.PER_SET,60000,cat=MaterialCategory.PACKAGING))
+        assertEquals("40x60",PricingEngine.choosePackagingSize(listOf(PieceInput(35,55,1)),rules))
+        val medium=engine.calculate(listOf(PieceInput(35,55,1)),mats,setOf("packaging_bundle"),profits,1,sizePrices=rules)
+        assertEquals(280000L,medium.packagingCostToman)
+        val oversized=engine.calculate(listOf(PieceInput(80,120,1)),mats,setOf("packaging_bundle"),profits,1,sizePrices=rules)
+        assertTrue(oversized.packagingCostToman>90000L)
+        assertTrue(oversized.packagingCostToman>medium.packagingCostToman)
     }
     @Test fun formulaProfitIsPerProduct(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("base",CalculationType.PER_SET,100000)),setOf("base"),profits,1,profitFormula="cost*20/100");assertEquals(20000,r.profitToman);assertEquals(120000,r.finalPriceToman)}
     @Test fun shippingNeverEntersBasePrice(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("labor",CalculationType.PER_PIECE,65000)),setOf("labor"),profits,1);assertEquals(65000,r.finalPriceToman);assertEquals(65000,r.costBeforeProfitToman)}

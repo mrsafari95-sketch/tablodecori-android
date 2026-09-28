@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
-        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class],
+        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class, ExpenseEntity::class],
     version = 9,
     exportSchema = true,
 )
@@ -23,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun settingsDao(): SettingsDao
     abstract fun backupDao(): BackupDao
     abstract fun stockDao(): StockDao
+    abstract fun expenseDao(): ExpenseDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2,3) {
@@ -85,9 +86,14 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultShippingPayer TEXT NOT NULL DEFAULT 'RECIPIENT'")
                 db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultOrderStatus TEXT NOT NULL DEFAULT 'PREPARING'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN openingCashToman INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE products ADD COLUMN productType TEXT NOT NULL DEFAULT 'STANDARD'")
                 db.execSQL("ALTER TABLE products ADD COLUMN designMaterialsCostToman INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE sent_orders ADD COLUMN orderSource TEXT NOT NULL DEFAULT 'OTHER'")
+                db.execSQL("ALTER TABLE stock_items ADD COLUMN tracked INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE TABLE IF NOT EXISTS expenses (id TEXT NOT NULL PRIMARY KEY, dateEpochMillis INTEGER NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, payeeName TEXT NOT NULL, amountToman INTEGER NOT NULL, note TEXT NOT NULL, receiptFileName TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_expenses_dateEpochMillis ON expenses(dateEpochMillis)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_expenses_category ON expenses(category)")
                 db.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
             }
         }

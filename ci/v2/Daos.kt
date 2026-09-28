@@ -87,7 +87,16 @@ interface StockDao {
 }
 
 @Dao
+interface ExpenseDao {
+    @Query("SELECT * FROM expenses ORDER BY dateEpochMillis DESC, createdAt DESC") fun observeAll(): Flow<List<ExpenseEntity>>
+    @Query("SELECT * FROM expenses WHERE id = :id LIMIT 1") suspend fun get(id:String): ExpenseEntity?
+    @Upsert suspend fun upsert(item:ExpenseEntity)
+    @Query("DELETE FROM expenses WHERE id = :id") suspend fun delete(id:String)
+}
+
+@Dao
 interface BackupDao {
+    @Query("DELETE FROM expenses") suspend fun clearExpenses()
     @Query("SELECT * FROM materials") suspend fun materials(): List<MaterialEntity>
     @Query("SELECT * FROM products") suspend fun products(): List<ProductEntity>
     @Query("SELECT * FROM size_prices") suspend fun sizePrices(): List<SizePriceEntity>

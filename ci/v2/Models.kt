@@ -89,5 +89,5 @@ fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(
 fun ProductWithDetails.toModel(): ProductModel = ProductModel(
     product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula, product.packagingSizeKey, product.productType, product.designMaterialsCostToman,
     pieces.sortedBy { it.sortOrder }.map { PieceInput(it.widthCm, it.heightCm, it.quantity) },
-    materials.filter { !it.deleted }.map { it.id }.toSet()
+    MaterialCatalog.selectedCanonicalIds(materials.filter { !it.deleted }.map { it.id }.toSet())
 )

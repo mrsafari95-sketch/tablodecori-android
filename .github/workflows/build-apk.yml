@@ -60,6 +60,7 @@ jobs:
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
             cp ci/v2/InventoryScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/InventoryScreen.kt"
+            cp ci/v2/ReportsScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/ReportsScreen.kt"
             cp ci/v2/PersianCalendarPicker.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PersianCalendarPicker.kt"
             cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
@@ -73,6 +74,7 @@ jobs:
             cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
             cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
             cp ci/v2/StockPlanner.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockPlanner.kt"
+            cp ci/v2/ReportsMath.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ReportsMath.kt"
             cp ci/v2/MaterialCatalog.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/MaterialCatalog.kt"
             cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
             cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
@@ -121,6 +123,7 @@ jobs:
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/fun SettingsScreen(/fun LegacySettingsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
+            sed -i 's/fun ReportsScreen(/fun LegacyReportsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,
             # so convert it to a List before calling takeLast().
             sed -i 's/by.entries.takeLast(12)/by.entries.toList().takeLast(12)/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"

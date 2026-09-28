@@ -154,8 +154,10 @@ private val chartColors=listOf(Color(0xFF155E4B),Color(0xFFB78322),Color(0xFF426
     if(rows.isEmpty()){Text("برای این ماه داده‌ای ثبت نشده است.");return@AppCard}
     if(pie){val total=rows.sumOf{it.second}.toFloat().coerceAtLeast(1f);Canvas(Modifier.size(150.dp).align(Alignment.CenterHorizontally)){var start=-90f;rows.forEachIndexed{i,row->val sweep=row.second/total*360f;drawArc(chartColors[i%chartColors.size],start,sweep,true);start+=sweep}}}
     val top=rows.first().second.toFloat().coerceAtLeast(1f)
+    val totalCount=rows.sumOf{it.second}.coerceAtLeast(1)
     rows.take(8).forEachIndexed{i,(label,count)->Column{
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(label,Modifier.weight(1f),maxLines=2);Text("${fa(count)} سفارش · ${fa((count*100/rows.sumOf{it.second})))}٪",color=chartColors[i%chartColors.size])}
+        val percent=count*100/totalCount
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(label,Modifier.weight(1f),maxLines=2);Text("${fa(count)} سفارش · ${fa(percent)}٪",color=chartColors[i%chartColors.size])}
         LinearProgressIndicator(progress={count/top},modifier=Modifier.fillMaxWidth(),color=chartColors[i%chartColors.size])
     }}
 }}

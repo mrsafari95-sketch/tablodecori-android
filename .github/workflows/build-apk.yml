@@ -51,7 +51,7 @@ jobs:
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionCode = 1/versionCode = 5/' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionName = "1.0.0"/versionName = "1.4.0"/' "$PROJECT_DIR/app/build.gradle.kts"
-            printf '\norg.gradle.jvmargs=-Xmx9g -XX:+UseG1GC -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
+            printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"

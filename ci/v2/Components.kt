@@ -1,6 +1,5 @@
 package com.tablodecori.app.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,8 +29,7 @@ import com.tablodecori.app.util.money
         modifier.fillMaxWidth(),
         shape=RoundedCornerShape(20.dp),
         colors=CardDefaults.elevatedCardColors(containerColor=MaterialTheme.colorScheme.surface),
-        elevation=CardDefaults.elevatedCardElevation(defaultElevation=2.dp),
-        border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.65f))
+        elevation=CardDefaults.elevatedCardElevation(defaultElevation=2.dp)
     ){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp),content=content)}
 }
 

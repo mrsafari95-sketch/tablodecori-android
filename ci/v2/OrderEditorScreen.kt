@@ -42,6 +42,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
+private fun orderEditorSource(initial:SentOrderEntity?,products:List<PricedProduct>,settings:AppSettingsEntity?,now:Long):SentOrderEntity =
+    initial ?: SentOrderEntity(
+        id="",internalNumber="",dateEpochMillis=now,customerName="",instagramId="",phone="",province="",city="",
+        productId=products.firstOrNull()?.product?.id,productNameSnapshot="",compositionSnapshot="",pieceCountSnapshot=0,
+        productCostSnapshotToman=0L,shippingCostToman=settings?.shippingDefaultToman?:0L,receivedToman=0L,
+        actualProfitToman=0L,note="",createdAt=now,frameColor=settings?.defaultFrameColor.orEmpty(),
+        shippingPayer=settings?.defaultShippingPayer?:"RECIPIENT",orderStatus=settings?.defaultOrderStatus?:"PREPARING"
+    )
+
 /** A full order page leaves room for the customer, artwork and payment sections. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,39 +63,40 @@ fun OrderEditorScreen(
 ) {
     val scope=rememberCoroutineScope()
     val context=LocalContext.current
-    val initialProductId=initial?.productId?:products.firstOrNull()?.product?.id.orEmpty()
-    var pid by rememberSaveable(initial?.id){mutableStateOf(initialProductId)}
-    var date by rememberSaveable(initial?.id){mutableLongStateOf(initial?.dateEpochMillis?:System.currentTimeMillis())}
-    var customer by rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}
-    var instagram by rememberSaveable(initial?.id){mutableStateOf(initial?.instagramId.orEmpty())}
-    var phone by rememberSaveable(initial?.id){mutableStateOf(initial?.phone.orEmpty())}
-    var province by rememberSaveable(initial?.id){mutableStateOf(initial?.province.orEmpty())}
-    var city by rememberSaveable(initial?.id){mutableStateOf(initial?.city.orEmpty())}
-    var address by rememberSaveable(initial?.id){mutableStateOf(initial?.addressDetails.orEmpty())}
-    var postal by rememberSaveable(initial?.id){mutableStateOf(initial?.postalCode.orEmpty())}
-    var frameColor by rememberSaveable(initial?.id){mutableStateOf(initial?.frameColor?:settings?.defaultFrameColor.orEmpty())}
-    var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
-    var shipping by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:settings?.shippingDefaultToman?:0L).toString())}
-    var shippingPayer by rememberSaveable(initial?.id){mutableStateOf(initial?.shippingPayer?:settings?.defaultShippingPayer?:"RECIPIENT")}
-    var shippingPayerTouched by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var dimensionsText by rememberSaveable(initial?.id){mutableStateOf(initial?.dimensionsText.orEmpty())}
-    var plannedShipAt by rememberSaveable(initial?.id){mutableLongStateOf(initial?.plannedShipAtMillis?:0L)}
-    var orderStatus by rememberSaveable(initial?.id){mutableStateOf(initial?.orderStatus?:settings?.defaultOrderStatus?:"PREPARING")}
-    var orderStatusTouched by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var trackingCode by rememberSaveable(initial?.id){mutableStateOf(initial?.trackingCode.orEmpty())}
-    var orderSource by rememberSaveable(initial?.id){mutableStateOf(initial?.orderSource?:"OTHER")}
-    var quote by rememberSaveable(initial?.id){mutableStateOf(initial?.quotedTotalToman?.toString().orEmpty())}
-    var deposit by rememberSaveable(initial?.id){mutableStateOf((initial?.depositToman?:0L).toString())}
-    var otherPaid by rememberSaveable(initial?.id){mutableStateOf((initial?.otherPaidToman?:0L).toString())}
-    var codDue by rememberSaveable(initial?.id){mutableStateOf((initial?.codDueToman?:0L).toString())}
-    var photoUri by rememberSaveable(initial?.id){mutableStateOf<String?>(null)}
-    var removePhoto by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var quoteAuto by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
-    var depositAuto by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
-    var codAuto by rememberSaveable(initial?.id){mutableStateOf(initial==null && settings?.suggestCodRemainder!=false)}
-    var picker by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var shippingDatePicker by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var productMenu by rememberSaveable(initial?.id){mutableStateOf(false)}
+    val orderKey=initial?.id
+    val source=orderEditorSource(initial,products,settings,System.currentTimeMillis())
+    var pid by rememberSaveable(orderKey){mutableStateOf(source.productId?:products.firstOrNull()?.product?.id.orEmpty())}
+    var date by rememberSaveable(orderKey){mutableLongStateOf(source.dateEpochMillis)}
+    var customer by rememberSaveable(orderKey){mutableStateOf(source.customerName)}
+    var instagram by rememberSaveable(orderKey){mutableStateOf(source.instagramId)}
+    var phone by rememberSaveable(orderKey){mutableStateOf(source.phone)}
+    var province by rememberSaveable(orderKey){mutableStateOf(source.province)}
+    var city by rememberSaveable(orderKey){mutableStateOf(source.city)}
+    var address by rememberSaveable(orderKey){mutableStateOf(source.addressDetails)}
+    var postal by rememberSaveable(orderKey){mutableStateOf(source.postalCode)}
+    var frameColor by rememberSaveable(orderKey){mutableStateOf(source.frameColor)}
+    var note by rememberSaveable(orderKey){mutableStateOf(source.note)}
+    var shipping by rememberSaveable(orderKey){mutableStateOf(source.shippingCostToman.toString())}
+    var shippingPayer by rememberSaveable(orderKey){mutableStateOf(source.shippingPayer)}
+    var shippingPayerTouched by rememberSaveable(orderKey){mutableStateOf(false)}
+    var dimensionsText by rememberSaveable(orderKey){mutableStateOf(source.dimensionsText)}
+    var plannedShipAt by rememberSaveable(orderKey){mutableLongStateOf(source.plannedShipAtMillis)}
+    var orderStatus by rememberSaveable(orderKey){mutableStateOf(source.orderStatus)}
+    var orderStatusTouched by rememberSaveable(orderKey){mutableStateOf(false)}
+    var trackingCode by rememberSaveable(orderKey){mutableStateOf(source.trackingCode)}
+    var orderSource by rememberSaveable(orderKey){mutableStateOf(source.orderSource)}
+    var quote by rememberSaveable(orderKey){mutableStateOf(if(initial==null)"" else source.quotedTotalToman.toString())}
+    var deposit by rememberSaveable(orderKey){mutableStateOf(source.depositToman.toString())}
+    var otherPaid by rememberSaveable(orderKey){mutableStateOf(source.otherPaidToman.toString())}
+    var codDue by rememberSaveable(orderKey){mutableStateOf(source.codDueToman.toString())}
+    var photoUri by rememberSaveable(orderKey){mutableStateOf<String?>(null)}
+    var removePhoto by rememberSaveable(orderKey){mutableStateOf(false)}
+    var quoteAuto by rememberSaveable(orderKey){mutableStateOf(initial==null)}
+    var depositAuto by rememberSaveable(orderKey){mutableStateOf(initial==null)}
+    var codAuto by rememberSaveable(orderKey){mutableStateOf(initial==null && settings?.suggestCodRemainder!=false)}
+    var picker by rememberSaveable(orderKey){mutableStateOf(false)}
+    var shippingDatePicker by rememberSaveable(orderKey){mutableStateOf(false)}
+    var productMenu by rememberSaveable(orderKey){mutableStateOf(false)}
     var saving by remember{mutableStateOf(false)}
     BackHandler(enabled=!saving,onBack=onDismiss)
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){ }

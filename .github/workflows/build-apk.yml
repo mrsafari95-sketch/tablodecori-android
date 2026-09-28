@@ -152,7 +152,7 @@ jobs:
           guard "backboard reacts to glass toggle" "$SRC/pricing/PricingEngine.kt" 'val glassEnabled = "glass" in enabledMaterialIds'
           guard "backboard threshold keeps 30x45" "$SRC/pricing/PricingEngine.kt" 'shortSide < 30 || (shortSide == 30 && longSide < 45)'
           guard "backboard exception is per piece" "$SRC/pricing/PricingEngine.kt" 'if(m.id=="backboard_3mm" && glassEnabled)'
-          guard "manual packaging reaches pricing" "$SRC/pricing/PricingEngine.kt" 'val manualWh=selectedPackagingSizeKey.split("x")'
+          guard "manual packaging reaches adaptive sizing" "$SRC/pricing/PricingEngine.kt" 'choosePackagingSize(pieces,sizePrices,selectedPackagingSizeKey)'
           guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = input.addressDetails'
           guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = input.postalCode'
           guard "inflation default is one percent" "$SRC/data/WorkshopRepository.kt" '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100'

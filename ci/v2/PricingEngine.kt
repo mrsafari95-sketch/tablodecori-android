@@ -20,10 +20,12 @@ class PricingEngine {
         profitFormula: String = "",
         sizePrices: List<SizePriceEntity> = emptyList(),
         selectedPackagingSizeKey: String = "",
+        designMaterialsCostToman: Long = 0L,
     ): PricingResult {
         require(pieces.isNotEmpty()) { "حداقل یک سایز لازم است." }
         require(pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(materials.all { it.priceToman >= 0 && it.rateBasisPoints >= 0 && it.wasteBasisPoints >= 0 }) { "قیمت و درصد نمی‌تواند منفی باشد." }
+        require(designMaterialsCostToman>=0L) { "هزینه مواد طراحی نمی‌تواند منفی باشد." }
 
         val count = pieces.sumOf { it.quantity }
         val area = pieces.fold(BigDecimal.ZERO) { sum, p ->
@@ -119,6 +121,12 @@ class PricingEngine {
                 packageTotal=Math.addExact(packageTotal,amount)
             }
             if(packageTotal>0L){subtotalExact+=BigDecimal(packageTotal);packaging+=packageTotal;lines+=CostLine(parent.id,parent.name,parent.category,packageTotal)}
+        }
+
+        if(designMaterialsCostToman>0L){
+            subtotalExact+=BigDecimal(designMaterialsCostToman)
+            production=Math.addExact(production,designMaterialsCostToman)
+            lines+=CostLine("design_materials","مواد طراحی برجسته",MaterialCategory.PRODUCTION,designMaterialsCostToman)
         }
 
         // Percentage overheads are intentionally sequential, matching the supplied prototype.

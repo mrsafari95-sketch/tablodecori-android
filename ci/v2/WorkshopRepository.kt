@@ -69,12 +69,20 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
 
     suspend fun importFullBackup(json:String) {
         val root=JSONObject(json)
-        require(root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
+        val legacy=root.optString("format")=="tablodecori-backup"
+        require(legacy || root.optString("format")=="tablodecori-full-backup"){"فایل بکاپ معتبر نیست."}
         val version=root.optInt("version",0)
-        require(version in 1..3){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
-        val tables=root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
-        backupTables.filter { version>=3 || it !in setOf("stock_items","order_stock_usage") }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
-        val images=if(version>=2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
+        require(if(legacy)version==1 else version in 1..3){"نسخه فایل بکاپ پشتیبانی نمی‌شود."}
+        val tables=if(legacy) JSONObject().apply {
+            mapOf("materials" to "materials","products" to "products","pieces" to "product_pieces",
+                "productVariables" to "product_variables","profitRules" to "profit_rules","orders" to "sent_orders",
+                "orderCosts" to "order_cost_snapshots","priceHistory" to "price_change_history","settings" to "app_settings")
+                .forEach { (old,new) -> put(new,root.getJSONArray(old)) }
+            require(getJSONArray("materials").length()>0 && getJSONArray("app_settings").length()>0){"بکاپ قدیمی ناقص است."}
+        } else root.optJSONObject("tables")?:error("اطلاعات بکاپ ناقص است.")
+        val essential=setOf("materials","products","product_pieces","product_variables","profit_rules","sent_orders","order_cost_snapshots","price_change_history","app_settings")
+        backupTables.filter { it in essential || (!legacy && version>=3) }.forEach { require(tables.has(it)){"بکاپ ناقص است: $it"} }
+        val images=if(!legacy && version>=2) root.optJSONObject("images")?:error("عکس‌های بکاپ ناقص است.") else JSONObject()
         val restoredImages=mutableMapOf<String,ByteArray>()
         var totalImageBytes=0L
         images.keys().forEach { name ->
@@ -85,7 +93,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             require(totalImageBytes<=100_000_000){"حجم عکس‌های بکاپ بیش از حد مجاز است."}
             restoredImages[name]=bytes
         }
-        if(version>=2){
+        if(!legacy && version>=2){
             val orders=tables.getJSONArray("sent_orders")
             for(i in 0 until orders.length()){
                 val name=orders.getJSONObject(i).optString("photoFileName")
@@ -100,6 +108,10 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             b.clearSizePrices();b.clearProfits();b.clearSettings();b.clearMaterials()
             backupTables.forEach { table ->
                 if(!tables.has(table)) return@forEach
+                val columns=mutableListOf<Pair<String,String>>()
+                sql.query("PRAGMA table_info($table)").use { schema ->
+                    while(schema.moveToNext()) columns+=schema.getString(1) to schema.getString(2)
+                }
                 val rows=tables.getJSONArray(table)
                 for(r in 0 until rows.length()){
                     val row=rows.getJSONObject(r);val values=ContentValues()
@@ -115,11 +127,31 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                             }
                         }
                     }
+                    columns.forEach { (column,type) -> if(!row.has(column)) {
+                        val fallback:Any=when(column){
+                            "quotedTotalToman","otherPaidToman" -> if(table=="sent_orders")row.optLong("receivedToman",0L) else 0L
+                            "formulaMode" -> "STANDARD"
+                            "profitMode" -> "MANUAL"
+                            "productType" -> "STANDARD"
+                            "orderSource" -> "OTHER"
+                            "frameColorOptions" -> "مشکی، سفید، طلایی، نقره‌ای، چوبی"
+                            "shippingPayer" -> "SENDER"
+                            "defaultShippingPayer" -> "RECIPIENT"
+                            "defaultOrderStatus" -> "PREPARING"
+                            "orderStatus" -> "SENT"
+                            "lowStockPercent" -> 10
+                            "enabled","active","suggestCodRemainder" -> 1
+                            else -> if(type.contains("CHAR",true)||type.contains("TEXT",true))"" else 0L
+                        }
+                        when(fallback){is String->values.put(column,fallback);is Int->values.put(column,fallback);else->values.put(column,fallback as Long)}
+                    } }
                     val result=sql.insert(table,SQLiteDatabase.CONFLICT_REPLACE,values)
                     require(result!=-1L){"بازیابی اطلاعات $table ناموفق بود."}
                 }
             }
+            sql.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
         }
+        ensurePricingStructure()
         runCatching { ShippingReminder.refreshAll(appContext,db.orderDao().getAll().map{it.order}) }
     }
 
@@ -182,16 +214,16 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey)) }.getOrNull()
+            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey, model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)) }.getOrNull()
         }
     }
 
-    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null, packagingSizeKey: String = "", profitFormula: String = ""): PricingResult {
+    suspend fun calculate(pieces: List<PieceInput>, enabledIds: Set<String>? = null, packagingSizeKey: String = "", profitFormula: String = "", manualProfitToman: Long = 0L, designMaterialsCostToman: Long = 0L): PricingResult {
         val ms = db.materialDao().getAll().map { it.toPricing() }
         val profits = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
         val st = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
         val entities=db.materialDao().getAll()
-        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, if(profitFormula.isBlank())0L else null, profitFormula, db.sizePriceDao().getAll(), packagingSizeKey)
+        return engine.calculate(pieces, ms, enabledIds ?: ms.filter { it.enabled }.map { it.id }.toSet(), profits, st.roundingStepToman, entities.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, if(profitFormula.isBlank())manualProfitToman else null, profitFormula, db.sizePriceDao().getAll(), packagingSizeKey,designMaterialsCostToman)
     }
 
     suspend fun saveMaterial(entity: MaterialEntity): Int {
@@ -224,17 +256,19 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         return usage
     }
 
-    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = "", packagingSizeKey: String = ""): String {
+    suspend fun saveProduct(id: String?, name: String, pieces: List<PieceInput>, enabledIds: Set<String>, active: Boolean = true, manualProfitToman: Long = 0L, profitMode: String = "MANUAL", profitFormula: String = "", packagingSizeKey: String = "", productType:String="STANDARD", designMaterialsCostToman:Long=0L): String {
         require(name.isNotBlank()) { "نام محصول الزامی است." }
         require(pieces.isNotEmpty() && pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(manualProfitToman >= 0) { "سود دستی نمی‌تواند منفی باشد." }
+        require(productType in setOf("STANDARD","RELIEF") && designMaterialsCostToman>=0L){"نوع یا هزینه محصول نامعتبر است."}
+        if(productType=="RELIEF")require(enabledMaterialIds.all{it in setOf("frame_pvc","packaging_bundle")}){"تابلو برجسته فقط قاب و بسته‌بندی دارد."}
         require(profitMode=="MANUAL" || profitMode=="FORMULA") { "روش محاسبه سود نامعتبر است." }
         if(profitMode=="FORMULA") require(profitFormula.isNotBlank()) { "فرمول سود خالی است." }
         val now = System.currentTimeMillis()
         val productId = id ?: UUID.randomUUID().toString()
         val old = id?.let { db.productDao().get(it)?.product }
         db.withTransaction {
-            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,packagingSizeKey=packagingSizeKey,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
+            db.productDao().upsert(ProductEntity(id=productId,name=name,active=active,manualProfitToman=manualProfitToman,profitMode=profitMode,profitFormula=profitFormula,packagingSizeKey=packagingSizeKey,productType=productType,designMaterialsCostToman=if(productType=="RELIEF")designMaterialsCostToman else 0L,deleted=false,createdAt=old?.createdAt?:now,updatedAt=now))
             db.productDao().deletePieces(productId)
             db.productDao().deleteVariables(productId)
             db.productDao().insertPieces(pieces.mapIndexed { i, p -> ProductPieceEntity(productId=productId,widthCm=p.widthCm,heightCm=p.heightCm,quantity=p.quantity,sortOrder=i) })
@@ -246,7 +280,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     suspend fun duplicateProduct(id: String): String? {
         val p = db.productDao().get(id) ?: return null
         val m = p.toModel()
-        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula, m.packagingSizeKey)
+        return saveProduct(null, "${m.name} - کپی", m.pieces, m.enabledMaterialIds, m.active, m.manualProfitToman, m.profitMode, m.profitFormula, m.packagingSizeKey,m.productType,m.designMaterialsCostToman)
     }
 
     suspend fun toggleProduct(id: String, active: Boolean) {
@@ -260,8 +294,9 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         require(input.shippingCostToman>=0){"هزینه ارسال نمی‌تواند منفی باشد."}
         require(input.shippingPayer in setOf("SENDER","RECIPIENT")){"روش پرداخت ارسال نامعتبر است."}
         require(input.orderStatus in setOf("PREPARING","READY","SENT")){"وضعیت سفارش نامعتبر است."}
+        require(OrderSource.options.any{it.first==input.orderSource}){"منبع سفارش نامعتبر است."}
         require(input.plannedShipAtMillis>=0L){"تاریخ یادآوری نامعتبر است."}
-        return OrderPaymentMath.received(input.quotedTotalToman,input.depositToman,input.otherPaidToman,input.codDueToman,input.codCollectedToman)
+        return OrderPaymentMath.received(input.quotedTotalToman,input.depositToman,input.otherPaidToman,input.codDueToman)
     }
 
     private suspend fun consumeStock(orderId:String, model:ProductModel, color:String) {
@@ -342,7 +377,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val paid=received(input)
         val rel = db.productDao().get(input.productId) ?: error("محصول پیدا نشد.")
         val model = rel.toModel()
-        val pricing = calculate(model.pieces, model.enabledMaterialIds, model.packagingSizeKey)
+        val pricing = calculate(model.pieces, model.enabledMaterialIds, model.packagingSizeKey,designMaterialsCostToman=model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)
         val id = UUID.randomUUID().toString()
         val internal = "TD-${System.currentTimeMillis().toString().takeLast(7)}"
         val actual = OrderMath.actualProfit(paid, pricing.costBeforeProfitToman, if(input.shippingPayer=="SENDER") input.shippingCostToman else 0L)
@@ -375,13 +410,14 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
                 depositToman = input.depositToman,
                 otherPaidToman = input.otherPaidToman,
                 codDueToman = input.codDueToman,
-                codCollectedToman = input.codCollectedToman,
+                codCollectedToman = input.codDueToman,
                 photoFileName = photoName,
                 shippingPayer = input.shippingPayer,
                 dimensionsText = input.dimensionsText,
                 plannedShipAtMillis = input.plannedShipAtMillis,
                 orderStatus = input.orderStatus,
                 trackingCode = input.trackingCode,
+                orderSource = input.orderSource,
             ))
             db.orderDao().insertCosts(pricing.lines.map { OrderCostSnapshotEntity(orderId=id,materialId=it.materialId,name=it.name,category=it.category.name,amountToman=it.amountToman) })
             consumeStock(id,model,input.frameColor)
@@ -399,7 +435,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val replacement=if(input.productId!=existing.productId){
             val rel=db.productDao().get(input.productId)?:error("ست جدید پیدا نشد.")
             val model=rel.toModel()
-            model to calculate(model.pieces,model.enabledMaterialIds,model.packagingSizeKey)
+            model to calculate(model.pieces,model.enabledMaterialIds,model.packagingSizeKey,designMaterialsCostToman=model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)
         }else null
         val newCost=replacement?.second?.costBeforeProfitToman?:existing.productCostSnapshotToman
         val actual = OrderMath.actualProfit(paid, newCost, if(input.shippingPayer=="SENDER") input.shippingCostToman else 0L)
@@ -426,7 +462,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             depositToman = input.depositToman,
             otherPaidToman = input.otherPaidToman,
             codDueToman = input.codDueToman,
-            codCollectedToman = input.codCollectedToman,
+            codCollectedToman = input.codDueToman,
             photoFileName = photoName,
             productId = if(replacement!=null) input.productId else existing.productId,
             productNameSnapshot = replacement?.first?.name?:existing.productNameSnapshot,
@@ -438,6 +474,7 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
             plannedShipAtMillis = input.plannedShipAtMillis,
             orderStatus = input.orderStatus,
             trackingCode = input.trackingCode,
+            orderSource = input.orderSource,
         ))
             if(replacement!=null){
                 db.orderDao().deleteCosts(orderId)
@@ -464,10 +501,11 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         db.settingsDao().upsert(old.copy(roundingStepToman=rounding,shippingDefaultToman=shipping,darkMode=dark,updatedAt=System.currentTimeMillis()))
     }
 
-    suspend fun updateOrderPreferences(depositPercent:Int, defaultFrameColor:String, frameColorOptions:String, suggestCodRemainder:Boolean){
+    suspend fun updateOrderPreferences(depositPercent:Int, defaultFrameColor:String, frameColorOptions:String, suggestCodRemainder:Boolean, defaultShippingPayer:String, defaultOrderStatus:String){
         require(depositPercent in 0..100){"درصد بیعانه باید بین صفر تا صد باشد."}
+        require(defaultShippingPayer in setOf("RECIPIENT","SENDER") && defaultOrderStatus in setOf("PREPARING","READY","SENT")){"پیش‌فرض سفارش نامعتبر است."}
         val old=db.settingsDao().get() ?: AppSettingsEntity(updatedAt=System.currentTimeMillis())
-        db.settingsDao().upsert(old.copy(defaultDepositPercent=depositPercent,defaultFrameColor=defaultFrameColor.trim(),frameColorOptions=frameColorOptions.trim(),suggestCodRemainder=suggestCodRemainder,updatedAt=System.currentTimeMillis()))
+        db.settingsDao().upsert(old.copy(defaultDepositPercent=depositPercent,defaultFrameColor=defaultFrameColor.trim(),frameColorOptions=frameColorOptions.trim(),suggestCodRemainder=suggestCodRemainder,defaultShippingPayer=defaultShippingPayer,defaultOrderStatus=defaultOrderStatus,updatedAt=System.currentTimeMillis()))
     }
 
     suspend fun updateProfitRule(pieceCount: Int, amount: Long) {

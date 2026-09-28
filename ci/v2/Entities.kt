@@ -45,6 +45,8 @@ data class ProductEntity(
     val profitMode: String = "MANUAL",
     val profitFormula: String = "",
     val packagingSizeKey: String = "",
+    val productType: String = "STANDARD",
+    val designMaterialsCostToman: Long = 0L,
 )
 
 @Entity(
@@ -115,6 +117,7 @@ data class SentOrderEntity(
     val plannedShipAtMillis: Long = 0L,
     val orderStatus: String = "SENT",
     val trackingCode: String = "",
+    val orderSource: String = "OTHER",
 )
 
 @Entity(
@@ -160,6 +163,8 @@ data class AppSettingsEntity(
     val frameColorOptions: String = "مشکی، سفید، طلایی، نقره‌ای، چوبی",
     val suggestCodRemainder: Boolean = true,
     val lowStockPercent: Int = 10,
+    val defaultShippingPayer: String = "RECIPIENT",
+    val defaultOrderStatus: String = "PREPARING",
 )
 
 @Entity(tableName = "stock_items", indices = [Index(value=["materialId", "variantKey"], unique=true)])

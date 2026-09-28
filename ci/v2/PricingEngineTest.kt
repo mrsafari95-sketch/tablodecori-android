@@ -18,6 +18,15 @@ class PricingEngineTest {
     @Test fun inflationAppliedBeforeProfit(){val mats=listOf(m("base",CalculationType.PER_SET,100000),m("inflation",CalculationType.PERCENT_OF_COST,rate=700,cat=MaterialCategory.OVERHEAD));val r=engine.calculate(listOf(PieceInput(20,30,1)),mats,mats.map{it.id}.toSet(),profits,1);assertEquals(107000,r.costBeforeProfitToman);assertEquals(0,r.profitToman)}
     @Test fun unexpectedCostApplied(){val mats=listOf(m("base",CalculationType.PER_SET,100000),m("unexpected",CalculationType.PERCENT_OF_COST,rate=300,cat=MaterialCategory.OVERHEAD));val r=engine.calculate(listOf(PieceInput(20,30,1)),mats,mats.map{it.id}.toSet(),profits,1);assertEquals(103000,r.costBeforeProfitToman)}
     @Test fun manualProfitIsPerProduct(){val r=engine.calculate(listOf(PieceInput(20,30,3)),emptyList(),emptySet(),profits,1,manualProfitToman=450000);assertEquals(450000,r.profitToman)}
+    @Test fun reliefCostsOnlyDesignFrameAndPackaging(){
+        val materials=listOf(m("frame_pvc",CalculationType.PER_LINEAR_METER,100000),m("glass",CalculationType.PER_SQUARE_METER,300000))
+        val result=engine.calculate(listOf(PieceInput(20,30,1)),materials,setOf("frame_pvc"),profits,1,manualProfitToman=200000,designMaterialsCostToman=150000)
+        assertEquals(270000,result.costBeforeProfitToman)
+        assertEquals(200000,result.profitToman)
+        assertEquals(470000,result.finalPriceToman)
+        assertTrue(result.lines.any{it.materialId=="design_materials"&&it.amountToman==150000L})
+        assertFalse(result.lines.any{it.materialId=="glass"})
+    }
     @Test fun formulaProfitIsPerProduct(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("base",CalculationType.PER_SET,100000)),setOf("base"),profits,1,profitFormula="cost*20/100");assertEquals(20000,r.profitToman);assertEquals(120000,r.finalPriceToman)}
     @Test fun shippingNeverEntersBasePrice(){val r=engine.calculate(listOf(PieceInput(20,30,1)),listOf(m("labor",CalculationType.PER_PIECE,65000)),setOf("labor"),profits,1);assertEquals(65000,r.finalPriceToman);assertEquals(65000,r.costBeforeProfitToman)}
     @Test fun realOrderProfitIncludesShipping(){assertEquals(235000,OrderMath.actualProfit(500000,200000,65000))}

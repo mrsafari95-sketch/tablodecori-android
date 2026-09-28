@@ -15,7 +15,7 @@ object StockPlanner {
     private fun isPhotoPrint(material:MaterialEntity)=material.id=="photo_lab" || material.id.startsWith("photo_") || material.name.contains("چاپ عکس") || material.name.contains("عکس لابراتوار") || material.name.trim()=="عکس"
     fun unitFor(material:MaterialEntity):String? {
         val id=material.id
-        if(material.category=="OVERHEAD" || isPhotoPrint(material) || id=="packaging_bundle" || id.contains("labor")) return null
+        if(MaterialCatalog.isLegacy(id) || material.category=="OVERHEAD" || isPhotoPrint(material) || id=="packaging_bundle" || id.contains("labor")) return null
         return when(id){"backboard_3mm","pack_foam","pack_carton","pack_tape","frame_supplies"->"PIECE";"frame_pvc"->"METER";"glass"->"SQM"
             else->when(material.calculationType){"PER_PIECE","PER_SET","SMART_PACKAGING"->"PIECE";"PER_LINEAR_METER"->"METER";"PER_SQUARE_METER"->"SQM";else->null}}
     }
@@ -33,6 +33,7 @@ object StockPlanner {
     fun needs(pieces:List<PieceInput>, enabledIds:Set<String>, materials:List<MaterialEntity>, frameColor:String, packagingSizeKey:String):List<StockNeed> {
         if(pieces.isEmpty()) return emptyList()
         val active=materials.filter { it.enabled && !it.deleted }.associateBy { it.id }
+        val selectedIds=MaterialCatalog.selectedCanonicalIds(enabledIds)
         val result=mutableListOf<StockNeed>()
         fun add(id:String,variant:String,unit:String,amount:Long){
             val m=active[id] ?: return
@@ -41,13 +42,10 @@ object StockPlanner {
         val pieceCount=pieces.sumOf { it.quantity.toLong() }
         val areaMicros=pieces.sumOf { Math.multiplyExact(Math.multiplyExact(it.widthCm.toLong(),it.heightCm.toLong()),Math.multiplyExact(it.quantity.toLong(),100L)) }
         val perimeterMicros=pieces.sumOf { Math.multiplyExact((2L*(it.widthCm+it.heightCm)+20L),Math.multiplyExact(it.quantity.toLong(),10_000L)) }
-        enabledIds.filter { id -> active[id]?.let { unitFor(it)!=null }==true && id!="packaging_bundle" && !id.startsWith("pack_") }.forEach { id ->
+        selectedIds.filter { id -> active[id]?.let { unitFor(it)!=null }==true && id!="packaging_bundle" && !id.startsWith("pack_") }.forEach { id ->
             val m=active.getValue(id)
             when(id){
-                "backboard_3mm" -> pieces.forEach { p ->
-                    val short=minOf(p.widthCm,p.heightCm);val long=maxOf(p.widthCm,p.heightCm)
-                    if("glass" !in enabledIds || !(short<30 || (short==30 && long<45))) add(id,sizeKey(p.widthCm,p.heightCm),"PIECE",p.quantity*SCALE)
-                }
+                "backboard_3mm" -> pieces.forEach { p -> add(id,sizeKey(p.widthCm,p.heightCm),"PIECE",p.quantity*SCALE) }
                 "frame_pvc" -> add(id,colorKey(frameColor),"METER",perimeterMicros)
                 "glass" -> add(id,"","SQM",areaMicros)
                 else -> when(m.calculationType){
@@ -58,7 +56,7 @@ object StockPlanner {
                 }
             }
         }
-        if("packaging_bundle" in enabledIds && active.containsKey("packaging_bundle")) {
+        if("packaging_bundle" in selectedIds && active.containsKey("packaging_bundle")) {
             val packCount=((pieceCount+2)/3).coerceAtLeast(1L)
             val largest=pieces.maxBy { it.widthCm.toLong()*it.heightCm.toLong() }
             val size=packagingSizeKey.takeIf { it.matches(Regex("[0-9]+x[0-9]+")) } ?: sizeKey(largest.widthCm,largest.heightCm)

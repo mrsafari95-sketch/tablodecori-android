@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.tablodecori.app.data.OrderFormInput
+import com.tablodecori.app.data.OrderSource
 import com.tablodecori.app.data.PricedProduct
 import com.tablodecori.app.data.db.AppSettingsEntity
 import com.tablodecori.app.data.db.SentOrderEntity
@@ -66,16 +67,16 @@ fun OrderEditorScreen(
     var frameColor by rememberSaveable(initial?.id){mutableStateOf(initial?.frameColor?:settings?.defaultFrameColor.orEmpty())}
     var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
     var shipping by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:settings?.shippingDefaultToman?:0L).toString())}
-    var shippingPayer by rememberSaveable(initial?.id){mutableStateOf(initial?.shippingPayer?:"RECIPIENT")}
+    var shippingPayer by rememberSaveable(initial?.id){mutableStateOf(initial?.shippingPayer?:settings?.defaultShippingPayer?:"RECIPIENT")}
     var dimensionsText by rememberSaveable(initial?.id){mutableStateOf(initial?.dimensionsText.orEmpty())}
     var plannedShipAt by rememberSaveable(initial?.id){mutableLongStateOf(initial?.plannedShipAtMillis?:0L)}
-    var orderStatus by rememberSaveable(initial?.id){mutableStateOf(initial?.orderStatus?:"PREPARING")}
+    var orderStatus by rememberSaveable(initial?.id){mutableStateOf(initial?.orderStatus?:settings?.defaultOrderStatus?:"PREPARING")}
     var trackingCode by rememberSaveable(initial?.id){mutableStateOf(initial?.trackingCode.orEmpty())}
+    var orderSource by rememberSaveable(initial?.id){mutableStateOf(initial?.orderSource?:"OTHER")}
     var quote by rememberSaveable(initial?.id){mutableStateOf(initial?.quotedTotalToman?.toString().orEmpty())}
     var deposit by rememberSaveable(initial?.id){mutableStateOf((initial?.depositToman?:0L).toString())}
     var otherPaid by rememberSaveable(initial?.id){mutableStateOf((initial?.otherPaidToman?:0L).toString())}
     var codDue by rememberSaveable(initial?.id){mutableStateOf((initial?.codDueToman?:0L).toString())}
-    var codCollected by rememberSaveable(initial?.id){mutableStateOf((initial?.codCollectedToman?:0L).toString())}
     var photoUri by rememberSaveable(initial?.id){mutableStateOf<String?>(null)}
     var removePhoto by rememberSaveable(initial?.id){mutableStateOf(false)}
     var quoteAuto by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
@@ -112,13 +113,11 @@ fun OrderEditorScreen(
     val d=deposit.toLongOrNull()
     val other=otherPaid.toLongOrNull()
     val due=codDue.toLongOrNull()
-    val collected=codCollected.toLongOrNull()
     val shippingValue=shipping.toLongOrNull()
-    val paid=if(d!=null&&other!=null&&collected!=null) runCatching{Math.addExact(Math.addExact(d,other),collected)}.getOrNull() else null
-    val valid=if(q==null||d==null||other==null||due==null||collected==null||shippingValue==null||paid==null) false
+    val paid=if(d!=null&&other!=null&&due!=null) runCatching{Math.addExact(Math.addExact(d,other),due)}.getOrNull() else null
+    val valid=if(q==null||d==null||other==null||due==null||shippingValue==null||paid==null) false
         else pid.isNotBlank()&&customer.isNotBlank()&&
-            listOf(q,d,other,due,collected,shippingValue).all{it>=0L}&&
-            paid<=q&&collected<=due&&d<=q&&other<=q-d&&due<=q-d-other
+            listOf(q,d,other,due,shippingValue).all{it>=0L}&&paid<=q
     val balance=if(q!=null&&paid!=null) (q-paid).coerceAtLeast(0L) else 0L
     val colors=settings?.frameColorOptions.orEmpty().split(',', '،').map{it.trim()}.filter{it.isNotBlank()}.distinct()
     val productDimensions=products.firstOrNull{it.product.id==pid}?.product?.pieces?.joinToString(" + "){"${it.quantity}× ${it.widthCm}×${it.heightCm}"}
@@ -156,6 +155,8 @@ fun OrderEditorScreen(
                 }
             }
             OrderSection("اطلاعات مشتری"){
+                Text("منبع سفارش",fontWeight=FontWeight.Bold)
+                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){OrderSource.options.forEach{(key,label)->FilterChip(selected=orderSource==key,onClick={orderSource=key},label={Text(label)})}}
                 OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده *")},singleLine=true,modifier=Modifier.fillMaxWidth())
                 OutlinedTextField(instagram,{instagram=it},label={Text("آیدی اینستاگرام")},singleLine=true,modifier=Modifier.fillMaxWidth())
                 OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth())
@@ -177,10 +178,9 @@ fun OrderEditorScreen(
                 MoneyField("مبلغ توافق‌شدهٔ محصول",quote){quote=it;quoteAuto=false}
                 MoneyField("بیعانه دریافت‌شده",deposit){deposit=it;depositAuto=false}
                 MoneyField("سایر پرداخت‌های دریافت‌شده",otherPaid){otherPaid=it}
-                MoneyField("ماندهٔ قیمت محصول درب منزل",codDue){codDue=it;codAuto=false}
-                MoneyField("دریافت‌شده درب منزل",codCollected){codCollected=it}
-                Text("مبلغ درب منزل تا زمان ثبت دریافت، جزو دریافتی حساب نمی‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("دریافتی واقعی: ${money(paid?:0L)}  ·  مانده: ${money(balance)}",fontWeight=FontWeight.Bold)
+                MoneyField("پرداخت درب منزل (واریز آنی)",codDue){codDue=it;codAuto=false}
+                Text("پرداخت درب منزل در همان لحظه ثبت، در دریافتی و سود سفارش محاسبه می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("جمع پرداخت‌ها: ${money(paid?:0L)}  ·  مانده: ${money(balance)}",fontWeight=FontWeight.Bold)
                 if(!valid && q!=null && paid!=null && customer.isNotBlank()) Text("مبلغ‌ها را بررسی کنید: دریافتی و مبلغ درب منزل نباید از مبلغ توافق‌شده بیشتر باشند.",color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
             }
             OrderSection("پیگیری و ارسال"){
@@ -201,26 +201,18 @@ fun OrderEditorScreen(
         Button(onClick={
             if(valid && !saving){
                 saving=true
-                val input=OrderFormInput(productId=pid,dateEpochMillis=date,customerName=customer.trim(),instagramId=instagram.trim(),phone=phone.trim(),province=province.trim(),city=city.trim(),addressDetails=address.trim(),postalCode=postal.trim(),shippingCostToman=shippingValue!!,quotedTotalToman=q!!,depositToman=d!!,otherPaidToman=other!!,codDueToman=due!!,codCollectedToman=collected!!,frameColor=frameColor.trim(),note=note.trim(),selectedPhotoUri=photoUri,removePhoto=removePhoto,shippingPayer=shippingPayer,dimensionsText=dimensionsText.trim(),plannedShipAtMillis=plannedShipAt,orderStatus=orderStatus,trackingCode=trackingCode.trim())
+                val input=OrderFormInput(productId=pid,dateEpochMillis=date,customerName=customer.trim(),instagramId=instagram.trim(),phone=phone.trim(),province=province.trim(),city=city.trim(),addressDetails=address.trim(),postalCode=postal.trim(),shippingCostToman=shippingValue!!,quotedTotalToman=q!!,depositToman=d!!,otherPaidToman=other!!,codDueToman=due!!,codCollectedToman=due,frameColor=frameColor.trim(),note=note.trim(),selectedPhotoUri=photoUri,removePhoto=removePhoto,shippingPayer=shippingPayer,dimensionsText=dimensionsText.trim(),plannedShipAtMillis=plannedShipAt,orderStatus=orderStatus,trackingCode=trackingCode.trim(),orderSource=orderSource)
                 scope.launch { try { if(onSave(input)) onDismiss() } finally { saving=false } }
             }
         },enabled=valid&&!saving,modifier=Modifier.fillMaxWidth().padding(16.dp)){
             Text(if(saving)"در حال ذخیره..." else if(initial==null)"ثبت سفارش" else "ذخیره ویرایش")
         }
     }
-    if(picker){
-        val state=rememberDatePickerState(initialSelectedDateMillis=date)
-        DatePickerDialog(onDismissRequest={picker=false},confirmButton={TextButton(onClick={state.selectedDateMillis?.let{date=it};picker=false}){Text("تأیید")}},dismissButton={TextButton(onClick={picker=false}){Text("انصراف")}}){DatePicker(state)}
-    }
-    if(shippingDatePicker){
-        val state=rememberDatePickerState(initialSelectedDateMillis=plannedShipAt.takeIf{it>0L})
-        DatePickerDialog(onDismissRequest={shippingDatePicker=false},confirmButton={TextButton(onClick={
-            state.selectedDateMillis?.let { selected ->
-                plannedShipAt=selected
-                if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-            shippingDatePicker=false
-        }){Text("تأیید")}},dismissButton={TextButton(onClick={shippingDatePicker=false}){Text("انصراف")}}){DatePicker(state)}
+    if(picker) PersianCalendarPicker(date,onDismiss={picker=false}){date=it;picker=false}
+    if(shippingDatePicker) PersianCalendarPicker(plannedShipAt,onDismiss={shippingDatePicker=false}){selected->
+        plannedShipAt=selected
+        if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        shippingDatePicker=false
     }
 }
 

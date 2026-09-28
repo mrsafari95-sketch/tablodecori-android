@@ -19,11 +19,12 @@ class StockPlannerTest {
         assertFalse(needs.any{it.materialId=="photo_lab"})
     }
 
-    @Test fun smallBackboardExceptionMatchesPricingAndVariantsNormalize() {
+    @Test fun everyChassisSizeConsumesOnePieceEvenWhenPricingHasGlassException() {
         val materials=listOf(material("backboard_3mm"),material("glass"))
         val needs=StockPlanner.needs(listOf(PieceInput(21,30,1),PieceInput(45,30,1)),setOf("backboard_3mm","glass"),materials,"","")
-        assertEquals(1,needs.count{it.materialId=="backboard_3mm"})
-        assertEquals("30x45",needs.single{it.materialId=="backboard_3mm"}.variantKey)
+        assertEquals(2,needs.count{it.materialId=="backboard_3mm"})
+        assertEquals(1_000_000L,needs.single{it.stockId=="backboard_3mm|21x30"}.amountMicros)
+        assertEquals(1_000_000L,needs.single{it.stockId=="backboard_3mm|30x45"}.amountMicros)
         assertEquals("50x70",StockPlanner.variantFor("backboard_3mm","70x50"))
     }
 }

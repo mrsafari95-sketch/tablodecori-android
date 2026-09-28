@@ -49,8 +49,8 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 3/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.2.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 4/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.3.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\norg.gradle.workers.max=2\n' >> "$PROJECT_DIR/gradle.properties"
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
@@ -60,6 +60,7 @@ jobs:
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
             cp ci/v2/InventoryScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/InventoryScreen.kt"
+            cp ci/v2/PersianCalendarPicker.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PersianCalendarPicker.kt"
             cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
               cp ci/v2/BusinessScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
@@ -72,6 +73,7 @@ jobs:
             cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
             cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
             cp ci/v2/StockPlanner.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockPlanner.kt"
+            cp ci/v2/MaterialCatalog.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/MaterialCatalog.kt"
             cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
             cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
             cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
@@ -82,6 +84,8 @@ jobs:
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
             cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
             cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
+            mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens"
+            cp ci/v2/JalaliCalendarTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens/JalaliCalendarTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
             if [ ! -f ci/v2/PricingEngine.kt ]; then
               PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"
@@ -162,11 +166,15 @@ jobs:
           guard "order sharing attaches a photo" "$SRC/data/OrderSharing.kt" 'Intent.EXTRA_STREAM'
           guard "shipping reminders are scheduled" "$SRC/data/ShippingReminder.kt" 'enqueueUniqueWork'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
-          guard "product editor preserves saved variables" "$SRC/ui/screens/CoreScreens.kt" 'if(initial==null)v.enabled else v.id in initial.enabledMaterialIds'
+          guard "product editor normalizes old variable identifiers" "$SRC/ui/screens/CoreScreens.kt" 'val savedCanonical=MaterialCatalog.selectedCanonicalIds'
+          guard "product editor offers manual profit" "$SRC/ui/screens/CoreScreens.kt" 'سود دستی (تومان)'
+          guard "relief design cost is priced" "$SRC/pricing/PricingEngine.kt" 'CostLine("design_materials"'
+          guard "order source is saved" "$SRC/data/WorkshopRepository.kt" 'orderSource = input.orderSource'
+          guard "Persian date picker is used" "$SRC/ui/screens/OrderEditorScreen.kt" 'PersianCalendarPicker(date'
           guard "order form state is keyed to order id" "$SRC/ui/screens/OrderEditorScreen.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
           guard "pricebook copies dimensions and price" "$SRC/ui/screens/BusinessScreens.kt" 'کپی ابعاد و قیمت'
           guard "pricebook piece sort stays descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
-          guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedPackage)'
+          guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),quickSelectedIds,selectedPackage'
           guard "quick pieces survive tab navigation" "$SRC/MainViewModel.kt" 'val pieces: List<PieceInput> = listOf(PieceInput(40,60,1))'
           guard "quick variable switches survive tab navigation" "$SRC/MainViewModel.kt" 'val enabledIds: Map<String,Boolean> = emptyMap()'
           guard "quick package survives tab navigation" "$SRC/MainViewModel.kt" 'val selectedPackage: String = ""'
@@ -180,7 +188,7 @@ jobs:
           guard "deleted package defaults do not return" "$SRC/data/WorkshopRepository.kt" 'val old=db.sizePriceDao().getAllFor(id).firstOrNull{it.id==key}'
           echo "GUARD: Quick scroll state stays inside QuickScreen"
           python3 -c 'from pathlib import Path; s=Path("'"$SRC"'/ui/screens/CoreScreens.kt").read_text(); pre,quick=s.split("fun QuickScreen",1); assert "state=quickListState" not in pre and "state=quickListState" in quick'
-          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage,'
+          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'selectedProductPackage,if(profitMode=="FORMULA")'
           guard "backup restore success feedback exists" "$SRC/MainViewModel.kt" 'بکاپ کامل با موفقیت بازیابی شد.'
           guard "backup restore is transactional" "$SRC/data/WorkshopRepository.kt" 'db.withTransaction {'
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
@@ -192,7 +200,9 @@ jobs:
           guard "photo excluded from stock" "$SRC/data/StockPlanner.kt" 'material.id=="photo_lab"'
           guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
           guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
-          guard "order form tracks COD collection" "$SRC/ui/screens/OrderEditorScreen.kt" 'دریافت‌شده درب منزل'
+          guard "order form counts COD immediately" "$SRC/ui/screens/OrderEditorScreen.kt" 'پرداخت درب منزل (واریز آنی)'
+          guard "old backup format is accepted" "$SRC/data/WorkshopRepository.kt" 'tablodecori-backup'
+          guard "database migration 8 to 9 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_8_9'
           guard "order form tracks frame color" "$SRC/ui/screens/OrderEditorScreen.kt" 'رنگ قاب'
           guard "old customer payments survive migration" "$SRC/data/db/AppDatabase.kt" 'otherPaidToman = receivedToman'
           guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'

@@ -13,7 +13,10 @@ data class QuickDraft(
     val pieces: List<PieceInput> = listOf(PieceInput(40,60,1)),
     val enabledIds: Map<String,Boolean> = emptyMap(),
     val selectedPackage: String = "",
-    val packageOpen: Boolean = false
+    val packageOpen: Boolean = false,
+    val manualProfitToman: Long = 0L,
+    val productType: String = "STANDARD",
+    val designMaterialsCostToman: Long = 0L,
 )
 
 class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
@@ -28,6 +31,9 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun setQuickId(id:String,on:Boolean) { _quickDraft.update { d -> d.copy(enabledIds=d.enabledIds + (id to on)) } }
     fun setQuickPackage(key:String) { _quickDraft.update { d -> d.copy(selectedPackage=key,packageOpen=false) } }
     fun toggleQuickPackage() { _quickDraft.update { d -> d.copy(packageOpen=!d.packageOpen) } }
+    fun setQuickProfit(amount:Long) { _quickDraft.update { d -> d.copy(manualProfitToman=amount) } }
+    fun setQuickProductType(type:String) { _quickDraft.update { d -> d.copy(productType=type) } }
+    fun setQuickDesignCost(amount:Long) { _quickDraft.update { d -> d.copy(designMaterialsCostToman=amount) } }
     val materials = repo.materials.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val products = repo.products.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val pricedProducts = repo.pricedProducts.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -45,7 +51,7 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun deleteSizePrice(id:String)=launch { repo.deleteSizePrice(id); _message.emit("قیمت ابعاد حذف شد.") }
     fun toggleMaterial(id:String,on:Boolean)=launch { repo.toggleMaterial(id,on) }
     fun deleteMaterial(id:String)=launch { val n=repo.deleteMaterial(id); _message.emit(if(n>0) "متغیر غیرفعال شد؛ در $n محصول استفاده شده بود." else "متغیر حذف شد.") }
-    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="",packagingSizeKey:String="")=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula,packagingSizeKey); _message.emit("محصول ذخیره شد.") }
+    fun saveProduct(id:String?,name:String,pieces:List<PieceInput>,ids:Set<String>,active:Boolean=true,manualProfit:Long=0L,profitMode:String="MANUAL",profitFormula:String="",packagingSizeKey:String="",productType:String="STANDARD",designMaterialsCostToman:Long=0L)=launch { repo.saveProduct(id,name,pieces,ids,active,manualProfit,profitMode,profitFormula,packagingSizeKey,productType,designMaterialsCostToman); _message.emit("محصول ذخیره شد.") }
     fun duplicateProduct(id:String)=launch { repo.duplicateProduct(id); _message.emit("یک کپی از محصول ساخته شد.") }
     fun toggleProduct(id:String,on:Boolean)=launch { repo.toggleProduct(id,on) }
     fun deleteProduct(id:String)=launch { repo.deleteProduct(id); _message.emit("محصول حذف شد.") }
@@ -61,15 +67,15 @@ class MainViewModel(private val repo: WorkshopRepository) : ViewModel() {
     fun saveStock(id:String,onHand:Long,target:Long)=launch { repo.saveStock(id,onHand,target);_message.emit("موجودی انبار ذخیره شد.") }
     fun saveStockThreshold(percent:Int)=launch { repo.updateStockThreshold(percent);_message.emit("آستانه هشدار انبار ذخیره شد.") }
     fun refreshStockAlerts()=launch { repo.refreshStockAlerts() }
-    fun saveOrderPreferences(depositPercent:Int,defaultFrameColor:String,frameColorOptions:String,suggestCodRemainder:Boolean)=launch {
-        repo.updateOrderPreferences(depositPercent,defaultFrameColor,frameColorOptions,suggestCodRemainder)
+    fun saveOrderPreferences(depositPercent:Int,defaultFrameColor:String,frameColorOptions:String,suggestCodRemainder:Boolean,defaultShippingPayer:String,defaultOrderStatus:String)=launch {
+        repo.updateOrderPreferences(depositPercent,defaultFrameColor,frameColorOptions,suggestCodRemainder,defaultShippingPayer,defaultOrderStatus)
         _message.emit("تنظیمات سفارش ذخیره شد.")
     }
     suspend fun exportFullBackup():String = repo.exportFullBackup()
     suspend fun importFullBackup(json:String) { repo.importFullBackup(json); _message.emit("بکاپ کامل با موفقیت بازیابی شد.") }
     fun saveProfit(piece:Int,amount:Long)=launch { repo.updateProfitRule(piece,amount) }
     fun resetDefaults()=launch { repo.resetDefaults(); _message.emit("اطلاعات به حالت اولیه بازگردانده شد.") }
-    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String="",profitFormula:String=""): PricingResult = repo.calculate(pieces,ids,packagingSizeKey,profitFormula)
+    suspend fun calculate(pieces:List<PieceInput>,ids:Set<String>?=null,packagingSizeKey:String="",profitFormula:String="",manualProfitToman:Long=0L,designMaterialsCostToman:Long=0L): PricingResult = repo.calculate(pieces,ids,packagingSizeKey,profitFormula,manualProfitToman,designMaterialsCostToman)
     fun notify(text:String){ _message.tryEmit(text) }
     private fun launch(block:suspend()->Unit)=viewModelScope.launch { try { block() } catch (t: Throwable) { _message.emit(t.message ?: "خطای نامشخص") } }
 }

@@ -21,16 +21,16 @@ import java.io.OutputStream
 object Exporters {
     fun pricebookCsv(products: List<PricedProduct>): String = buildString {
         append('\uFEFF')
-        appendLine("نام,ترکیب ابعاد,تعداد تکه,هزینه بدون سود,سود,قیمت محصول")
+        appendLine("نام,نوع محصول,ترکیب ابعاد,تعداد تکه,هزینه بدون سود,سود,قیمت محصول")
         products.forEach { p ->
             val comp=p.product.pieces.joinToString(" + "){"${it.quantity}× ${it.widthCm}×${it.heightCm}"}
-            appendLine(listOf(p.product.name,comp,p.pricing.pieceCount,p.pricing.costBeforeProfitToman,p.pricing.profitToman,p.pricing.finalPriceToman).joinToString(",") { csv(it.toString()) })
+            appendLine(listOf(p.product.name,if(p.product.productType=="RELIEF")"تابلو برجسته" else "تابلو معمولی",comp,p.pricing.pieceCount,p.pricing.costBeforeProfitToman,p.pricing.profitToman,p.pricing.finalPriceToman).joinToString(",") { csv(it.toString()) })
         }
     }
 
     fun ordersCsv(orders: List<com.tablodecori.app.data.db.OrderWithCosts>): String = buildString {
-        append('\uFEFF'); appendLine("تاریخ,گیرنده,اینستاگرام,تلفن,استان,شهر,محصول,ابعاد,رنگ قاب,تعداد تابلو,وضعیت,نوبت ارسال,کد رهگیری,هزینه تولید,روش ارسال,پس‌کرایه یا هزینه حمل,هزینه ارسال کارگاه,مبلغ توافقی محصول,بیعانه,سایر پرداخت‌ها,پرداخت محصول درب منزل,وصول درب منزل,جمع دریافتی,مانده محصول,سود پیش‌بینی‌شده,سود/زیان دریافتی")
-        orders.forEach { x -> val o=x.order; appendLine(listOf(PersianDate.fromEpoch(o.dateEpochMillis).label,o.customerName,o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.displayDimensions(),o.frameColor,o.pieceCountSnapshot,o.orderStatus,if(o.plannedShipAtMillis>0L)PersianDate.fromEpoch(o.plannedShipAtMillis).label else "",o.trackingCode,o.productCostSnapshotToman,o.shippingPayer,o.shippingCostToman,o.sellerShippingToman(),o.quotedTotalToman,o.depositToman,o.otherPaidToman,o.codDueToman,o.codCollectedToman,o.receivedToman,o.outstandingToman(),o.expectedProfitToman(),o.actualProfitToman).joinToString(","){csv(it.toString())}) }
+        append('\uFEFF'); appendLine("تاریخ,گیرنده,منبع سفارش,اینستاگرام,تلفن,استان,شهر,محصول,ابعاد,رنگ قاب,تعداد تابلو,وضعیت,نوبت ارسال,کد رهگیری,هزینه تولید,روش ارسال,پس‌کرایه یا هزینه حمل,هزینه ارسال کارگاه,مبلغ توافقی محصول,بیعانه,سایر پرداخت‌ها,پرداخت محصول درب منزل,جمع پرداخت‌ها,مانده محصول,سود فعلی")
+        orders.forEach { x -> val o=x.order; appendLine(listOf(PersianDate.fromEpoch(o.dateEpochMillis).label,o.customerName,com.tablodecori.app.data.OrderSource.label(o.orderSource),o.instagramId,o.phone,o.province,o.city,o.productNameSnapshot,o.displayDimensions(),o.frameColor,o.pieceCountSnapshot,o.orderStatus,if(o.plannedShipAtMillis>0L)PersianDate.fromEpoch(o.plannedShipAtMillis).label else "",o.trackingCode,o.productCostSnapshotToman,o.shippingPayer,o.shippingCostToman,o.sellerShippingToman(),o.quotedTotalToman,o.depositToman,o.otherPaidToman,o.codDueToman,o.receivedToman,o.outstandingToman(),o.actualProfitToman).joinToString(","){csv(it.toString())}) }
     }
 
     private fun csv(s:String)="\"${s.replace("\"","\"\"")}\""

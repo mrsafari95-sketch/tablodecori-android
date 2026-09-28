@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
         ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class],
-    version = 8,
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -81,9 +81,19 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_order_stock_usage_stockItemId ON order_stock_usage(stockItemId)")
             }
         }
+        private val MIGRATION_8_9 = object : Migration(8,9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultShippingPayer TEXT NOT NULL DEFAULT 'RECIPIENT'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultOrderStatus TEXT NOT NULL DEFAULT 'PREPARING'")
+                db.execSQL("ALTER TABLE products ADD COLUMN productType TEXT NOT NULL DEFAULT 'STANDARD'")
+                db.execSQL("ALTER TABLE products ADD COLUMN designMaterialsCostToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN orderSource TEXT NOT NULL DEFAULT 'OTHER'")
+                db.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build()
     }
 }

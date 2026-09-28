@@ -18,6 +18,7 @@ object OrderShareText {
         appendLine("📐 ابعاد ست: ${order.displayDimensions()}")
         if (order.frameColor.isNotBlank()) appendLine("🎨 رنگ قاب: ${order.frameColor}")
         appendLine("📅 تاریخ ثبت: ${PersianDate.fromEpoch(order.dateEpochMillis).label}")
+        appendLine("🔗 منبع سفارش: ${OrderSource.label(order.orderSource)}")
         appendLine("📌 وضعیت: ${when(order.orderStatus){"PREPARING"->"در حال آماده‌سازی";"READY"->"آمادهٔ ارسال";else->"ارسال‌شده"}}")
         if (order.plannedShipAtMillis > 0L) appendLine("🗓️ نوبت ارسال: ${PersianDate.fromEpoch(order.plannedShipAtMillis).label}")
         if (order.trackingCode.isNotBlank()) appendLine("🔗 کد رهگیری: ${order.trackingCode}")
@@ -39,8 +40,7 @@ object OrderShareText {
         appendLine("💰 مبلغ توافق‌شده سفارش: ${money(order.quotedTotalToman)}")
         appendLine("📥 بیعانه: ${money(order.depositToman)}")
         if (order.otherPaidToman > 0L) appendLine("📥 سایر دریافتی‌ها: ${money(order.otherPaidToman)}")
-        if (order.codDueToman > 0L) appendLine("🏠 مبلغ محصول درب منزل: ${money(order.codDueToman)}")
-        if (order.codCollectedToman > 0L) appendLine("✅ وصول‌شده درب منزل: ${money(order.codCollectedToman)}")
+        if (order.codDueToman > 0L) appendLine("🏠 پرداخت درب منزل (واریز آنی): ${money(order.codDueToman)}")
         appendLine("❌ مانده محصول: ${money(order.outstandingToman())}")
         if (order.note.isNotBlank()) {
             appendLine()

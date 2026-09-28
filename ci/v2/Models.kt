@@ -11,13 +11,15 @@ data class ProductModel(
     val profitMode: String,
     val profitFormula: String,
     val packagingSizeKey: String,
+    val productType: String,
+    val designMaterialsCostToman: Long,
     val pieces: List<PieceInput>,
     val enabledMaterialIds: Set<String>,
 )
 
 data class PricedProduct(val product: ProductModel, val pricing: PricingResult)
 
-/** Money due at delivery is a promise, not money already received. */
+/** The workshop treats payment at the door as an immediate transfer. */
 data class OrderFormInput(
     val productId: String,
     val dateEpochMillis: Long,
@@ -43,16 +45,19 @@ data class OrderFormInput(
     val plannedShipAtMillis: Long = 0L,
     val orderStatus: String = "PREPARING",
     val trackingCode: String = "",
+    val orderSource: String = "OTHER",
 )
 
-/** The amount due at delivery is only received after collection is recorded. */
+object OrderSource {
+    val options=listOf("INSTAGRAM" to "اینستاگرام","BASALAM" to "باسلام","TELEGRAM" to "تلگرام","WEBSITE" to "سایت","OTHER" to "سایر")
+    fun label(key:String)=options.firstOrNull{it.first==key}?.second?:"سایر"
+}
+
 object OrderPaymentMath {
-    fun received(quotedTotal: Long, deposit: Long, otherPaid: Long, codDue: Long, codCollected: Long): Long {
-        require(listOf(quotedTotal, deposit, otherPaid, codDue, codCollected).all { it >= 0L }) { "مبالغ نمی‌توانند منفی باشند." }
-        require(codCollected <= codDue) { "پرداخت دریافت‌شده درب منزل از مبلغ درب منزل بیشتر است." }
-        val paid = Math.addExact(Math.addExact(deposit, otherPaid), codCollected)
+    fun received(quotedTotal: Long, deposit: Long, otherPaid: Long, codDue: Long): Long {
+        require(listOf(quotedTotal, deposit, otherPaid, codDue).all { it >= 0L }) { "مبالغ نمی‌توانند منفی باشند." }
+        val paid = Math.addExact(Math.addExact(deposit, otherPaid), codDue)
         require(paid <= quotedTotal) { "دریافتی از مبلغ توافق‌شده بیشتر است." }
-        require(deposit <= quotedTotal && otherPaid <= quotedTotal - deposit && codDue <= quotedTotal - deposit - otherPaid) { "مبلغ درب منزل از مانده سفارش بیشتر است." }
         return paid
     }
 }
@@ -82,7 +87,7 @@ fun MaterialEntity.toPricing(): MaterialInput = MaterialInput(
 )
 
 fun ProductWithDetails.toModel(): ProductModel = ProductModel(
-    product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula, product.packagingSizeKey,
+    product.id, product.name, product.active, product.manualProfitToman, product.profitMode, product.profitFormula, product.packagingSizeKey, product.productType, product.designMaterialsCostToman,
     pieces.sortedBy { it.sortOrder }.map { PieceInput(it.widthCm, it.heightCm, it.quantity) },
     materials.filter { !it.deleted }.map { it.id }.toSet()
 )

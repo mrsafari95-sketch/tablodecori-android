@@ -1,6 +1,7 @@
 package com.tablodecori.app.ui.screens
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -280,7 +281,10 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
                 val data=vm.exportFullBackup()
                 context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use{it.write(data)}
                     ?: error("فایل بکاپ قابل نوشتن نیست.")
-            }.onSuccess{vm.notify("بکاپ کامل ذخیره شد.")}.onFailure{vm.notify(it.message?:"خطا در بکاپ‌گیری")}
+            }.onSuccess{
+                context.getSharedPreferences("workshop_backup",Context.MODE_PRIVATE).edit().putLong("last_export_at",System.currentTimeMillis()).apply()
+                vm.notify("بکاپ کامل با موفقیت ذخیره شد.")
+            }.onFailure{vm.notify(it.message?:"ذخیرهٔ بکاپ انجام نشد.")}
         }
     }
     val importLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->
@@ -327,7 +331,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
         }}
         item{AppCard{
             Text("پشتیبان‌گیری و بازیابی",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
-            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، هزینه‌ها، عکس فیش‌ها و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("بکاپ کامل شامل متریال‌ها، موجودی انبار، محصولات، سفارش‌ها، هزینه‌ها، عکس‌ها، برنامهٔ کارگاه و تنظیمات است. فایل‌های بکاپ قدیمی نیز قابل بازیابی‌اند.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Button(onClick={exportLauncher.launch("tablodecori-backup.json")},modifier=Modifier.fillMaxWidth()){Text("دریافت بکاپ کامل")}
             OutlinedButton(onClick={importLauncher.launch(arrayOf("application/json","text/plain","*/*"))},modifier=Modifier.fillMaxWidth()){Text("ایمپورت / بازیابی بکاپ")}
         }}

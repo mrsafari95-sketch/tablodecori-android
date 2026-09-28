@@ -73,7 +73,10 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
     val settings by vm.plannerSettings.collectAsState()
     val orders by vm.orders.collectAsState()
     val stock by vm.stockItems.collectAsState()
+    val materials by vm.materials.collectAsState()
     val context=LocalContext.current
+    val nowMillis=System.currentTimeMillis()
+    val lastBackup=context.getSharedPreferences("workshop_backup",Context.MODE_PRIVATE).getLong("last_export_at",0L)
     var page by rememberSaveable{mutableStateOf("TODAY")}
     var selectedDay by rememberSaveable{mutableLongStateOf(System.currentTimeMillis())}
     var showCreate by remember{mutableStateOf(false)}
@@ -92,6 +95,7 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
     val totalXp=xp.sumOf{it.amount}.coerceAtLeast(0)
     val spentXp=rewards.filter{it.redeemedAt>0}.sumOf{it.xpCost}
     val streak=PlannerEngine.streak(tasks,occurrences,restDays.map{it.dateKey}.toSet(),System.currentTimeMillis())
+    val weekly=PlannerEngine.weeklySummary(tasks,occurrences,restDays.map{it.dateKey}.toSet(),nowMillis)
     LaunchedEffect(focusTask?.id,focusEnd){
         val target=focusTask?:return@LaunchedEffect
         while(focusEnd>0L){
@@ -122,13 +126,17 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                 Text(if(rest)"امروز روز استراحت است؛ رشته پیشرفت حفظ می‌شود." else "یک کار کوچک هم قدم مهمی است 🌿",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }}
             item{AppCard{Text("۳ کار مهم این روز",fontWeight=FontWeight.Bold);due.filter{logs[it.id]?.status !in setOf("DONE","SKIPPED","DEFERRED")}.take(3).forEach{Text("• ${it.title}")};if(due.isEmpty())Text("برای این روز کاری نداری؛ یک کار تازه اضافه کن 🌿")}}
+            if(due.size>6 || due.sumOf{it.durationMinutes}>360)item{AppCard{
+                Text("برنامهٔ امروز شلوغ است",fontWeight=FontWeight.Bold)
+                Text("${fa(due.size)} کار در برنامه داری. سه کار مهم را نگه دار و برای بقیه زمان تازه‌ای انتخاب کن.")
+            }}
             item{Button(onClick={showCreate=true},modifier=Modifier.fillMaxWidth()){Text("+ افزودن کار سریع")}}
             item{AppCard{
                 Text("کارهای آماده برای شروع",fontWeight=FontWeight.Bold)
                 Text("یک الگو را انتخاب کن؛ ساعت و جزئیاتش را بعداً هم می‌توانی ویرایش کنی.",style=MaterialTheme.typography.bodySmall)
                 FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){
                     plannerTemplates.forEach{template->
-                        val exists=tasks.any{it.title==template.title && it.category==template.category && PlannerEngine.due(it,selectedDay)}
+                        val exists=tasks.any{it.title==template.title && it.category==template.category && (it.recurrence!="NONE" || PlannerEngine.dateKey(it.plannedAtMillis)>=PlannerEngine.dateKey(nowMillis))}
                         OutlinedButton(onClick={vm.savePlannerTask(templateTask(template,System.currentTimeMillis()))},enabled=!exists){Text(template.title)}
                     }
                 }
@@ -139,7 +147,13 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
             },modifier=Modifier.fillMaxWidth()){Text("🌿 امروز سبک‌تر؛ کارهای دیگر به فردا منتقل شوند")}}
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("روز استراحت / مرخصی");Switch(rest,{vm.plannerRest(dayKey,it)})}}
             if(due.isEmpty())item{Text("کارها را با عنوان کوتاه و ساعت ثبت کن؛ باقی تنظیمات اختیاری‌اند.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
-            items(due,key={it.id}){task->val log=logs[task.id];AppCard{
+            if(due.isNotEmpty())item{Text("خط زمان کارها",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)}
+            val timeline=due.sortedBy{PlannerEngine.occurrenceTime(it,selectedDay)}
+            val nextTask=if(dayKey==PlannerEngine.dateKey(nowMillis))timeline.firstOrNull{PlannerEngine.occurrenceTime(it,selectedDay)>=nowMillis}?.id else null
+            items(timeline,key={it.id}){task->val log=logs[task.id]
+                Column(verticalArrangement=Arrangement.spacedBy(6.dp)){
+                if(task.id==nextTask)Text("● اکنون · کار بعدی در برنامه",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
+                AppCard{
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(task.title,fontWeight=FontWeight.Bold);Text("${categoryLabel(task.category)} · ${String.format("%02d:%02d",Calendar.getInstance().apply{timeInMillis=task.plannedAtMillis}.get(Calendar.HOUR_OF_DAY),Calendar.getInstance().apply{timeInMillis=task.plannedAtMillis}.get(Calendar.MINUTE))} · ${if(task.priority==3)"مهم" else if(task.priority==2)"متوسط" else "سبک"}",style=MaterialTheme.typography.bodySmall)};Text(statusLabel(log?.status),color=if(log?.status=="DONE")MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)}
                 if(task.note.isNotBlank())Text(task.note,style=MaterialTheme.typography.bodySmall)
                 if(task.checklist.isNotBlank())Text(task.checklist.lines().filter{it.isNotBlank()}.joinToString("\n"){"☐ $it"},style=MaterialTheme.typography.bodySmall)
@@ -151,16 +165,37 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                     TextButton(onClick={editing=task}){Text("ویرایش")}
                     if(dayKey==PlannerEngine.dateKey(System.currentTimeMillis()))TextButton(onClick={focusTask=task;focusEnd=System.currentTimeMillis()+25*60*1000L}){Text("⏱️ تمرکز ۲۵ دقیقه")}
                 }
-                if(task.category in setOf("SHIPPING","FINANCE","BACKUP"))TextButton(onClick={onNavigate(when(task.category){"SHIPPING"->"orders";"FINANCE"->"reports";else->"settings"})}){Text("رفتن به بخش مرتبط ←")}
-            }}
-            item{AppCard{Text("پیشنهادهای کارگاه",fontWeight=FontWeight.Bold)
-                if(stock.any{it.tracked && it.targetMicros>0L && it.onHandMicros*10<=it.targetMicros})Text("📦 چند قلم انبار کم شده‌اند؛ خرید را در برنامه بگذار.")
-                if(orders.any{it.order.orderStatus!="SENT"&&it.order.plannedShipAtMillis>0L&&PlannerEngine.dateKey(it.order.plannedShipAtMillis)==dayKey})Text("🚚 امروز سفارش آماده ارسال داری.")
-                if(tasks.isEmpty())Text("با کارهای کوچک مثل پیگیری مشتری یا بازبینی قیمت‌ها شروع کن 🌿")
+                if(task.category in setOf("SHIPPING","FINANCE","BACKUP")){
+                    val target=when(task.category){"SHIPPING"->"orders";"FINANCE"->if(task.title.contains("قیمت")||task.title.contains("متریال"))"variables" else "reports";else->"settings"}
+                    val label=when(target){"orders"->"باز کردن سفارش‌ها ←";"variables"->"باز کردن متریال‌ها ←";"reports"->"باز کردن گزارش‌ها ←";else->"رفتن به پشتیبان‌گیری ←"}
+                    TextButton(onClick={onNavigate(target)}){Text(label)}
+                }
+            }}}
+            item{AppCard{
+                Text("پیشنهادهای کارگاه",fontWeight=FontWeight.Bold)
+                val low=stock.any{it.tracked && it.targetMicros>0L && it.onHandMicros*10<=it.targetMicros}
+                val shipping=orders.any{it.order.orderStatus!="SENT"&&it.order.plannedShipAtMillis>0L&&PlannerEngine.dateKey(it.order.plannedShipAtMillis)==dayKey}
+                val stalePrices=materials.any{it.enabled && !it.deleted && it.updatedAt>0L && nowMillis-it.updatedAt>21L*86400000L}
+                val noRecentOrders=orders.isNotEmpty() && orders.none{nowMillis-it.order.dateEpochMillis in 0L..14L*86400000L}
+                if(low && tasks.none{it.title=="خرید اقلام کم‌موجود" && PlannerEngine.dateKey(it.plannedAtMillis)>=PlannerEngine.dateKey(nowMillis)})PlannerSuggestion("📦 چند قلم انبار به حد هشدار رسیده‌اند.","برنامه‌ریزی خرید"){vm.savePlannerTask(templateTask(PlannerTemplate("خرید اقلام کم‌موجود","PURCHASE",10),nowMillis))}
+                if(shipping)Text("🚚 امروز نوبت ارسال سفارش داری. جزئیات را در بخش سفارش‌ها ببین.")
+                if(stalePrices && tasks.none{it.title=="بازبینی قیمت متریال"})PlannerSuggestion("💰 قیمت بعضی متریال‌ها بیش از سه هفته بازبینی نشده است.","افزودن بازبینی"){vm.savePlannerTask(templateTask(plannerTemplates[3],nowMillis))}
+                if((lastBackup==0L || nowMillis-lastBackup>7L*86400000L) && tasks.none{it.category=="BACKUP" && it.recurrence=="WEEKLY"})PlannerSuggestion(if(lastBackup==0L)"💾 هنوز زمان آخرین بکاپ در این گوشی ثبت نشده است." else "💾 از آخرین بکاپ ثبت‌شده بیش از یک هفته گذشته است.","یادآوری بکاپ"){vm.savePlannerTask(templateTask(plannerTemplates[4],nowMillis))}
+                if(noRecentOrders && tasks.none{it.title=="انتشار محتوا برای جذب مشتری" && PlannerEngine.dateKey(it.plannedAtMillis)>=PlannerEngine.dateKey(nowMillis)})PlannerSuggestion("📣 دو هفته است سفارش تازه‌ای در برنامه ثبت نشده است.","برنامه‌ریزی محتوا"){vm.savePlannerTask(templateTask(PlannerTemplate("انتشار محتوا برای جذب مشتری","CONTENT",17),nowMillis))}
+                val repeatedlyDeferred=due.firstOrNull{task->occurrences.count{it.taskId==task.id && it.status=="DEFERRED"}>=2}
+                if(repeatedlyDeferred!=null)Text("🌱 «${repeatedlyDeferred.title}» چند بار جابه‌جا شده است؛ شاید تقسیمش به دو کار کوچک‌تر کمک کند.")
+                if(tasks.isEmpty() && !low && !shipping)Text("با یک کار کوچک مثل پیگیری مشتری شروع کن 🌿")
             }}
         }else if(page=="MONTH"){
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){TextButton(onClick={val s=(month/100)*12+(month%100-1)-1;month=Math.floorDiv(s,12)*100+Math.floorMod(s,12)+1}){Text("ماه قبل")};Text("${JalaliCalendar.months[month%100-1]} ${fa(month/100)}",fontWeight=FontWeight.Bold);TextButton(onClick={val s=(month/100)*12+(month%100-1)+1;month=Math.floorDiv(s,12)*100+Math.floorMod(s,12)+1}){Text("ماه بعد")}}}
             item{AppCard{Text("رنگ هر روز میزان پیشرفت همان روز را نشان می‌دهد.",style=MaterialTheme.typography.bodySmall);PlannerMonthGrid(month,tasks,occurrences,restDays.map{it.dateKey}.toSet()){selectedDay=it;page="TODAY"}}}
+            item{AppCard{
+                Text("مرور ۷ روز اخیر",fontWeight=FontWeight.Bold)
+                PlannerWeekChart(weekly)
+                Text(weekly.average?.let{"میانگین پیشرفت: ${fa(it)}٪ · ${fa(weekly.completed)} کار انجام‌شده · ${fa(weekly.deferred)} کار موکول‌شده"}?:"هنوز کاری برای محاسبهٔ پیشرفت این هفته ثبت نشده است.")
+                if(weekly.completed>=3)weekly.bestCompletionHour?.let{Text("💡 بیشتر کارهای ثبت‌شده را حوالی ساعت ${fa(it)} انجام داده‌ای. این ساعت شاید برای کارهای مهم مناسب باشد.")}
+                if(weekly.deferred>=2)weekly.mostDeferredCategory?.let{Text("🌱 کارهای «${categoryLabel(it)}» بیشتر جابه‌جا شده‌اند؛ زمان یا اندازهٔ آن‌ها را بازبینی کن.")}
+            }}
             item{AppCard{Text("جمع‌بندی ماه",fontWeight=FontWeight.Bold);val monthDays=(1..JalaliCalendar.daysInMonth(month/100,month%100)).mapNotNull{JalaliCalendar.toUtcMillis(month/100,month%100,it)};val values=monthDays.mapNotNull{PlannerEngine.score(tasks,occurrences,it,PlannerEngine.dateKey(it) in restDays.map{r->r.dateKey})};Text("میانگین امتیاز: ${fa(if(values.isEmpty())0 else values.average().toInt())}٪ · ${fa(values.count{it>=70})} روز خوب")}}
         }else if(page=="REWARDS"){
             item{AppCard{Text("پیشرفت کارگاه",fontWeight=FontWeight.Bold);Text("سطح ${fa(PlannerEngine.level(totalXp).second)} · ${PlannerEngine.level(totalXp).first}");Text("⭐ امتیاز کل: ${fa(totalXp)} · قابل استفاده: ${fa(totalXp-spentXp)}");Text("🔥 روزهای موفق پیاپی: ${fa(streak)} · هر هفته یک روز کم‌انرژی، این رشته را قطع نمی‌کند.")}}
@@ -178,6 +213,23 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
         onDelete={id->vm.deletePlannerTask(id);showCreate=false;editing=null}
     )
     statusFor?.let{task->var reason by remember{mutableStateOf("")};AlertDialog(onDismissRequest={statusFor=null},title={Text("دلیل انجام نشدن، اختیاری است")},text={Column{Row(Modifier.horizontalScroll(rememberScrollState())){listOf("وقت نشد","منتظر دیگران","فراموش کردم","اولویتش عوض شد").forEach{value->FilterChip(reason==value,onClick={reason=value},label={Text(value)})}};OutlinedTextField(reason,{reason=it},label={Text("دلیل")})}},confirmButton={Button(onClick={vm.plannerStatus(task.id,selectedDay,"SKIPPED",reason);statusFor=null}){Text("ثبت")}},dismissButton={TextButton(onClick={statusFor=null}){Text("انصراف")}})}
+}
+
+@Composable private fun PlannerSuggestion(message:String,action:String,onClick:()->Unit){
+    Column{Text(message,style=MaterialTheme.typography.bodySmall);TextButton(onClick=onClick){Text(action)}}
+}
+
+@Composable private fun PlannerWeekChart(summary:PlannerEngine.WeeklySummary){
+    val bar=MaterialTheme.colorScheme.primary
+    val empty=MaterialTheme.colorScheme.surfaceVariant
+    Canvas(Modifier.fillMaxWidth().height(92.dp)){
+        val cell=size.width/7f
+        summary.scores.forEachIndexed{index,value->
+            val height=if(value==null)4.dp.toPx() else (size.height*value.coerceIn(0,100)/100f).coerceAtLeast(4.dp.toPx())
+            drawRect(if(value==null)empty else bar,topLeft=Offset(index*cell+cell*.2f,size.height-height),size=Size(cell*.6f,height))
+        }
+    }
+    Row(Modifier.fillMaxWidth()){summary.days.forEach{day->val weekday=Calendar.getInstance().apply{timeInMillis=day}.get(Calendar.DAY_OF_WEEK)%7;Box(Modifier.weight(1f),contentAlignment=Alignment.Center){Text(listOf("ش","ی","د","س","چ","پ","ج")[weekday],style=MaterialTheme.typography.labelSmall)}}}
 }
 
 @Composable private fun PlannerMonthGrid(month:Int,tasks:List<PlannerTaskEntity>,logs:List<PlannerOccurrenceEntity>,rest:Set<Int>,onDay:(Long)->Unit){

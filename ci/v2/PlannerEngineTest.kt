@@ -38,4 +38,14 @@ class PlannerEngineTest {
         assertEquals("0",weekly.weekDays)
         assertEquals(17,Calendar.getInstance().apply{timeInMillis=weekly.timeMillis}.get(Calendar.HOUR_OF_DAY))
     }
+    @Test fun weeklySummaryCountsOnlyTheRecentSevenDays(){
+        val current=task()
+        val completed=PlannerOccurrenceEntity("t",PlannerEngine.dateKey(at(26)),"DONE",changedAt=at(26,10))
+        val old=PlannerOccurrenceEntity("t",PlannerEngine.dateKey(at(15)),"DONE",changedAt=at(15,10))
+        val summary=PlannerEngine.weeklySummary(listOf(current),listOf(completed,old),emptySet(),at(27))
+        assertEquals(7,summary.days.size)
+        assertEquals(1,summary.completed)
+        assertEquals(100,summary.average)
+        assertEquals(10,summary.bestCompletionHour)
+    }
 }

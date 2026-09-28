@@ -41,7 +41,7 @@ object OrderShareText {
         appendLine("📥 بیعانه: ${money(order.depositToman)}")
         if (order.otherPaidToman > 0L) appendLine("📥 سایر دریافتی‌ها: ${money(order.otherPaidToman)}")
         if (order.codDueToman > 0L) appendLine("🏠 پرداخت درب منزل (واریز آنی): ${money(order.codDueToman)}")
-        appendLine("❌ مانده محصول: ${money(order.outstandingToman())}")
+        appendLine("❌ ماندهٔ پرداخت سفارش: ${money(order.outstandingToman())}")
         if (order.note.isNotBlank()) {
             appendLine()
             appendLine("📝 یادداشت: ${order.note}")

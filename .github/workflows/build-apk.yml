@@ -51,7 +51,8 @@ jobs:
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionCode = 1/versionCode = 5/' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/versionName = "1.0.0"/versionName = "1.4.0"/' "$PROJECT_DIR/app/build.gradle.kts"
-            printf '\norg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\norg.gradle.workers.max=2\n' >> "$PROJECT_DIR/gradle.properties"
+            printf '\norg.gradle.jvmargs=-Xmx9g -XX:+UseG1GC -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
+            free -h
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
@@ -126,8 +127,6 @@ jobs:
             cp ci/v2/order_share_paths.xml "$PROJECT_DIR/app/src/main/res/xml/order_share_paths.xml"
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
-            sed -i 's/fun SettingsScreen(/fun LegacySettingsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
-            sed -i 's/fun ReportsScreen(/fun LegacyReportsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,
             # so convert it to a List before calling takeLast().
             sed -i 's/by.entries.takeLast(12)/by.entries.toList().takeLast(12)/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
@@ -162,7 +161,8 @@ jobs:
           guard "inflation default is one percent" "$SRC/data/WorkshopRepository.kt" '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100'
           guard "tape has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_tape" to 30000L'
           guard "pack labor has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_labor" to 60000L'
-          guard "legacy settings isolated" "$SRC/ui/screens/BusinessScreens.kt" 'fun LegacySettingsScreen('
+          echo "GUARD: legacy settings removed"
+          if grep -Fq 'fun SettingsScreen(' "$SRC/ui/screens/BusinessScreens.kt"; then echo "FAILED GUARD: legacy settings removed" >&2; exit 1; fi
           echo "GUARD: exactly one active SettingsScreen"
           test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
           guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'

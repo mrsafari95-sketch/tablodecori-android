@@ -8,6 +8,20 @@ import java.util.Calendar
 /** One source for recurrence, daily scoring and progress. No rows are generated for unvisited days. */
 object PlannerEngine {
     data class QuickAdd(val title:String,val timeMillis:Long,val recurrence:String,val weekDays:String)
+    data class WeeklySummary(val days:List<Long>,val scores:List<Int?>,val completed:Int,val deferred:Int,val bestCompletionHour:Int?,val mostDeferredCategory:String?) {
+        val average:Int? get()=scores.filterNotNull().takeIf{it.isNotEmpty()}?.average()?.toInt()
+    }
+    fun weeklySummary(tasks:List<PlannerTaskEntity>,occurrences:List<PlannerOccurrenceEntity>,restDays:Set<Int>,todayMillis:Long):WeeklySummary {
+        val calendar=Calendar.getInstance().apply{timeInMillis=todayMillis;add(Calendar.DAY_OF_MONTH,-6)}
+        val days=(0..6).map{val day=calendar.timeInMillis;calendar.add(Calendar.DAY_OF_MONTH,1);day}
+        val keys=days.map(::dateKey).toSet()
+        val logs=occurrences.filter{it.dateKey in keys}
+        val done=logs.filter{it.status=="DONE"}
+        val bestHour=done.filter{it.changedAt>0L}.groupingBy{Calendar.getInstance().apply{timeInMillis=it.changedAt}.get(Calendar.HOUR_OF_DAY)}.eachCount().maxByOrNull{it.value}?.key
+        val byId=tasks.associateBy{it.id}
+        val deferredCategory=logs.filter{it.status=="DEFERRED"}.mapNotNull{byId[it.taskId]?.category}.groupingBy{it}.eachCount().maxByOrNull{it.value}?.key
+        return WeeklySummary(days,days.map{score(tasks,occurrences,it,dateKey(it) in restDays)},done.size,logs.count{it.status=="DEFERRED"},bestHour,deferredCategory)
+    }
     fun parseQuickAdd(text:String,now:Long):QuickAdd? {
         val normalized=text.map{ch->when(ch){in '۰'..'۹'->('0'.code+ch.code-'۰'.code).toChar();in '٠'..'٩'->('0'.code+ch.code-'٠'.code).toChar();else->ch}}.joinToString("")
         val clock=Regex("ساعت\\s*(\\d{1,2})(?::(\\d{1,2}))?\\s*(صبح|ظهر|عصر|شب)?").find(normalized)

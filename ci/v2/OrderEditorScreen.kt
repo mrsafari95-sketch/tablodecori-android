@@ -182,7 +182,7 @@ fun OrderEditorScreen(
                     FilterChip(selected=shippingPayer=="SENDER",onClick={shippingPayer="SENDER";shippingPayerTouched=true},label={Text("پرداخت فروشنده")})
                 }
                 MoneyField(if(shippingPayer=="RECIPIENT")"مبلغ پس‌کرایه (جدا از قیمت محصول)" else "هزینه ارسال پرداختی فروشنده",shipping){shipping=it}
-                if(shippingPayer=="RECIPIENT") Text("پس‌کرایه به درآمد، ماندهٔ محصول و سود کارگاه افزوده نمی‌شود؛ مشتری آن را مستقیم به حمل‌کننده می‌پردازد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(shippingPayer=="RECIPIENT") Text("هزینهٔ پس‌کرایه در مبلغ سفارش، ماندهٔ پرداخت و سود کارگاه حساب نمی‌شود؛ مشتری آن را مستقیم به شرکت حمل می‌پردازد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 MoneyField("مبلغ توافق‌شدهٔ محصول",quote){quote=it;quoteAuto=false}
                 MoneyField("بیعانه دریافت‌شده",deposit){deposit=it;depositAuto=false}
                 MoneyField("سایر پرداخت‌های دریافت‌شده",otherPaid){otherPaid=it}

@@ -164,7 +164,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                 if(confirmDelete) AlertDialog(
                     onDismissRequest={confirmDelete=false},
                     title={Text("حذف سفارش")},
-                    text={Text("آیا مطمئنید برای حذف این سفارش؟")},
+                    text={Text("با حذف این سفارش، اطلاعات مشتری، عکس و سابقهٔ مالی آن از برنامه برداشته می‌شود. ادامه می‌دهید؟")},
                     confirmButton={Button(onClick={confirmDelete=false;vm.deleteOrder(o.id)}){Text("بله")}},
                     dismissButton={TextButton(onClick={confirmDelete=false}){Text("خیر")}}
                 )
@@ -195,76 +195,3 @@ private fun summary(list:List<OrderWithCosts>):MonthlySummary{
 }
 @Composable private fun SummaryGrid(s:MonthlySummary){Column(verticalArrangement=Arrangement.spacedBy(7.dp)){listOf("سفارش" to fa(s.orderCount),"تابلو" to fa(s.pieceCount),"فروش توافقی" to money(s.salesToman),"پرداخت ثبت‌شده" to money(s.receivedToman),"مانده" to money(s.outstandingToman),"هزینه کل" to money(s.costToman),"ارسال" to money(s.shippingToman),"سود فعلی" to money(s.profitToman),"ضرر فعلی" to money(s.lossToman),"خالص فعلی" to money(s.netToman)).chunked(2).forEach{r->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){r.forEach{(l,v)->Card(Modifier.weight(1f)){Column(Modifier.padding(10.dp)){Text(v,fontWeight=FontWeight.Bold);Text(l,style=MaterialTheme.typography.bodySmall)}}}}}}}
 @Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.toList().takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0L,x.order.actualProfitToman)})}?:1).coerceAtLeast(1L).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0L,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,String,String,Long,Long,String)->Unit){
-    val initialProductId=initial?.productId?.takeIf{id->products.any{it.product.id==id}}?:products.firstOrNull()?.product?.id.orEmpty()
-    var pid by rememberSaveable(initial?.id){mutableStateOf(initialProductId)}
-    var customer by rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}
-    var ig by rememberSaveable(initial?.id){mutableStateOf(initial?.instagramId.orEmpty())}
-    var phone by rememberSaveable(initial?.id){mutableStateOf(initial?.phone.orEmpty())}
-    var prov by rememberSaveable(initial?.id){mutableStateOf(initial?.province.orEmpty())}
-    var city by rememberSaveable(initial?.id){mutableStateOf(initial?.city.orEmpty())}
-    var addressDetails by rememberSaveable(initial?.id){mutableStateOf(initial?.addressDetails.orEmpty())}
-    var postalCode by rememberSaveable(initial?.id){mutableStateOf(initial?.postalCode.orEmpty())}
-    var ship by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:shippingDefault).toString())}
-    var recv by rememberSaveable(initial?.id){mutableStateOf(initial?.receivedToman?.toString().orEmpty())}
-    var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
-    var date by rememberSaveable(initial?.id){mutableLongStateOf(initial?.dateEpochMillis?:System.currentTimeMillis())}
-    var picker by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var exp by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var autoReceived by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
-    val formScroll=rememberScrollState()
-
-    LaunchedEffect(pid,ship,autoReceived){
-        if(autoReceived){
-            products.find{it.product.id==pid}?.let{
-                recv=(it.pricing.finalPriceToman+(ship.toLongOrNull()?:0)).toString()
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest=onDismiss,
-        title={Text(if(initial==null)"ثبت سفارش ارسالی" else "ویرایش سفارش")},
-        text={
-            Column(
-                Modifier.fillMaxWidth().heightIn(max=590.dp).verticalScroll(formScroll),
-                verticalArrangement=Arrangement.spacedBy(8.dp)
-            ){
-                Box{
-                    OutlinedButton(onClick={exp=true},modifier=Modifier.fillMaxWidth(),enabled=initial==null){
-                        Text(products.find{it.product.id==pid}?.product?.name?:initial?.productNameSnapshot?:"انتخاب محصول")
-                    }
-                    DropdownMenu(exp,{exp=false}){
-                        products.forEach{p->DropdownMenuItem({Text(p.product.name)},{pid=p.product.id;autoReceived=true;exp=false})}
-                    }
-                }
-                OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()){Text("تاریخ: "+PersianDate.fromEpoch(date).label)}
-                OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(ig,{ig=it},label={Text("آیدی اینستاگرام")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(prov,{prov=it},label={Text("استان")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(city,{city=it},label={Text("شهر")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(addressDetails,{addressDetails=it},label={Text("جزئیات آدرس")},placeholder={Text("خیابان، کوچه، پلاک و ...")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=3)
-                OutlinedTextField(postalCode,{postalCode=it.filter(Char::isDigit)},label={Text("کد پستی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(ship,{ship=it.filter(Char::isDigit);autoReceived=true},label={Text("هزینه ارسال واقعی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(recv,{recv=it.filter(Char::isDigit);autoReceived=false},label={Text("مبلغ دریافتی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(note,{note=it},label={Text("یادداشت")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4)
-            }
-        },
-        confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,addressDetails,postalCode,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text(if(initial==null)"ثبت ارسال" else "ذخیره ویرایش")}},
-        dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}
-    )
-    if(picker) PersianCalendarPicker(date,onDismiss={picker=false}){date=it;picker=false}
-}
-
-@Composable fun ReportsScreen(vm:MainViewModel){val history by vm.history.collectAsState();LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{SectionTitle("گزارش تغییر قیمت","اثر تغییر متریال روی محصولات")};if(history.isEmpty())item{AppCard{Text("هنوز قیمت متغیری تغییر نکرده است.")}} else items(history,key={it.id}){h->AppCard{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(h.materialName,fontWeight=FontWeight.Bold);Text(PersianDate.fromEpoch(h.changedAt).label,style=MaterialTheme.typography.bodySmall)};AssistChip(onClick={},label={Text("${fa(h.affectedProductCount)} محصول")})};Text(if(h.oldPriceToman!=h.newPriceToman)"${money(h.oldPriceToman)} ← ${money(h.newPriceToman)}" else "${percentFromBasisPoints(h.oldRateBasisPoints)} ← ${percentFromBasisPoints(h.newRateBasisPoints)}")}}}}
-
-@Composable fun SettingsScreen(vm:MainViewModel){
-    val settings by vm.settings.collectAsState();val rules by vm.profitRules.collectAsState();val context=LocalContext.current;val app=context.applicationContext as TablodecoriApp;val scope=rememberCoroutineScope();var rounding by remember(settings){mutableStateOf((settings?.roundingStepToman?:10000).toString())};var shipping by remember(settings){mutableStateOf((settings?.shippingDefaultToman?:0).toString())};var dark by remember(settings){mutableStateOf(settings?.darkMode?:false)};var restoreRaw by remember{mutableStateOf<String?>(null)}
-    val backupLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->if(uri!=null)scope.launch{try{val raw=app.backupManager.exportJson();context.contentResolver.openOutputStream(uri)?.use{it.write(raw.toByteArray())};vm.notify("پشتیبان JSON ذخیره شد.")}catch(t:Throwable){vm.notify(t.message?:"خطا در پشتیبان‌گیری")}}}
-    val restoreLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)scope.launch{runCatching{context.contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()}?:error("فایل خوانده نشد")}.onSuccess{restoreRaw=it}.onFailure{vm.notify("خواندن فایل ناموفق بود.")}}}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{SectionTitle("تنظیمات","قواعد قیمت‌گذاری و نگهداری اطلاعات")};item{AppCard{Text("هویت برنامه",fontWeight=FontWeight.Bold);Text("tablodecori | مدیریت کارگاه");Text("رابط فارسی، RTL و Offline First",style=MaterialTheme.typography.bodySmall)}};item{AppCard{Text("تنظیمات عمومی",fontWeight=FontWeight.Bold);OutlinedTextField(rounding,{rounding=it},label={Text("گرد کردن قیمت نهایی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(6.dp));OutlinedTextField(shipping,{shipping=it},label={Text("ارسال پیش‌فرض")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("حالت تیره");Switch(dark,{dark=it})};Button(onClick={vm.saveSettings(rounding.toLongOrNull()?:10000,shipping.toLongOrNull()?:0,dark)},modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات")}}};item{AppCard{Text("سود بر اساس تعداد تکه",fontWeight=FontWeight.Bold);rules.sortedBy{it.pieceCount}.forEach{r->var value by remember(r.fixedToman){mutableStateOf(r.fixedToman.toString())};Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){Text("${fa(r.pieceCount)} تکه",modifier=Modifier.width(64.dp));OutlinedTextField(value,{value=it},modifier=Modifier.weight(1f),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true);TextButton(onClick={vm.saveProfit(r.pieceCount,value.toLongOrNull()?:0)}){Text("ثبت")}}}}};item{AppCard{Text("پشتیبان‌گیری",fontWeight=FontWeight.Bold);Text("پشتیبان شامل متریال‌ها، محصولات، سفارش‌ها، Snapshot هزینه، تاریخچه و تنظیمات است.",style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={backupLauncher.launch("tablodecori-backup.json")}){Text("Backup JSON")};OutlinedButton(onClick={restoreLauncher.launch(arrayOf("application/json","text/plain"))}){Text("Restore")}}}};item{AppCard{Text("فرض‌های نسخه ۱",fontWeight=FontWeight.Bold);Text("• تورم و هزینه پیش‌بینی‌نشده به‌صورت درصدی و به ترتیب روی هزینه جاری قبل از سود اعمال می‌شوند.\n• بسته‌بندی هوشمند بر پایه تعداد، بزرگ‌ترین تابلو، مساحت و تعداد بسته تقریبی است.\n• هزینه ارسال فقط هنگام سفارش ثبت می‌شود و وارد قیمت پایه محصول نمی‌شود.\n• پول با Long و محاسبات نسبتی با BigDecimal انجام می‌شود.",style=MaterialTheme.typography.bodySmall)}}}
-    restoreRaw?.let{raw->AlertDialog(onDismissRequest={restoreRaw=null},title={Text("بازیابی پشتیبان")},text={Text("اطلاعات فعلی با محتوای فایل جایگزین می‌شود. فایل قبل از اعمال اعتبارسنجی خواهد شد. ادامه می‌دهید؟")},confirmButton={Button(onClick={scope.launch{try{app.backupManager.restoreJson(raw);vm.notify("بازیابی انجام شد.")}catch(t:Throwable){vm.notify(t.message?:"فایل نامعتبر است.")}};restoreRaw=null}){Text("بازیابی")}},dismissButton={TextButton(onClick={restoreRaw=null}){Text("انصراف")}})}
-}

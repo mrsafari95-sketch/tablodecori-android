@@ -6,8 +6,8 @@ Daemon will be stopped at the end of the build
 > Task :app:generateDebugBuildConfig
 > Task :app:checkDebugAarMetadata
 > Task :app:processDebugNavigationResources
-> Task :app:generateDebugResValues
 > Task :app:compileDebugNavigationResources
+> Task :app:generateDebugResValues
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
@@ -43,24 +43,59 @@ Unable to strip the following libraries, packaging them as they are: libandroidx
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:compileDebugKotlin
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:264:42 Unresolved reference 'enabledMaterialIds'.
-e: file:///home/runner/work/tablodecori-android/tablodecori-android/project/tablodecori-android/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt:264:65 Unresolved reference 'it'.
+
+Problem in daemon expiration check
+java.lang.OutOfMemoryError: Java heap space
+Exception in thread "Daemon client event forwarder" java.lang.OutOfMemoryError: Java heap space
+32 actionable tasks: 32 executed
 
 > Task :app:compileDebugKotlin FAILED
-gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_6-1790557514263.json
+e: java.lang.OutOfMemoryError: Java heap space
 
-FAILURE: Build failed with an exception.
+java.lang.RuntimeException: java.lang.OutOfMemoryError: Java heap space
 
+	at org.jetbrains.kotlin.buildtools.internal.KotlinLoggerMessageCollectorAdapter.report(KotlinLoggerMessageCollectorAdapter.kt:19)
+	at org.jetbrains.kotlin.cli.common.messages.MessageCollectorImpl.forward(MessageCollectorImpl.kt:21)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.doCompile(IncrementalCompilerRunner.kt:546)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileImpl(IncrementalCompilerRunner.kt:422)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compileNonIncrementally(IncrementalCompilerRunner.kt:304)
+	at org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.compile(IncrementalCompilerRunner.kt:131)
+	at org.jetbrains.kotlin.buildtools.internal.jvm.operations.JvmCompilationOperationImpl.compileInProcess(JvmCompilationOperationImpl.kt:423)
+	at org.jetbrains.kotlin.buildtools.internal.jvm.operations.JvmCompilationOperationImpl.compileInProcess(JvmCompilationOperationImpl.kt:337)
+	at org.jetbrains.kotlin.buildtools.internal.jvm.operations.JvmCompilationOperationImpl.executeCancellableImpl(JvmCompilationOperationImpl.kt:149)
+	at org.jetbrains.kotlin.buildtools.internal.jvm.operations.JvmCompilationOperationImpl.executeCancellableImpl(JvmCompilationOperationImpl.kt:69)
+	at org.jetbrains.kotlin.buildtools.internal.CancellableBuildOperationImpl.executeImpl(CancellableBuildOperationImpl.kt:58)
+	at org.jetbrains.kotlin.buildtools.internal.BuildOperationImpl.execute(BuildOperationImpl.kt:34)
+	at org.jetbrains.kotlin.buildtools.internal.KotlinToolchainsImpl$BuildSessionImpl.executeOperation$lambda$1(KotlinToolchainsImpl.kt:70)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+
+FAILURE: Build completed with 2 failures.
+
+1: Task failed with an exception.
+-----------
 * What went wrong:
-Execution failed for task ':app:compileDebugKotlin'.
-> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
-   > Compilation error. See log for more details
+The current thread is not registered as a worker thread.
 
 * Try:
 > Run with --stacktrace option to get the stack trace.
 > Run with --info or --debug option to get more log output.
 > Run with --scan to get full insights.
 > Get more help at https://help.gradle.org.
+==============================================================================
 
-BUILD FAILED in 23m 29s
-33 actionable tasks: 33 executed
+2: Task failed with an exception.
+-----------
+* What went wrong:
+Not all work has completed.
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+==============================================================================
+
+BUILD FAILED in 37m 1s

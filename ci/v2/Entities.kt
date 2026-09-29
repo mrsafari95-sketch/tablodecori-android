@@ -45,6 +45,9 @@ data class ProductEntity(
     val profitMode: String = "MANUAL",
     val profitFormula: String = "",
     val packagingSizeKey: String = "",
+    val productType: String = "STANDARD",
+    val designMaterialsCostToman: Long = 0L,
+    val photoFileName: String = "",
 )
 
 @Entity(
@@ -103,6 +106,19 @@ data class SentOrderEntity(
     val createdAt: Long,
     val addressDetails: String = "",
     val postalCode: String = "",
+    val frameColor: String = "",
+    val quotedTotalToman: Long = 0L,
+    val depositToman: Long = 0L,
+    val otherPaidToman: Long = 0L,
+    val codDueToman: Long = 0L,
+    val codCollectedToman: Long = 0L,
+    val photoFileName: String = "",
+    val shippingPayer: String = "SENDER",
+    val dimensionsText: String = "",
+    val plannedShipAtMillis: Long = 0L,
+    val orderStatus: String = "SENT",
+    val trackingCode: String = "",
+    val orderSource: String = "OTHER",
 )
 
 @Entity(
@@ -143,7 +159,84 @@ data class AppSettingsEntity(
     val shippingDefaultToman: Long = 0L,
     val darkMode: Boolean = false,
     val updatedAt: Long,
+    val defaultDepositPercent: Int = 0,
+    val defaultFrameColor: String = "",
+    val frameColorOptions: String = "مشکی، سفید، طلایی، نقره‌ای، چوبی",
+    val suggestCodRemainder: Boolean = true,
+    val lowStockPercent: Int = 10,
+    val defaultShippingPayer: String = "RECIPIENT",
+    val defaultOrderStatus: String = "PREPARING",
+    val openingCashToman: Long = 0L,
 )
+
+@Entity(tableName = "stock_items", indices = [Index(value=["materialId", "variantKey"], unique=true)])
+data class StockItemEntity(
+    @PrimaryKey val id: String,
+    val materialId: String,
+    val materialName: String,
+    val variantKey: String,
+    val unit: String,
+    val onHandMicros: Long = 0L,
+    val targetMicros: Long = 0L,
+    val notifiedLow: Boolean = false,
+    val updatedAt: Long,
+    @ColumnInfo(defaultValue = "1") val tracked: Boolean = true,
+)
+
+@Entity(tableName = "expenses", indices = [Index("dateEpochMillis"), Index("category")])
+data class ExpenseEntity(
+    @PrimaryKey val id: String,
+    val dateEpochMillis: Long,
+    val category: String,
+    val title: String,
+    val payeeName: String = "",
+    val amountToman: Long,
+    val note: String = "",
+    val receiptFileName: String = "",
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(tableName="planner_tasks", indices=[Index("plannedAtMillis")])
+data class PlannerTaskEntity(
+    @PrimaryKey val id:String,
+    val title:String,
+    val plannedAtMillis:Long,
+    val category:String="PERSONAL",
+    val priority:Int=2,
+    val durationMinutes:Int=0,
+    val recurrence:String="NONE",
+    val weekDays:String="",
+    val note:String="",
+    val checklist:String="",
+    val reminderMinutes:Int=0,
+    val alarm:Boolean=false,
+    val active:Boolean=true,
+    val createdAt:Long,
+    val updatedAt:Long,
+)
+
+@Entity(tableName="planner_occurrences",primaryKeys=["taskId","dateKey"],
+    foreignKeys=[ForeignKey(entity=PlannerTaskEntity::class,parentColumns=["id"],childColumns=["taskId"],onDelete=ForeignKey.CASCADE)],indices=[Index("dateKey")])
+data class PlannerOccurrenceEntity(val taskId:String,val dateKey:Int,val status:String,val reason:String="",val changedAt:Long=0L,val focusMinutes:Int=0)
+
+@Entity(tableName="planner_settings")
+data class PlannerSettingsEntity(@PrimaryKey val id:Int=1,val quietStartHour:Int=22,val quietEndHour:Int=7,val dailyNotificationLimit:Int=8,val eveningReviewHour:Int=20,val morningBriefHour:Int=8,val morningBriefEnabled:Boolean=false,val eveningReviewEnabled:Boolean=true,val updatedAt:Long)
+
+@Entity(tableName="planner_rewards")
+data class PlannerRewardEntity(@PrimaryKey val id:String,val title:String,val xpCost:Int,val redeemedAt:Long=0L,val createdAt:Long)
+
+@Entity(tableName="planner_xp_ledger",indices=[Index("dateKey"),Index("taskId")])
+data class PlannerXpEntity(@PrimaryKey val id:String,val taskId:String,val dateKey:Int,val amount:Int,val reason:String,val createdAt:Long)
+
+@Entity(tableName="planner_rest_days")
+data class PlannerRestDayEntity(@PrimaryKey val dateKey:Int,val reason:String="")
+
+@Entity(tableName = "order_stock_usage", primaryKeys = ["orderId", "stockItemId"],
+    foreignKeys = [ForeignKey(entity=SentOrderEntity::class,parentColumns=["id"],childColumns=["orderId"],onDelete=ForeignKey.CASCADE),
+        ForeignKey(entity=StockItemEntity::class,parentColumns=["id"],childColumns=["stockItemId"],onDelete=ForeignKey.RESTRICT)],
+    indices=[Index("stockItemId")])
+data class OrderStockUsageEntity(val orderId: String, val stockItemId: String, val amountMicros: Long)
 
 data class ProductWithDetails(
     @Embedded val product: ProductEntity,

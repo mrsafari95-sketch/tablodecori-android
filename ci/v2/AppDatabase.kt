@@ -9,8 +9,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [MaterialEntity::class, ProductEntity::class, ProductPieceEntity::class, ProductVariableEntity::class,
-        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class],
-    version = 5,
+        ProfitRuleEntity::class, SentOrderEntity::class, OrderCostSnapshotEntity::class, PriceChangeHistoryEntity::class, AppSettingsEntity::class, SizePriceEntity::class, StockItemEntity::class, OrderStockUsageEntity::class, ExpenseEntity::class,
+        PlannerTaskEntity::class, PlannerOccurrenceEntity::class, PlannerSettingsEntity::class, PlannerRewardEntity::class, PlannerXpEntity::class, PlannerRestDayEntity::class],
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +23,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
     abstract fun settingsDao(): SettingsDao
     abstract fun backupDao(): BackupDao
+    abstract fun stockDao(): StockDao
+    abstract fun expenseDao(): ExpenseDao
+    abstract fun plannerDao(): PlannerDao
 
     companion object {
         private val MIGRATION_2_3 = object : Migration(2,3) {
@@ -46,10 +50,77 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE sent_orders ADD COLUMN postalCode TEXT NOT NULL DEFAULT ''")
             }
         }
+        private val MIGRATION_5_6 = object : Migration(5,6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN frameColor TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN quotedTotalToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN depositToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN otherPaidToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN codDueToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN codCollectedToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN photoFileName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE sent_orders SET quotedTotalToman = receivedToman, otherPaidToman = receivedToman")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultDepositPercent INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultFrameColor TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN frameColorOptions TEXT NOT NULL DEFAULT 'مشکی، سفید، طلایی، نقره‌ای، چوبی'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN suggestCodRemainder INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+        private val MIGRATION_6_7 = object : Migration(6,7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN shippingPayer TEXT NOT NULL DEFAULT 'SENDER'")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN dimensionsText TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN plannedShipAtMillis INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN orderStatus TEXT NOT NULL DEFAULT 'SENT'")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN trackingCode TEXT NOT NULL DEFAULT ''")
+            }
+        }
+        private val MIGRATION_7_8 = object : Migration(7,8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN lowStockPercent INTEGER NOT NULL DEFAULT 10")
+                db.execSQL("CREATE TABLE IF NOT EXISTS stock_items (id TEXT NOT NULL PRIMARY KEY, materialId TEXT NOT NULL, materialName TEXT NOT NULL, variantKey TEXT NOT NULL, unit TEXT NOT NULL, onHandMicros INTEGER NOT NULL DEFAULT 0, targetMicros INTEGER NOT NULL DEFAULT 0, notifiedLow INTEGER NOT NULL DEFAULT 0, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_stock_items_materialId_variantKey ON stock_items(materialId, variantKey)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS order_stock_usage (orderId TEXT NOT NULL, stockItemId TEXT NOT NULL, amountMicros INTEGER NOT NULL, PRIMARY KEY(orderId, stockItemId), FOREIGN KEY(orderId) REFERENCES sent_orders(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(stockItemId) REFERENCES stock_items(id) ON UPDATE NO ACTION ON DELETE RESTRICT)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_order_stock_usage_stockItemId ON order_stock_usage(stockItemId)")
+            }
+        }
+        private val MIGRATION_8_9 = object : Migration(8,9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultShippingPayer TEXT NOT NULL DEFAULT 'RECIPIENT'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN defaultOrderStatus TEXT NOT NULL DEFAULT 'PREPARING'")
+                db.execSQL("ALTER TABLE app_settings ADD COLUMN openingCashToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE products ADD COLUMN productType TEXT NOT NULL DEFAULT 'STANDARD'")
+                db.execSQL("ALTER TABLE products ADD COLUMN designMaterialsCostToman INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE sent_orders ADD COLUMN orderSource TEXT NOT NULL DEFAULT 'OTHER'")
+                db.execSQL("ALTER TABLE stock_items ADD COLUMN tracked INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("CREATE TABLE IF NOT EXISTS expenses (id TEXT NOT NULL PRIMARY KEY, dateEpochMillis INTEGER NOT NULL, category TEXT NOT NULL, title TEXT NOT NULL, payeeName TEXT NOT NULL, amountToman INTEGER NOT NULL, note TEXT NOT NULL, receiptFileName TEXT NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_expenses_dateEpochMillis ON expenses(dateEpochMillis)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_expenses_category ON expenses(category)")
+                db.execSQL("UPDATE sent_orders SET codCollectedToman = codDueToman, receivedToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman), actualProfitToman = MIN(quotedTotalToman, depositToman + otherPaidToman + codDueToman) - productCostSnapshotToman - CASE WHEN shippingPayer = 'SENDER' THEN shippingCostToman ELSE 0 END")
+            }
+        }
+        private val MIGRATION_9_10 = object:Migration(9,10){
+            override fun migrate(db:SupportSQLiteDatabase){
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_tasks (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, plannedAtMillis INTEGER NOT NULL, category TEXT NOT NULL, priority INTEGER NOT NULL, durationMinutes INTEGER NOT NULL, recurrence TEXT NOT NULL, weekDays TEXT NOT NULL, note TEXT NOT NULL, checklist TEXT NOT NULL, reminderMinutes INTEGER NOT NULL, alarm INTEGER NOT NULL, active INTEGER NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_tasks_plannedAtMillis ON planner_tasks(plannedAtMillis)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_occurrences (taskId TEXT NOT NULL, dateKey INTEGER NOT NULL, status TEXT NOT NULL, reason TEXT NOT NULL, changedAt INTEGER NOT NULL, focusMinutes INTEGER NOT NULL, PRIMARY KEY(taskId,dateKey), FOREIGN KEY(taskId) REFERENCES planner_tasks(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_occurrences_dateKey ON planner_occurrences(dateKey)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_settings (id INTEGER NOT NULL PRIMARY KEY, quietStartHour INTEGER NOT NULL, quietEndHour INTEGER NOT NULL, dailyNotificationLimit INTEGER NOT NULL, eveningReviewHour INTEGER NOT NULL, morningBriefHour INTEGER NOT NULL, morningBriefEnabled INTEGER NOT NULL, eveningReviewEnabled INTEGER NOT NULL, updatedAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_rewards (id TEXT NOT NULL PRIMARY KEY, title TEXT NOT NULL, xpCost INTEGER NOT NULL, redeemedAt INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_xp_ledger (id TEXT NOT NULL PRIMARY KEY, taskId TEXT NOT NULL, dateKey INTEGER NOT NULL, amount INTEGER NOT NULL, reason TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_xp_ledger_dateKey ON planner_xp_ledger(dateKey)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_planner_xp_ledger_taskId ON planner_xp_ledger(taskId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS planner_rest_days (dateKey INTEGER NOT NULL PRIMARY KEY, reason TEXT NOT NULL)")
+            }
+        }
+        private val MIGRATION_10_11 = object:Migration(10,11){
+            override fun migrate(db:SupportSQLiteDatabase){
+                db.execSQL("ALTER TABLE products ADD COLUMN photoFileName TEXT NOT NULL DEFAULT ''")
+            }
+        }
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "tablodecori.db")
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
-                .fallbackToDestructiveMigration(true)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11)
                 .build()
     }
 }

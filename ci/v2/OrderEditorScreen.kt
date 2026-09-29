@@ -1,0 +1,276 @@
+package com.tablodecori.app.ui.screens
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.unit.dp
+import com.tablodecori.app.data.OrderFormInput
+import com.tablodecori.app.data.OrderSource
+import com.tablodecori.app.data.PricedProduct
+import com.tablodecori.app.data.db.AppSettingsEntity
+import com.tablodecori.app.data.db.SentOrderEntity
+import com.tablodecori.app.util.PersianDate
+import com.tablodecori.app.util.money
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+private fun orderEditorSource(initial:SentOrderEntity?,products:List<PricedProduct>,settings:AppSettingsEntity?,now:Long):SentOrderEntity =
+    initial ?: SentOrderEntity(
+        id="",internalNumber="",dateEpochMillis=now,customerName="",instagramId="",phone="",province="",city="",
+        productId=products.firstOrNull()?.product?.id,productNameSnapshot="",compositionSnapshot="",pieceCountSnapshot=0,
+        productCostSnapshotToman=0L,shippingCostToman=settings?.shippingDefaultToman?:0L,receivedToman=0L,
+        actualProfitToman=0L,note="",createdAt=now,frameColor=settings?.defaultFrameColor.orEmpty(),
+        shippingPayer=settings?.defaultShippingPayer?:"RECIPIENT",orderStatus=settings?.defaultOrderStatus?:"PREPARING"
+    )
+
+/** A full order page leaves room for the customer, artwork and payment sections. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OrderEditorScreen(
+    products: List<PricedProduct>,
+    settings: AppSettingsEntity?,
+    initial: SentOrderEntity?,
+    onDismiss: () -> Unit,
+    onSave: suspend (OrderFormInput) -> Boolean,
+) {
+    val scope=rememberCoroutineScope()
+    val context=LocalContext.current
+    val orderKey=initial?.id
+    val source=orderEditorSource(initial,products,settings,System.currentTimeMillis())
+    var pid by rememberSaveable(orderKey){mutableStateOf(source.productId?:products.firstOrNull()?.product?.id.orEmpty())}
+    var date by rememberSaveable(orderKey){mutableLongStateOf(source.dateEpochMillis)}
+    var customer by rememberSaveable(orderKey){mutableStateOf(source.customerName)}
+    var instagram by rememberSaveable(orderKey){mutableStateOf(source.instagramId)}
+    var phone by rememberSaveable(orderKey){mutableStateOf(source.phone)}
+    var province by rememberSaveable(orderKey){mutableStateOf(source.province)}
+    var city by rememberSaveable(orderKey){mutableStateOf(source.city)}
+    var address by rememberSaveable(orderKey){mutableStateOf(source.addressDetails)}
+    var postal by rememberSaveable(orderKey){mutableStateOf(source.postalCode)}
+    var frameColor by rememberSaveable(orderKey){mutableStateOf(source.frameColor)}
+    var note by rememberSaveable(orderKey){mutableStateOf(source.note)}
+    var shipping by rememberSaveable(orderKey){mutableStateOf(source.shippingCostToman.toString())}
+    var shippingPayer by rememberSaveable(orderKey){mutableStateOf(source.shippingPayer)}
+    var shippingPayerTouched by rememberSaveable(orderKey){mutableStateOf(false)}
+    var dimensionsText by rememberSaveable(orderKey){mutableStateOf(source.dimensionsText)}
+    var plannedShipAt by rememberSaveable(orderKey){mutableLongStateOf(source.plannedShipAtMillis)}
+    var orderStatus by rememberSaveable(orderKey){mutableStateOf(source.orderStatus)}
+    var orderStatusTouched by rememberSaveable(orderKey){mutableStateOf(false)}
+    var trackingCode by rememberSaveable(orderKey){mutableStateOf(source.trackingCode)}
+    var orderSource by rememberSaveable(orderKey){mutableStateOf(source.orderSource)}
+    var quote by rememberSaveable(orderKey){mutableStateOf(if(initial==null)"" else source.quotedTotalToman.toString())}
+    var deposit by rememberSaveable(orderKey){mutableStateOf(source.depositToman.toString())}
+    var otherPaid by rememberSaveable(orderKey){mutableStateOf(source.otherPaidToman.toString())}
+    var codDue by rememberSaveable(orderKey){mutableStateOf(source.codDueToman.toString())}
+    var photoUri by rememberSaveable(orderKey){mutableStateOf<String?>(null)}
+    var removePhoto by rememberSaveable(orderKey){mutableStateOf(false)}
+    var quoteAuto by rememberSaveable(orderKey){mutableStateOf(initial==null)}
+    var depositAuto by rememberSaveable(orderKey){mutableStateOf(initial==null)}
+    var codAuto by rememberSaveable(orderKey){mutableStateOf(initial==null && settings?.suggestCodRemainder!=false)}
+    var picker by rememberSaveable(orderKey){mutableStateOf(false)}
+    var shippingDatePicker by rememberSaveable(orderKey){mutableStateOf(false)}
+    var productMenu by rememberSaveable(orderKey){mutableStateOf(false)}
+    var saving by remember{mutableStateOf(false)}
+    BackHandler(enabled=!saving,onBack=onDismiss)
+    val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){ }
+    LaunchedEffect(products){ if(initial==null&&pid.isBlank()) pid=products.firstOrNull()?.product?.id.orEmpty() }
+    LaunchedEffect(settings?.defaultShippingPayer,settings?.defaultOrderStatus){
+        if(initial==null){
+            if(!shippingPayerTouched) shippingPayer=settings?.defaultShippingPayer?:"RECIPIENT"
+            if(!orderStatusTouched) orderStatus=settings?.defaultOrderStatus?:"PREPARING"
+        }
+    }
+
+    val photoPicker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()){uri->
+        if(uri!=null){photoUri=uri.toString();removePhoto=false}
+    }
+    LaunchedEffect(pid,shipping,shippingPayer,quoteAuto,products){
+        if(quoteAuto){
+            val price=products.firstOrNull{it.product.id==pid}?.pricing?.finalPriceToman
+            if(price!=null) quote=runCatching{Math.addExact(price,if(shippingPayer=="SENDER") shipping.toLongOrNull()?:0L else 0L)}.getOrNull()?.toString().orEmpty()
+        }
+    }
+    LaunchedEffect(quote,settings?.defaultDepositPercent,depositAuto){
+        if(depositAuto){
+            val percent=(settings?.defaultDepositPercent?:0).coerceIn(0,100)
+            deposit=((quote.toLongOrNull()?:0L)/100L*percent + (quote.toLongOrNull()?:0L)%100L*percent/100L).toString()
+        }
+    }
+    LaunchedEffect(quote,deposit,otherPaid,codAuto){
+        if(codAuto) codDue=((quote.toLongOrNull()?:0L)-(deposit.toLongOrNull()?:0L)-(otherPaid.toLongOrNull()?:0L)).coerceAtLeast(0L).toString()
+    }
+
+    val q=quote.toLongOrNull()
+    val d=deposit.toLongOrNull()
+    val other=otherPaid.toLongOrNull()
+    val due=codDue.toLongOrNull()
+    val shippingValue=shipping.toLongOrNull()
+    val paid=if(d!=null&&other!=null&&due!=null) runCatching{Math.addExact(Math.addExact(d,other),due)}.getOrNull() else null
+    val valid=if(q==null||d==null||other==null||due==null||shippingValue==null||paid==null) false
+        else pid.isNotBlank()&&customer.isNotBlank()&&
+            listOf(q,d,other,due,shippingValue).all{it>=0L}&&paid<=q
+    val balance=if(q!=null&&paid!=null) (q-paid).coerceAtLeast(0L) else 0L
+    val colors=settings?.frameColorOptions.orEmpty().split(',', '،').map{it.trim()}.filter{it.isNotBlank()}.distinct()
+    val productDimensions=products.firstOrNull{it.product.id==pid}?.product?.pieces?.joinToString(" + "){"${it.quantity}× ${it.widthCm}×${it.heightCm}"}
+        ?:if(pid==initial?.productId) initial?.compositionSnapshot.orEmpty() else ""
+
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=10.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween){
+            Text(if(initial==null)"ثبت سفارش" else "ویرایش سفارش",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+            TextButton(onClick=onDismiss,enabled=!saving){Text("انصراف")}
+        }
+        HorizontalDivider()
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+            OrderSection("محصول و تاریخ") {
+                Box {
+                    OutlinedButton(onClick={productMenu=true},modifier=Modifier.fillMaxWidth()){
+                        Text(products.firstOrNull{it.product.id==pid}?.product?.name?:initial?.productNameSnapshot?:"انتخاب محصول")
+                    }
+                    DropdownMenu(productMenu,{productMenu=false}){
+                        products.forEach{product->DropdownMenuItem({Text(product.product.name)},{pid=product.product.id;productMenu=false;quoteAuto=true;dimensionsText=""})}
+                    }
+                }
+                if(initial!=null) Text("با تغییر ست، هزینهٔ تولید و ریز هزینهٔ این سفارش بر اساس قیمت فعلی ست جدید ثبت می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()){Text("تاریخ: ${PersianDate.fromEpoch(date).label}")}
+            }
+            OrderSection("مشخصات تابلو") {
+                OutlinedTextField(dimensionsText,{dimensionsText=it},label={Text("ابعاد نمایشی ست")},placeholder={Text(productDimensions)},supportingText={Text("اگر خالی بماند، ابعاد ست انتخاب‌شده نمایش داده می‌شود. این متن در کپی و اشتراک سفارش می‌آید.")},minLines=2,maxLines=3,modifier=Modifier.fillMaxWidth())
+                OutlinedTextField(frameColor,{frameColor=it},label={Text("رنگ قاب")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                if(colors.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    colors.forEach{color->FilterChip(selected=frameColor==color,onClick={frameColor=color},label={Text(color)})}
+                }
+                OrderPhotoPreview(photoUri,if(removePhoto)"" else initial?.photoFileName.orEmpty())
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    OutlinedButton(onClick={photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))}){Text(if(photoUri!=null||(!removePhoto&&initial?.photoFileName?.isNotBlank()==true))"تغییر عکس ست" else "افزودن عکس ست")}
+                    if(photoUri!=null||(!removePhoto&&initial?.photoFileName?.isNotBlank()==true)) TextButton(onClick={photoUri=null;removePhoto=true}){Text("حذف عکس",color=MaterialTheme.colorScheme.error)}
+                }
+            }
+            OrderSection("اطلاعات مشتری"){
+                Text("منبع سفارش",fontWeight=FontWeight.Bold)
+                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){OrderSource.options.forEach{(key,label)->FilterChip(selected=orderSource==key,onClick={orderSource=key},label={Text(label)})}}
+                OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده *")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                OutlinedTextField(instagram,{instagram=it},label={Text("آیدی اینستاگرام")},singleLine=true,modifier=Modifier.fillMaxWidth())
+                OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth())
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    OutlinedTextField(province,{province=it},label={Text("استان")},singleLine=true,modifier=Modifier.weight(1f))
+                    OutlinedTextField(city,{city=it},label={Text("شهر")},singleLine=true,modifier=Modifier.weight(1f))
+                }
+                OutlinedTextField(address,{address=it},label={Text("جزئیات آدرس")},minLines=2,maxLines=3,modifier=Modifier.fillMaxWidth())
+                OutlinedTextField(postal,{postal=it.filter(Char::isDigit)},label={Text("کد پستی")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth())
+            }
+            OrderSection("مبالغ و پرداخت"){
+                Text("🚚 روش پرداخت هزینه ارسال",fontWeight=FontWeight.Bold)
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    FilterChip(selected=shippingPayer=="RECIPIENT",onClick={shippingPayer="RECIPIENT";shippingPayerTouched=true},label={Text("پس‌کرایه؛ پرداخت مشتری به حمل‌کننده")})
+                    FilterChip(selected=shippingPayer=="SENDER",onClick={shippingPayer="SENDER";shippingPayerTouched=true},label={Text("پرداخت فروشنده")})
+                }
+                MoneyField(if(shippingPayer=="RECIPIENT")"مبلغ پس‌کرایه (جدا از قیمت محصول)" else "هزینه ارسال پرداختی فروشنده",shipping){shipping=it}
+                if(shippingPayer=="RECIPIENT") Text("هزینهٔ پس‌کرایه در مبلغ سفارش، ماندهٔ پرداخت و سود کارگاه حساب نمی‌شود؛ مشتری آن را مستقیم به شرکت حمل می‌پردازد.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                MoneyField("مبلغ توافق‌شدهٔ محصول",quote){quote=it;quoteAuto=false}
+                MoneyField("بیعانه دریافت‌شده",deposit){deposit=it;depositAuto=false}
+                MoneyField("سایر پرداخت‌های دریافت‌شده",otherPaid){otherPaid=it}
+                MoneyField("پرداخت درب منزل (واریز آنی)",codDue){codDue=it;codAuto=false}
+                Text("پرداخت درب منزل در همان لحظه ثبت، در دریافتی و سود سفارش محاسبه می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("جمع پرداخت‌ها: ${money(paid?:0L)}  ·  مانده: ${money(balance)}",fontWeight=FontWeight.Bold)
+                if(!valid && q!=null && paid!=null && customer.isNotBlank()) Text("مبلغ‌ها را بررسی کنید: دریافتی و مبلغ درب منزل نباید از مبلغ توافق‌شده بیشتر باشند.",color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+            }
+            OrderSection("پیگیری و ارسال"){
+                Text("وضعیت سفارش",fontWeight=FontWeight.Bold)
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    listOf("PREPARING" to "در آماده‌سازی","READY" to "آمادهٔ ارسال","SENT" to "ارسال‌شده").forEach{(key,label)->FilterChip(selected=orderStatus==key,onClick={orderStatus=key;orderStatusTouched=true},label={Text(label)})}
+                }
+                OutlinedButton(onClick={shippingDatePicker=true},modifier=Modifier.fillMaxWidth()){Text(if(plannedShipAt>0L)"نوبت ارسال: ${PersianDate.fromEpoch(plannedShipAt).label}" else "انتخاب تاریخ یادآوری ارسال")}
+                if(plannedShipAt>0L) TextButton(onClick={plannedShipAt=0L}){Text("حذف یادآوری")}
+                Text("یادآوری در روز انتخاب‌شده، حدود ساعت ۹ صبح نمایش داده می‌شود. زمان اجرا ممکن است با مدیریت باتری گوشی کمی جابه‌جا شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(trackingCode,{trackingCode=it},label={Text("کد رهگیری مرسوله")},singleLine=true,modifier=Modifier.fillMaxWidth())
+            }
+            OrderSection("یادداشت"){
+                OutlinedTextField(note,{note=it},label={Text("توضیحات سفارش و ساخت")},minLines=3,maxLines=5,modifier=Modifier.fillMaxWidth())
+            }
+        }
+        HorizontalDivider()
+        Button(onClick={
+            if(valid && !saving){
+                saving=true
+                val input=OrderFormInput(productId=pid,dateEpochMillis=date,customerName=customer.trim(),instagramId=instagram.trim(),phone=phone.trim(),province=province.trim(),city=city.trim(),addressDetails=address.trim(),postalCode=postal.trim(),shippingCostToman=shippingValue!!,quotedTotalToman=q!!,depositToman=d!!,otherPaidToman=other!!,codDueToman=due!!,codCollectedToman=due,frameColor=frameColor.trim(),note=note.trim(),selectedPhotoUri=photoUri,removePhoto=removePhoto,shippingPayer=shippingPayer,dimensionsText=dimensionsText.trim(),plannedShipAtMillis=plannedShipAt,orderStatus=orderStatus,trackingCode=trackingCode.trim(),orderSource=orderSource)
+                scope.launch { try { if(onSave(input)) onDismiss() } finally { saving=false } }
+            }
+        },enabled=valid&&!saving,modifier=Modifier.fillMaxWidth().padding(16.dp)){
+            Text(if(saving)"در حال ذخیره..." else if(initial==null)"ثبت سفارش" else "ذخیره ویرایش")
+        }
+    }
+    if(picker) PersianCalendarPicker(date,onDismiss={picker=false}){date=it;picker=false}
+    if(shippingDatePicker) PersianCalendarPicker(plannedShipAt,onDismiss={shippingDatePicker=false}){selected->
+        plannedShipAt=selected
+        if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        shippingDatePicker=false
+    }
+}
+
+@Composable private fun OrderSection(title:String,content:@Composable ColumnScope.()->Unit){
+    Card(shape=RoundedCornerShape(20.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),modifier=Modifier.fillMaxWidth()){
+        Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+            Text(title,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+            content()
+        }
+    }
+}
+
+@Composable private fun MoneyField(label:String,value:String,onChange:(String)->Unit){
+    OutlinedTextField(value,{onChange(it.filter(Char::isDigit))},label={Text(label)},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true,modifier=Modifier.fillMaxWidth())
+}
+
+@Composable fun OrderPhotoPreview(selectedUri:String?,storedName:String,compact:Boolean=false){
+    val context=LocalContext.current
+    val key=selectedUri?:storedName
+    var expanded by remember(key){mutableStateOf(false)}
+    val bitmap by produceState<Bitmap?>(initialValue=null,key1=key){
+        value=withContext(Dispatchers.IO){
+            runCatching{
+                val input=if(selectedUri!=null) context.contentResolver.openInputStream(Uri.parse(selectedUri))
+                    else if(storedName.matches(Regex("[a-f0-9-]{36}\\.jpg"))) File(context.filesDir,"order_photos/$storedName").takeIf{it.isFile}?.inputStream()
+                    else null
+                input?.use{stream->BitmapFactory.decodeStream(stream,null,BitmapFactory.Options().apply{inSampleSize=4})}
+            }.getOrNull()
+        }
+    }
+    if(bitmap!=null){
+        Box(Modifier.fillMaxWidth(),contentAlignment=if(compact)Alignment.CenterEnd else Alignment.Center){
+            Card(modifier=(if(compact)Modifier.width(150.dp).height(112.dp) else Modifier.fillMaxWidth().height(210.dp)).clickable{expanded=true}){
+                Image(bitmap!!.asImageBitmap(),"عکس ست تابلو",Modifier.fillMaxSize(),contentScale=ContentScale.Fit)
+            }
+        }
+        if(expanded) AlertDialog(onDismissRequest={expanded=false},title={Text("عکس ست تابلو")},text={Image(bitmap!!.asImageBitmap(),"عکس ست تابلو",Modifier.fillMaxWidth().heightIn(max=520.dp),contentScale=ContentScale.Fit)},confirmButton={TextButton(onClick={expanded=false}){Text("بستن")}})
+    } else if(key.isNotBlank()) Text("پیش‌نمایش عکس در دسترس نیست؛ عکس را دوباره انتخاب کنید.",color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+}
+
+@Composable fun OrderPhotoThumbnail(storedName:String){
+    OrderPhotoPreview(null,storedName,compact=true)
+}

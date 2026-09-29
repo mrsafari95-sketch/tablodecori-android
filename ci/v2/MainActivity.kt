@@ -60,10 +60,9 @@ class MainActivity : ComponentActivity() {
 private data class NavItem(val route:String,val icon:ImageVector,val label:String)
 private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
-    NavItem("variables",Icons.Rounded.Inventory2,"متریال"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
     NavItem("quick",Icons.Rounded.Calculate,"سریع"),
-    NavItem("pricebook",Icons.Rounded.ReceiptLong,"لیست قیمت"),
+    NavItem("inventory",Icons.Rounded.Inventory2,"انبار"),
     NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
 )
 
@@ -73,14 +72,16 @@ private val bottomItems=listOf(
     val entry by nav.currentBackStackEntryAsState()
     val route=entry?.destination?.route?:"home"
     val snackbar=remember{SnackbarHostState()}
+    var moreMenu by remember{mutableStateOf(false)}
     LaunchedEffect(Unit){vm.messages.collect{snackbar.showSnackbar(it)}}
     fun navigateTopLevel(target:String){
-        if(target=="home"){
+        val destination=if(target=="pricebook")"products" else target
+        if(destination=="home"){
             nav.popBackStack("home",false)
         }else{
             if(route=="settings") nav.popBackStack()
-            if(nav.currentDestination?.route!=target){
-                nav.navigate(target){
+            if(nav.currentDestination?.route!=destination){
+                nav.navigate(destination){
                     popUpTo("home"){inclusive=false;saveState=true}
                     launchSingleTop=true
                     restoreState=true
@@ -103,22 +104,40 @@ private val bottomItems=listOf(
                         Image(painterResource(R.drawable.tablodecori_logo),null,Modifier.size(42.dp).clip(RoundedCornerShape(12.dp)))
                         Spacer(Modifier.width(10.dp))
                         Column(horizontalAlignment=Alignment.Start){
-                            Text("tablodecori",fontWeight=FontWeight.ExtraBold)
-                            Text(titleFor(route),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("tablodecori",fontWeight=FontWeight.ExtraBold,color=MaterialTheme.colorScheme.onPrimary)
+                            Text(titleFor(route),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.8f))
                         }
                     }
                 },
-                actions={IconButton(onClick={if(route=="settings") nav.popBackStack() else nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات")}}
+                actions={
+                    Box{
+                        IconButton(onClick={moreMenu=true}){Icon(Icons.Rounded.MoreVert,"دسترسی‌های بیشتر",tint=MaterialTheme.colorScheme.onPrimary)}
+                        DropdownMenu(expanded=moreMenu,onDismissRequest={moreMenu=false}){
+                            DropdownMenuItem(text={Text("متریال‌ها و هزینه‌ها")},onClick={moreMenu=false;navigateTopLevel("variables")},leadingIcon={Icon(Icons.Rounded.Tune,null)})
+                            DropdownMenuItem(text={Text("گزارش‌ها و هزینه‌ها")},onClick={moreMenu=false;navigateTopLevel("reports")},leadingIcon={Icon(Icons.Rounded.BarChart,null)})
+                            DropdownMenuItem(text={Text("برنامهٔ امروز")},onClick={moreMenu=false;navigateTopLevel("planner")},leadingIcon={Icon(Icons.Rounded.EventAvailable,null)})
+                        }
+                    }
+                    IconButton(onClick={if(route=="settings") nav.popBackStack() else nav.navigate("settings"){launchSingleTop=true}}){Icon(Icons.Rounded.Settings,"تنظیمات",tint=MaterialTheme.colorScheme.onPrimary)}
+                },
+                colors=TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor=MaterialTheme.colorScheme.primary)
             )
         },
         bottomBar={
-            NavigationBar(tonalElevation=4.dp){
+            NavigationBar(containerColor=MaterialTheme.colorScheme.surface,tonalElevation=6.dp){
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,
                         onClick={navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
-                        label={Text(i.label,maxLines=1)}
+                        label={Text(i.label,maxLines=1)},
+                        colors=NavigationBarItemDefaults.colors(
+                            selectedIconColor=MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor=MaterialTheme.colorScheme.primary,
+                            indicatorColor=MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor=MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor=MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
@@ -129,9 +148,14 @@ private val bottomItems=listOf(
             composable("variables"){VariablesScreen(vm)}
             composable("products"){ProductsScreen(vm)}
             composable("quick"){QuickScreen(vm)}
-            composable("pricebook"){PricebookScreen(vm)}
+            // Keep older in-app links valid without showing a second product list.
+            composable("pricebook"){
+                LaunchedEffect(Unit){nav.navigate("products"){popUpTo("pricebook"){inclusive=true};launchSingleTop=true}}
+            }
             composable("orders"){OrdersScreen(vm)}
+            composable("inventory"){InventoryScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
+            composable("planner"){PlannerScreen(vm){target->navigateTopLevel(target)}}
             composable("settings"){SettingsScreen(vm)}
         }
     }
@@ -141,9 +165,11 @@ private fun titleFor(r:String)=when(r){
     "variables"->"متریال‌ها و هزینه‌ها"
     "products"->"محصولات و ست‌ها"
     "quick"->"محاسبه سریع"
-    "pricebook"->"لیست قیمت"
+    "pricebook"->"محصولات و قیمت‌ها"
     "orders"->"سفارش‌ها"
+    "inventory"->"کنترل انبار"
     "reports"->"گزارش‌ها"
+    "planner"->"پلنر کارگاه"
     "settings"->"تنظیمات"
     else->"مدیریت کارگاه"
 }

@@ -2,7 +2,7 @@ name: Build installable APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -48,12 +48,24 @@ jobs:
             sed -i 's/room-ktx:2.8.5/room-ktx:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 10/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.7.1"/' "$PROJECT_DIR/app/build.gradle.kts"
+            python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
+            printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
+            free -h
             # Apply V2 interface overrides maintained in the repository.
+            cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
             cp ci/v2/Components.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/Components.kt"
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/HomeScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/HomeScreen.kt"
+            cp ci/v2/InventoryScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/InventoryScreen.kt"
+            cp ci/v2/ReportsScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/ReportsScreen.kt"
+            cp ci/v2/PlannerScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PlannerScreen.kt"
+            cp ci/v2/PersianCalendarPicker.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/PersianCalendarPicker.kt"
+            cp ci/v2/OrderEditorScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/OrderEditorScreen.kt"
             if [ -f ci/v2/BusinessScreens.kt ]; then
               cp ci/v2/BusinessScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             else
@@ -62,8 +74,30 @@ jobs:
             cp ci/v2/CoreScreens.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
             cp ci/v2/MainViewModel.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainViewModel.kt"
             cp ci/v2/WorkshopRepository.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
+            cp ci/v2/OrderPhotoStore.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderPhotoStore.kt"
+            cp ci/v2/ShippingReminder.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ShippingReminder.kt"
+            cp ci/v2/StockPlanner.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockPlanner.kt"
+            cp ci/v2/ReportsMath.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ReportsMath.kt"
+            cp ci/v2/PlannerEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerEngine.kt"
+            cp ci/v2/PlannerScheduler.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerScheduler.kt"
+            cp ci/v2/PomodoroCycle.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PomodoroCycle.kt"
+            cp ci/v2/PomodoroTimer.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PomodoroTimer.kt"
+            cp ci/v2/MaterialCatalog.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/MaterialCatalog.kt"
+            cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
+            cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
+            cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
             cp ci/v2/FormulaEvaluator.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/FormulaEvaluator.kt"
+            cp ci/v2/PricingEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/pricing/PricingEngineTest.kt"
+            mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data"
+            cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
+            cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
+            cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
+            cp ci/v2/MaterialCatalogTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/MaterialCatalogTest.kt"
+            cp ci/v2/PlannerEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PlannerEngineTest.kt"
+            cp ci/v2/PomodoroCycleTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PomodoroCycleTest.kt"
+            mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens"
+            cp ci/v2/JalaliCalendarTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens/JalaliCalendarTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
             if [ ! -f ci/v2/PricingEngine.kt ]; then
               PRICING_FILE="$(find "$PROJECT_DIR/app/src/main/java" -type f -name 'PricingEngine.kt' -print -quit)"
@@ -94,9 +128,10 @@ jobs:
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); s=s.replace("db.materialDao().get(id)?.let { db.materialDao().upsert(it.copy(enabled = enabled, updatedAt = System.currentTimeMillis())) }", "db.materialDao().setEnabled(id, enabled, System.currentTimeMillis())"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/WorkshopRepository.kt"
             sed -i '/android:roundIcon=/d' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
             sed -i '/android:icon="@drawable\/tablodecori_logo"/a\        android:roundIcon="@drawable/tablodecori_logo"' "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            cp ci/v2/AndroidManifest.xml "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+            cp ci/v2/order_share_paths.xml "$PROJECT_DIR/app/src/main/res/xml/order_share_paths.xml"
             sed -i 's/قیمت‌نامه/لیست قیمت/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             sed -i 's/سفارش‌های ارسالی/سفارش‌ها/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
-            sed -i 's/fun SettingsScreen(/fun LegacySettingsScreen(/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
             # Fix Kotlin compilation in the daily chart: Map.entries is a Set,
             # so convert it to a List before calling takeLast().
             sed -i 's/by.entries.takeLast(12)/by.entries.toList().takeLast(12)/g' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/BusinessScreens.kt"
@@ -118,36 +153,47 @@ jobs:
           guard "home tab pops to real home" "$SRC/MainActivity.kt" 'nav.popBackStack("home",false)'
           guard "home shortcuts use top-level navigation" "$SRC/MainActivity.kt" 'HomeScreen(vm){target->navigateTopLevel(target)}'
           guard "settings is popped before bottom tab navigation" "$SRC/MainActivity.kt" 'if(route=="settings") nav.popBackStack()'
-          guard "order dialog scroll state survives recomposition" "$SRC/ui/screens/BusinessScreens.kt" 'val formScroll=rememberScrollState()'
-          guard "order dialog popup state is keyed" "$SRC/ui/screens/BusinessScreens.kt" 'var exp by rememberSaveable(initial?.id){mutableStateOf(false)}'
+          guard "order editor customer state survives recomposition" "$SRC/ui/screens/OrderEditorScreen.kt" 'var customer by rememberSaveable(orderKey)'
+          guard "order editor selected product survives recomposition" "$SRC/ui/screens/OrderEditorScreen.kt" 'var pid by rememberSaveable(orderKey)'
           guard "order note precedes action row" "$SRC/ui/screens/BusinessScreens.kt" 'Text("یادداشت: "+o.note'
           guard "frame adds 20cm" "$SRC/pricing/PricingEngine.kt" 'add(BigDecimal(20)).divide(hundred)'
           guard "backboard reacts to glass toggle" "$SRC/pricing/PricingEngine.kt" 'val glassEnabled = "glass" in enabledMaterialIds'
           guard "backboard threshold keeps 30x45" "$SRC/pricing/PricingEngine.kt" 'shortSide < 30 || (shortSide == 30 && longSide < 45)'
           guard "backboard exception is per piece" "$SRC/pricing/PricingEngine.kt" 'if(m.id=="backboard_3mm" && glassEnabled)'
-          guard "manual packaging reaches pricing" "$SRC/pricing/PricingEngine.kt" 'val manualWh=selectedPackagingSizeKey.split("x")'
-          guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = addressDetails'
-          guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = postalCode'
+          guard "manual packaging reaches adaptive sizing" "$SRC/pricing/PricingEngine.kt" 'choosePackagingSize(pieces,sizePrices,selectedPackagingSizeKey)'
+          guard "order address persists" "$SRC/data/WorkshopRepository.kt" 'addressDetails = input.addressDetails'
+          guard "order postal code persists" "$SRC/data/WorkshopRepository.kt" 'postalCode = input.postalCode'
           guard "inflation default is one percent" "$SRC/data/WorkshopRepository.kt" '"inflation","تورم","OVERHEAD","PERCENT_OF_COST",0,100'
           guard "tape has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_tape" to 30000L'
           guard "pack labor has dimension defaults" "$SRC/data/WorkshopRepository.kt" 'pack_labor" to 60000L'
-          guard "legacy settings isolated" "$SRC/ui/screens/BusinessScreens.kt" 'fun LegacySettingsScreen('
+          echo "GUARD: legacy settings removed"
+          if grep -Fq 'fun SettingsScreen(' "$SRC/ui/screens/BusinessScreens.kt"; then echo "FAILED GUARD: legacy settings removed" >&2; exit 1; fi
           echo "GUARD: exactly one active SettingsScreen"
           test "$(grep -R --include='*.kt' -F 'fun SettingsScreen(' "$SRC" | wc -l)" -eq 1 || { echo "FAILED GUARD: active SettingsScreen count" >&2; exit 1; }
-          guard "piece count sort is descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
-          guard "full order copy includes postal code" "$SRC/ui/screens/BusinessScreens.kt" 'کد پستی : ");append(o.postalCode)'
+          guard "piece count sort is descending" "$SRC/ui/screens/CoreScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
+          guard "shared order includes postal code" "$SRC/data/OrderSharing.kt" 'کد پستی: ${order.postalCode}'
+          guard "recipient shipping excludes seller cost" "$SRC/data/Models.kt" 'if(shippingPayer=="SENDER") shippingCostToman else 0L'
+          guard "saved orders can change product snapshots" "$SRC/data/WorkshopRepository.kt" 'db.orderDao().deleteCosts(orderId)'
+          guard "photo preview shows whole artwork" "$SRC/ui/screens/OrderEditorScreen.kt" 'contentScale=ContentScale.Fit'
+          guard "order sharing attaches a photo" "$SRC/data/OrderSharing.kt" 'Intent.EXTRA_STREAM'
+          guard "shipping reminders are scheduled" "$SRC/data/ShippingReminder.kt" 'enqueueUniqueWork'
           guard "orders expose address details" "$SRC/ui/screens/BusinessScreens.kt" 'o.addressDetails'
-          guard "product editor defaults active variables on" "$SRC/ui/screens/CoreScreens.kt" 'forEach{v->put(v.id,v.enabled)}'
-          guard "order form state is keyed to order id" "$SRC/ui/screens/BusinessScreens.kt" 'rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}'
-          guard "pricebook copies dimensions and price" "$SRC/ui/screens/BusinessScreens.kt" 'کپی ابعاد و قیمت'
-          guard "pricebook piece sort stays descending" "$SRC/ui/screens/BusinessScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
-          guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedPackage)'
+          guard "product editor normalizes old variable identifiers" "$SRC/ui/screens/CoreScreens.kt" 'val savedCanonical=MaterialCatalog.selectedCanonicalIds'
+          guard "product editor offers manual profit" "$SRC/ui/screens/CoreScreens.kt" 'سود دستی (تومان)'
+          guard "relief design cost is priced" "$SRC/pricing/PricingEngine.kt" 'CostLine("design_materials"'
+          guard "order source is saved" "$SRC/data/WorkshopRepository.kt" 'orderSource = input.orderSource'
+          guard "Persian date picker is used" "$SRC/ui/screens/OrderEditorScreen.kt" 'PersianCalendarPicker(date'
+          guard "order form state is keyed to order id" "$SRC/ui/screens/OrderEditorScreen.kt" 'val orderKey=initial?.id'
+          guard "pricebook copies dimensions and price" "$SRC/ui/screens/CoreScreens.kt" 'کپی ابعاد و قیمت'
+          guard "pricebook piece sort stays descending" "$SRC/ui/screens/CoreScreens.kt" 'compareByDescending<PricedProduct>{it.pricing.pieceCount}'
+          guard "quick pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),quickSelectedIds,selectedPackage'
           guard "quick pieces survive tab navigation" "$SRC/MainViewModel.kt" 'val pieces: List<PieceInput> = listOf(PieceInput(40,60,1))'
           guard "quick variable switches survive tab navigation" "$SRC/MainViewModel.kt" 'val enabledIds: Map<String,Boolean> = emptyMap()'
           guard "quick package survives tab navigation" "$SRC/MainViewModel.kt" 'val selectedPackage: String = ""'
           guard "all size tables expose delete" "$SRC/ui/screens/CoreScreens.kt" 'TextButton(onClick={deletingRow=r})'
           guard "dimension deletion requires confirmation" "$SRC/ui/screens/CoreScreens.kt" 'title={Text("حذف ابعاد")}'
           guard "Quick UI reads ViewModel draft" "$SRC/ui/screens/CoreScreens.kt" 'val draft by vm.quickDraft.collectAsState()'
+          guard "Quick lists newly added pricing materials" "$SRC/ui/screens/CoreScreens.kt" 'val selectable=MaterialCatalog.selectableForQuick(vars)'
           guard "dimension delete label is visible" "$SRC/ui/screens/CoreScreens.kt" 'Text("حذف ابعاد",color=MaterialTheme.colorScheme.error)'
           guard "deleted dimensions are disabled not destroyed" "$SRC/data/db/Daos.kt" 'UPDATE size_prices SET enabled = 0'
           guard "initialization sees disabled dimensions" "$SRC/data/db/Daos.kt" 'suspend fun getAllFor(materialId: String)'
@@ -155,11 +201,28 @@ jobs:
           guard "deleted package defaults do not return" "$SRC/data/WorkshopRepository.kt" 'val old=db.sizePriceDao().getAllFor(id).firstOrNull{it.id==key}'
           echo "GUARD: Quick scroll state stays inside QuickScreen"
           python3 -c 'from pathlib import Path; s=Path("'"$SRC"'/ui/screens/CoreScreens.kt").read_text(); pre,quick=s.split("fun QuickScreen",1); assert "state=quickListState" not in pre and "state=quickListState" in quick'
-          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'vm.calculate(pieces.toList(),ids.filterValues{it}.keys,selectedProductPackage)'
-          guard "backup restore success feedback exists" "$SRC/MainViewModel.kt" 'بکاپ کامل با موفقیت بازیابی شد.'
+          guard "product pricing passes manual package" "$SRC/ui/screens/CoreScreens.kt" 'selectedProductPackage,if(profitMode=="FORMULA")'
+          guard "backup restore success feedback exists" "$SRC/MainViewModel.kt" 'بکاپ با موفقیت بازیابی شد.'
           guard "backup restore is transactional" "$SRC/data/WorkshopRepository.kt" 'db.withTransaction {'
           guard "product persists package selection" "$SRC/data/WorkshopRepository.kt" 'packagingSizeKey=packagingSizeKey'
           guard "database migration 4 to 5 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_4_5'
+          guard "database migration 5 to 6 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_5_6'
+          guard "database migration 6 to 7 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_6_7'
+          guard "database migration 7 to 8 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_7_8'
+          guard "stock use saved per order" "$SRC/data/WorkshopRepository.kt" 'db.stockDao().insertUsages'
+          guard "photo excluded from stock" "$SRC/data/StockPlanner.kt" 'material.id=="photo_lab"'
+          guard "order photo is included in backup" "$SRC/data/WorkshopRepository.kt" 'root.put("images",images)'
+          guard "order form tracks deposit" "$SRC/ui/screens/OrderEditorScreen.kt" 'بیعانه دریافت‌شده'
+          guard "order form counts COD immediately" "$SRC/ui/screens/OrderEditorScreen.kt" 'پرداخت درب منزل (واریز آنی)'
+          guard "old backup format is accepted" "$SRC/data/WorkshopRepository.kt" 'tablodecori-backup'
+          guard "database migration 8 to 9 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_8_9'
+          guard "planner migration 9 to 10 exists" "$SRC/data/db/AppDatabase.kt" 'MIGRATION_9_10'
+          guard "planner backup includes tasks" "$SRC/data/WorkshopRepository.kt" '"planner_tasks","planner_occurrences","planner_settings"'
+          guard "planner alarms recover after reboot" "$SRC/data/PlannerScheduler.kt" 'Intent.ACTION_BOOT_COMPLETED'
+          guard "planner status uses immutable XP ledger" "$SRC/data/WorkshopRepository.kt" 'dao.addXp(PlannerXpEntity('
+          guard "planner streak has a weekly shield" "$SRC/data/PlannerEngine.kt" 'if(!shields.add(week))return success'
+          guard "order form tracks frame color" "$SRC/ui/screens/OrderEditorScreen.kt" 'رنگ قاب'
+          guard "old customer payments survive migration" "$SRC/data/db/AppDatabase.kt" 'otherPaidToman = receivedToman'
           guard "address migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN addressDetails TEXT NOT NULL DEFAULT'
           guard "postal migration exists" "$SRC/data/db/AppDatabase.kt" 'ADD COLUMN postalCode TEXT NOT NULL DEFAULT'
           echo "GUARD: legacy piece-count profit stays removed"
@@ -201,16 +264,28 @@ jobs:
       - name: Prepare stable debug signing
         shell: bash
         run: |
-          mkdir -p "$HOME/.android"
-          base64 -d ci/v2/stable-debug-keystore.b64 > "$HOME/.android/debug.keystore"
-          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
+          KEYSTORE="$RUNNER_TEMP/tablodecori-debug.keystore"
+          base64 -d ci/v2/stable-debug-keystore.b64 > "$KEYSTORE"
+          echo "TABLODECORI_SIGNING_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
+          keytool -list -keystore "$KEYSTORE" -storepass android -alias androiddebugkey >/dev/null
 
-      - name: Build debug APK
+      - name: Test and build debug APK
         shell: bash
         run: |
           cd "$PROJECT_DIR"
           set -o pipefail
-          gradle --no-daemon assembleDebug 2>&1 | tee build-output.log
+          gradle --no-daemon testDebugUnitTest assembleDebug 2>&1 | tee build-output.log
+
+      - name: Verify install identity and signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | tee signing-info.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
+          head -n 1 badging-info.txt
+          grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
+          grep -F "package: name='com.tablodecori.app' versionCode='10'" badging-info.txt
 
       - name: Save failed build log
         if: failure()

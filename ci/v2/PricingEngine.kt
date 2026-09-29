@@ -9,6 +9,23 @@ class PricingEngine {
     private val hundred = BigDecimal("100")
     private val tenThousand = BigDecimal("10000")
 
+    companion object {
+        /** Pick the smallest stocked packaging dimension that can contain every panel (rotation allowed). */
+        fun choosePackagingSize(pieces:List<PieceInput>,rules:List<SizePriceEntity>,manualKey:String=""):String {
+            val manual=manualKey.split('x').mapNotNull{it.toIntOrNull()}
+            if(manual.size==2 && manual.all{it>0}) return "${minOf(manual[0],manual[1])}x${maxOf(manual[0],manual[1])}"
+            if(pieces.isEmpty()) return ""
+            val needShort=pieces.maxOf{minOf(it.widthCm,it.heightCm)}
+            val needLong=pieces.maxOf{maxOf(it.widthCm,it.heightCm)}
+            val available=rules.filter{it.enabled && it.materialId in setOf("pack_foam","pack_carton") && it.widthCm>0 && it.heightCm>0}
+                .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}.distinct()
+                .filter{it.first>=needShort && it.second>=needLong}
+            val chosen=available.minWithOrNull(compareBy<Pair<Int,Int>>{it.first.toLong()*it.second}.thenBy{it.second})
+                ?: (needShort to needLong)
+            return "${chosen.first}x${chosen.second}"
+        }
+    }
+
     fun calculate(
         pieces: List<PieceInput>,
         materials: List<MaterialInput>,
@@ -20,10 +37,12 @@ class PricingEngine {
         profitFormula: String = "",
         sizePrices: List<SizePriceEntity> = emptyList(),
         selectedPackagingSizeKey: String = "",
+        designMaterialsCostToman: Long = 0L,
     ): PricingResult {
         require(pieces.isNotEmpty()) { "حداقل یک سایز لازم است." }
         require(pieces.all { it.widthCm > 0 && it.heightCm > 0 && it.quantity > 0 }) { "ابعاد و تعداد باید بزرگ‌تر از صفر باشند." }
         require(materials.all { it.priceToman >= 0 && it.rateBasisPoints >= 0 && it.wasteBasisPoints >= 0 }) { "قیمت و درصد نمی‌تواند منفی باشد." }
+        require(designMaterialsCostToman>=0L) { "هزینه مواد طراحی نمی‌تواند منفی باشد." }
 
         val count = pieces.sumOf { it.quantity }
         val area = pieces.fold(BigDecimal.ZERO) { sum, p ->
@@ -104,21 +123,38 @@ class PricingEngine {
         }
 
         packagingParent?.let { parent ->
-            val manualWh=selectedPackagingSizeKey.split("x").mapNotNull{it.toIntOrNull()}.takeIf{it.size==2}
-            val largest=pieces.maxByOrNull{it.widthCm*it.heightCm}
-            val targetW=manualWh?.get(0) ?: largest?.widthCm
-            val targetH=manualWh?.get(1) ?: largest?.heightCm
+            val manualPackaging=if(selectedPackagingSizeKey.startsWith("manual:"))
+                selectedPackagingSizeKey.removePrefix("manual:").toLongOrNull()?.takeIf{it>=0L}
+                    ?: error("مبلغ بسته‌بندی دستی نامعتبر است.")
+            else null
+            val packageKey=choosePackagingSize(pieces,sizePrices,selectedPackagingSizeKey)
+            val wh=packageKey.split('x').mapNotNull{it.toIntOrNull()}
+            val targetW=wh.getOrNull(0)?:0
+            val targetH=wh.getOrNull(1)?:0
+            val packs=((count+2)/3).coerceAtLeast(1)
             var packageTotal=0L
-            packagingComponents.forEach{component->
-                val rules=sizePrices.filter{it.materialId==component.id&&it.enabled}
-                val rule=if(targetW!=null&&targetH!=null) rules.filter{r->
-                    ((targetW==r.widthCm&&targetH==r.heightCm)||(targetW==r.heightCm&&targetH==r.widthCm)) &&
-                    (r.pieceCount==0||r.pieceCount==count)
-                }.sortedWith(compareByDescending<SizePriceEntity>{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull() else null
-                val amount=rule?.priceToman?:component.priceToman
+            if(manualPackaging!=null) packageTotal=manualPackaging else packagingComponents.forEach{component->
+                val rules=sizePrices.filter{it.materialId==component.id&&it.enabled&&(it.pieceCount==0||it.pieceCount==count)}
+                val fitting=rules.filter{minOf(it.widthCm,it.heightCm)>=targetW&&maxOf(it.widthCm,it.heightCm)>=targetH}
+                val rule=fitting.sortedWith(compareBy<SizePriceEntity>{it.widthCm.toLong()*it.heightCm}.thenByDescending{it.pieceCount==count}.thenByDescending{it.updatedAt}).firstOrNull()
+                val estimated=if(rule==null && component.id in setOf("pack_foam","pack_carton") && rules.isNotEmpty()) {
+                    val reference=rules.maxWithOrNull(compareBy<SizePriceEntity>{it.widthCm.toLong()*it.heightCm}.thenBy{it.updatedAt})!!
+                    val areaRatio=BigDecimal(targetW.toLong()*targetH).divide(BigDecimal((reference.widthCm.toLong()*reference.heightCm).coerceAtLeast(1L)),8,RoundingMode.HALF_UP)
+                    val longRatio=BigDecimal(targetH).divide(BigDecimal(maxOf(reference.widthCm,reference.heightCm)),8,RoundingMode.HALF_UP)
+                    val shortRatio=BigDecimal(targetW).divide(BigDecimal(minOf(reference.widthCm,reference.heightCm)),8,RoundingMode.HALF_UP)
+                    BigDecimal(reference.priceToman).multiply(listOf(BigDecimal.ONE,areaRatio,longRatio,shortRatio).maxOrNull()!!).setScale(0,RoundingMode.CEILING).longValueExact()
+                } else null
+                val perPack=rule?.priceToman?:estimated?:component.priceToman
+                val amount=if(rule?.pieceCount==count && count>0) perPack else Math.multiplyExact(perPack,packs.toLong())
                 packageTotal=Math.addExact(packageTotal,amount)
             }
             if(packageTotal>0L){subtotalExact+=BigDecimal(packageTotal);packaging+=packageTotal;lines+=CostLine(parent.id,parent.name,parent.category,packageTotal)}
+        }
+
+        if(designMaterialsCostToman>0L){
+            subtotalExact+=BigDecimal(designMaterialsCostToman)
+            production=Math.addExact(production,designMaterialsCostToman)
+            lines+=CostLine("design_materials","مواد طراحی برجسته",MaterialCategory.PRODUCTION,designMaterialsCostToman)
         }
 
         // Percentage overheads are intentionally sequential, matching the supplied prototype.

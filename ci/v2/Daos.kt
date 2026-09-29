@@ -52,9 +52,11 @@ interface ProfitRuleDao {
 interface OrderDao {
     @Transaction @Query("SELECT * FROM sent_orders ORDER BY dateEpochMillis DESC, createdAt DESC") fun observeAll(): Flow<List<OrderWithCosts>>
     @Transaction @Query("SELECT * FROM sent_orders ORDER BY dateEpochMillis DESC, createdAt DESC") suspend fun getAll(): List<OrderWithCosts>
+    @Query("SELECT * FROM sent_orders WHERE id = :id LIMIT 1") suspend fun getOrder(id: String): SentOrderEntity?
     @Insert suspend fun insert(order: SentOrderEntity)
     @Update suspend fun update(order: SentOrderEntity)
     @Insert suspend fun insertCosts(costs: List<OrderCostSnapshotEntity>)
+    @Query("DELETE FROM order_cost_snapshots WHERE orderId = :orderId") suspend fun deleteCosts(orderId: String)
     @Query("DELETE FROM sent_orders WHERE id = :id") suspend fun delete(id: String)
 }
 
@@ -73,7 +75,59 @@ interface SettingsDao {
 }
 
 @Dao
+interface StockDao {
+    @Query("SELECT * FROM stock_items ORDER BY materialName, variantKey") fun observeAll(): Flow<List<StockItemEntity>>
+    @Query("SELECT * FROM stock_items ORDER BY materialName, variantKey") suspend fun getAll(): List<StockItemEntity>
+    @Query("SELECT * FROM stock_items WHERE id = :id LIMIT 1") suspend fun get(id:String): StockItemEntity?
+    @Upsert suspend fun upsert(item:StockItemEntity)
+    @Query("SELECT * FROM order_stock_usage WHERE orderId = :orderId") suspend fun usages(orderId:String): List<OrderStockUsageEntity>
+    @Insert(onConflict=OnConflictStrategy.REPLACE) suspend fun insertUsages(items:List<OrderStockUsageEntity>)
+    @Query("DELETE FROM order_stock_usage WHERE orderId = :orderId") suspend fun deleteUsages(orderId:String)
+    @Query("DELETE FROM order_stock_usage WHERE orderId = :orderId AND stockItemId = :stockItemId") suspend fun deleteUsage(orderId:String,stockItemId:String)
+}
+
+@Dao
+interface ExpenseDao {
+    @Query("SELECT * FROM expenses ORDER BY dateEpochMillis DESC, createdAt DESC") fun observeAll(): Flow<List<ExpenseEntity>>
+    @Query("SELECT * FROM expenses WHERE id = :id LIMIT 1") suspend fun get(id:String): ExpenseEntity?
+    @Upsert suspend fun upsert(item:ExpenseEntity)
+    @Query("DELETE FROM expenses WHERE id = :id") suspend fun delete(id:String)
+}
+
+@Dao
+interface PlannerDao {
+    @Query("SELECT * FROM planner_tasks WHERE active = 1 ORDER BY plannedAtMillis") fun observeTasks():Flow<List<PlannerTaskEntity>>
+    @Query("SELECT * FROM planner_tasks WHERE active = 1 ORDER BY plannedAtMillis") suspend fun tasks():List<PlannerTaskEntity>
+    @Query("SELECT * FROM planner_tasks WHERE id = :id LIMIT 1") suspend fun task(id:String):PlannerTaskEntity?
+    @Upsert suspend fun upsertTask(item:PlannerTaskEntity)
+    @Query("UPDATE planner_tasks SET active = 0, updatedAt = :now WHERE id = :id") suspend fun deactivateTask(id:String,now:Long)
+    @Query("SELECT * FROM planner_occurrences") fun observeOccurrences():Flow<List<PlannerOccurrenceEntity>>
+    @Query("SELECT * FROM planner_occurrences WHERE taskId=:id AND dateKey=:day LIMIT 1") suspend fun occurrence(id:String,day:Int):PlannerOccurrenceEntity?
+    @Upsert suspend fun upsertOccurrence(item:PlannerOccurrenceEntity)
+    @Query("SELECT * FROM planner_settings WHERE id = 1") fun observeSettings():Flow<PlannerSettingsEntity?>
+    @Query("SELECT * FROM planner_settings WHERE id = 1") suspend fun settings():PlannerSettingsEntity?
+    @Upsert suspend fun upsertSettings(item:PlannerSettingsEntity)
+    @Query("SELECT * FROM planner_xp_ledger") fun observeXp():Flow<List<PlannerXpEntity>>
+    @Query("SELECT * FROM planner_xp_ledger WHERE taskId=:id AND dateKey=:day") suspend fun xpFor(id:String,day:Int):List<PlannerXpEntity>
+    @Query("SELECT * FROM planner_xp_ledger WHERE dateKey=:day") suspend fun xpForDay(day:Int):List<PlannerXpEntity>
+    @Insert suspend fun addXp(item:PlannerXpEntity)
+    @Query("SELECT * FROM planner_rewards ORDER BY createdAt DESC") fun observeRewards():Flow<List<PlannerRewardEntity>>
+    @Upsert suspend fun upsertReward(item:PlannerRewardEntity)
+    @Query("SELECT * FROM planner_rewards WHERE id=:id LIMIT 1") suspend fun reward(id:String):PlannerRewardEntity?
+    @Query("SELECT * FROM planner_rest_days") fun observeRestDays():Flow<List<PlannerRestDayEntity>>
+    @Upsert suspend fun upsertRestDay(item:PlannerRestDayEntity)
+    @Query("DELETE FROM planner_rest_days WHERE dateKey=:day") suspend fun deleteRestDay(day:Int)
+}
+
+@Dao
 interface BackupDao {
+    @Query("DELETE FROM expenses") suspend fun clearExpenses()
+    @Query("DELETE FROM planner_occurrences") suspend fun clearPlannerOccurrences()
+    @Query("DELETE FROM planner_tasks") suspend fun clearPlannerTasks()
+    @Query("DELETE FROM planner_settings") suspend fun clearPlannerSettings()
+    @Query("DELETE FROM planner_rewards") suspend fun clearPlannerRewards()
+    @Query("DELETE FROM planner_xp_ledger") suspend fun clearPlannerXp()
+    @Query("DELETE FROM planner_rest_days") suspend fun clearPlannerRestDays()
     @Query("SELECT * FROM materials") suspend fun materials(): List<MaterialEntity>
     @Query("SELECT * FROM products") suspend fun products(): List<ProductEntity>
     @Query("SELECT * FROM size_prices") suspend fun sizePrices(): List<SizePriceEntity>
@@ -84,6 +138,8 @@ interface BackupDao {
     @Query("SELECT * FROM order_cost_snapshots") suspend fun costs(): List<OrderCostSnapshotEntity>
     @Query("SELECT * FROM price_change_history") suspend fun history(): List<PriceChangeHistoryEntity>
     @Query("SELECT * FROM app_settings") suspend fun settings(): List<AppSettingsEntity>
+    @Query("DELETE FROM order_stock_usage") suspend fun clearStockUsage()
+    @Query("DELETE FROM stock_items") suspend fun clearStockItems()
 
     @Query("DELETE FROM order_cost_snapshots") suspend fun clearCosts()
     @Query("DELETE FROM sent_orders") suspend fun clearOrders()

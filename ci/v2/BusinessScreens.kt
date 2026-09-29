@@ -29,6 +29,13 @@ import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.TablodecoriApp
 import com.tablodecori.app.data.MonthlySummary
 import com.tablodecori.app.data.PricedProduct
+import com.tablodecori.app.data.OrderShareText
+import com.tablodecori.app.data.OrderSource
+import com.tablodecori.app.data.OrderSharing
+import com.tablodecori.app.data.displayDimensions
+import com.tablodecori.app.data.expectedProfitToman
+import com.tablodecori.app.data.outstandingToman
+import com.tablodecori.app.data.sellerShippingToman
 import com.tablodecori.app.data.db.OrderWithCosts
 import com.tablodecori.app.data.db.SentOrderEntity
 import com.tablodecori.app.ui.*
@@ -36,29 +43,6 @@ import com.tablodecori.app.util.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
-@Composable fun PricebookScreen(vm:MainViewModel){
-    val all by vm.pricedProducts.collectAsState(); val context=LocalContext.current;var q by rememberSaveable{mutableStateOf("")};var sort by rememberSaveable{mutableStateOf("name")}
-    val list=remember(all,q,sort){
-        val filtered=all.filter{it.product.active&&(q.isBlank()||it.product.name.contains(q.trim(),ignoreCase=true))}
-        when(sort){
-            "price"->filtered.sortedWith(compareBy<PricedProduct>{it.pricing.finalPriceToman}.thenBy{it.product.name})
-            "pieces"->filtered.sortedWith(compareByDescending<PricedProduct>{it.pricing.pieceCount}.thenBy{it.product.name})
-            else->filtered.sortedBy{it.product.name}
-        }
-    }
-    val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->if(uri!=null)runCatching{context.contentResolver.openOutputStream(uri)?.use{it.write(Exporters.pricebookCsv(list).toByteArray(Charsets.UTF_8))}}.onSuccess{vm.notify("فایل CSV ذخیره شد.")}.onFailure{vm.notify("ذخیره فایل ناموفق بود.")}}
-    val pdfLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")){uri->if(uri!=null)runCatching{context.contentResolver.openOutputStream(uri)?.use{Exporters.writePricebookPdf(it,list)}}.onSuccess{vm.notify("فایل PDF ذخیره شد.")}.onFailure{vm.notify("ذخیره فایل ناموفق بود.")}}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
-        item{SectionTitle("قیمت‌نامه","قیمت زنده همه محصولات فعال")}
-        item{OutlinedTextField(q,{q=it},label={Text("جستجو")},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        item{Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(selected=sort=="name",onClick={sort="name"},label={Text("نام")});FilterChip(selected=sort=="pieces",onClick={sort="pieces"},label={Text("تعداد")});FilterChip(selected=sort=="price",onClick={sort="price"},label={Text("قیمت")})}}
-        item{FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp)){Button(onClick={csvLauncher.launch("tablodecori-pricebook.csv")}){Text("CSV")};Button(onClick={pdfLauncher.launch("tablodecori-pricebook.pdf")}){Text("PDF")};OutlinedButton(onClick={Exporters.printPricebook(context,list)}){Text("چاپ")};OutlinedButton(onClick={sharePricebook(context,list)}){Text("اشتراک")}}}
-        if(list.isEmpty()) item{AppCard{Text("محصول فعالی برای قیمت‌نامه وجود ندارد.")}}
-        items(list,key={it.product.id}){p->AppCard{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column(Modifier.weight(1f)){Text(p.product.name,fontWeight=FontWeight.Bold);PieceChips(p.product.pieces)};MoneyText(p.pricing.finalPriceToman)};Text("هزینه: ${money(p.pricing.costBeforeProfitToman)} · سود: ${money(p.pricing.profitToman)}",style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(4.dp)){TextButton(onClick={copy(context,money(p.pricing.finalPriceToman));vm.notify("قیمت کپی شد.")}){Text("کپی قیمت")};TextButton(onClick={val dimensions=p.product.pieces.joinToString("\n"){piece->"${piece.quantity} عدد ${piece.widthCm} در ${piece.heightCm}"};copy(context,dimensions+"\nقیمت : "+money(p.pricing.finalPriceToman));vm.notify("ابعاد و قیمت کپی شد.")}){Text("کپی ابعاد و قیمت")}}}}
-    }
-}
-
-private fun sharePricebook(c:Context,list:List<PricedProduct>){val text=list.joinToString("\n"){"${it.product.name}: ${money(it.pricing.finalPriceToman)}"};c.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,text)},"اشتراک قیمت‌نامه"))}
 private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("tablodecori",text))}
 
 @Composable fun OrdersScreen(vm:MainViewModel){
@@ -70,12 +54,30 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     var add by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<OrderWithCosts?>(null)}
     var search by rememberSaveable{mutableStateOf("")}
+    var statusFilter by rememberSaveable{mutableStateOf("ALL")}
+    if(add || editing!=null){
+        val selected=editing?.order
+        OrderEditorScreen(products,settings,selected,onDismiss={add=false;editing=null}){input->
+            if(selected==null) vm.saveOrder(input) else vm.updateOrder(selected.id,input)
+        }
+        return
+    }
     val months=orders.map{PersianDate.fromEpoch(it.order.dateEpochMillis)}.distinctBy{it.monthKey}.sortedByDescending{it.monthKey}
     val monthFiltered=selectedMonth?.let{k->orders.filter{PersianDate.fromEpoch(it.order.dateEpochMillis).monthKey==k}}?:orders
+    val today=PersianDate.fromEpoch(System.currentTimeMillis())
+    fun sameDay(millis:Long):Boolean=PersianDate.fromEpoch(millis).let{it.year==today.year&&it.month==today.month&&it.day==today.day}
+    val statusFiltered=monthFiltered.filter{x->when(statusFilter){
+        "PREPARING"->x.order.orderStatus=="PREPARING"
+        "READY"->x.order.orderStatus=="READY"
+        "SENT"->x.order.orderStatus=="SENT"
+        "DUE"->x.order.orderStatus!="SENT"&&x.order.plannedShipAtMillis>0L&&sameDay(x.order.plannedShipAtMillis)
+        "UNPAID"->x.order.outstandingToman()>0L
+        else->true
+    }}
     val query=search.trim()
-    val filtered=if(query.isBlank()) monthFiltered else monthFiltered.filter{x->
+    val filtered=if(query.isBlank()) statusFiltered else statusFiltered.filter{x->
         val o=x.order
-        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber).any{it.contains(query,ignoreCase=true)}
+        listOf(o.customerName,o.instagramId,o.phone,o.province,o.city,o.addressDetails,o.postalCode,o.productNameSnapshot,o.internalNumber,o.frameColor,OrderSource.label(o.orderSource)).any{it.contains(query,ignoreCase=true)}
     }
     val s=summary(filtered)
     val csvLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")){uri->
@@ -84,6 +86,9 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
         item{SectionTitle("سفارش‌های ارسالی","Snapshot مالی؛ تغییر قیمت آینده روی گذشته اثر ندارد"){Button(onClick={add=true},enabled=products.isNotEmpty()){Text("+ ثبت ارسال")}}}
         item{OutlinedTextField(search,{search=it},label={Text("جستجو در سفارش‌ها")},placeholder={Text("نام، آیدی اینستاگرام یا شماره تماس")},singleLine=true,modifier=Modifier.fillMaxWidth())}
+        item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+            listOf("ALL" to "همه","PREPARING" to "در آماده‌سازی","READY" to "آمادهٔ ارسال","DUE" to "ارسال امروز","UNPAID" to "مانده‌دار","SENT" to "ارسال‌شده").forEach{(key,label)->FilterChip(selected=statusFilter==key,onClick={statusFilter=key},label={Text(label)})}
+        }}
         item{
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){
                 var exp by remember{mutableStateOf(false)}
@@ -98,7 +103,7 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
             }
         }
         item{SummaryGrid(s)}
-        item{AppCard{Text("نمودار فروش و سود",fontWeight=FontWeight.Bold);DailyChart(filtered)}}
+        item{AppCard{Text("نمودار دریافتی و سود سفارش‌ها",fontWeight=FontWeight.Bold);DailyChart(filtered)}}
         items(filtered,key={it.order.id}){x->
             val o=x.order
             AppCard{
@@ -106,30 +111,26 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                     Column{Text(o.customerName,fontWeight=FontWeight.Bold);Text("${PersianDate.fromEpoch(o.dateEpochMillis).label} · ${o.province} ${o.city}",style=MaterialTheme.typography.bodySmall)}
                     Text(if(o.actualProfitToman>=0)"سود ${money(o.actualProfitToman)}" else "ضرر ${money(-o.actualProfitToman)}",color=if(o.actualProfitToman>=0)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)
                 }
-                Text("${o.productNameSnapshot} · ${o.compositionSnapshot}",style=MaterialTheme.typography.bodySmall)
+                Text("${o.productNameSnapshot} · ${o.displayDimensions()}",style=MaterialTheme.typography.bodySmall)
+                Text("منبع سفارش: ${OrderSource.label(o.orderSource)}",style=MaterialTheme.typography.bodySmall)
+                if(o.photoFileName.isNotBlank()) OrderPhotoThumbnail(o.photoFileName)
+                if(o.frameColor.isNotBlank()) Text("رنگ قاب: ${o.frameColor}",style=MaterialTheme.typography.bodySmall)
+                Text("وضعیت: ${when(o.orderStatus){"READY"->"آمادهٔ ارسال";"SENT"->"ارسال‌شده";else->"در آماده‌سازی"}}${if(o.plannedShipAtMillis>0L)" · نوبت ارسال: ${PersianDate.fromEpoch(o.plannedShipAtMillis).label}" else ""}",style=MaterialTheme.typography.bodySmall)
+                if(o.trackingCode.isNotBlank()) Text("کد رهگیری: ${o.trackingCode}",style=MaterialTheme.typography.bodySmall)
+                Text(if(o.shippingPayer=="RECIPIENT")"ارسال: پس‌کرایه، پرداخت مشتری به شرکت حمل${if(o.shippingCostToman>0L) " · ${money(o.shippingCostToman)}" else ""}" else "ارسال: هزینه با فروشنده · ${money(o.shippingCostToman)}",style=MaterialTheme.typography.bodySmall)
+                if(o.outstandingToman()>0) Text("مبلغ سفارش: ${money(o.quotedTotalToman)} · جمع پرداخت‌ها: ${money(o.receivedToman)} · مانده: ${money(o.outstandingToman())}",style=MaterialTheme.typography.bodySmall)
                 if(o.addressDetails.isNotBlank()||o.postalCode.isNotBlank()) Text("آدرس: ${o.province} - ${o.city}${if(o.addressDetails.isNotBlank()) " - "+o.addressDetails else ""}${if(o.postalCode.isNotBlank()) " · کد پستی: "+o.postalCode else ""}",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(o.note.isNotBlank()){
                     Text("یادداشت: "+o.note,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Row(Modifier.horizontalScroll(rememberScrollState())){
+                FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){
                     if(o.instagramId.isNotBlank())TextButton(onClick={copy(context,o.instagramId)}){Text("کپی اینستاگرام")}
                     if(o.phone.isNotBlank())TextButton(onClick={context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${o.phone}")))}){Text("تماس")}
                     TextButton(onClick={editing=x}){Text("ویرایش سفارش")}
-                    TextButton(onClick={
-                        val d=PersianDate.fromEpoch(o.dateEpochMillis)
-                        val allInfo=buildString{
-                            append(o.productNameSnapshot)
-                            append("\nتاریخ سفارش : ");append(d.label)
-                            append("\nنام گیرنده : ");append(o.customerName)
-                            append("\nآیدی اینستاگرام : ");append(o.instagramId)
-                            append("\nآدرس : استان ");append(o.province);append(" - شهر ");append(o.city);if(o.addressDetails.isNotBlank()){append(" - ");append(o.addressDetails)}
-                            if(o.postalCode.isNotBlank()){append("\nکد پستی : ");append(o.postalCode)}
-                            append("\nهزینه ارسال : ");append(money(o.shippingCostToman))
-                            append("\nهزینه دریافتی : ");append(money(o.receivedToman))
-                            append("\nیادداشت سفارش : ");append(o.note)
-                        }
-                        copy(context,allInfo);vm.notify("همه اطلاعات سفارش کپی شد.")
-                    }){Text("کپی همه اطلاعات")}
+                }
+                OutlinedButton(onClick={copy(context,OrderShareText.format(o));vm.notify("اطلاعات کامل سفارش کپی شد.")},modifier=Modifier.fillMaxWidth()){Text("کپی کامل اطلاعات سفارش")}
+                Button(onClick={runCatching{OrderSharing.share(context,o)}.onSuccess{hasPhoto->vm.notify(if(hasPhoto)"عکس و متن کامل آماده ارسال است؛ متن برای پیام‌رسان‌های بدون پشتیبانی از کپشن نیز کپی شد." else "عکس سفارش پیدا نشد؛ متن کامل برای ارسال و کپی آماده است.")}.onFailure{vm.notify("اشتراک‌گذاری ناموفق بود: ${it.message.orEmpty()}")}},modifier=Modifier.fillMaxWidth()){
+                    Text("📤 ارسال عکس و متن کامل به پیام‌رسان",maxLines=2)
                 }
                 var details by remember{mutableStateOf(false)}
                 var confirmDelete by remember{mutableStateOf(false)}
@@ -140,105 +141,34 @@ private fun copy(c:Context,text:String){(c.getSystemService(Context.CLIPBOARD_SE
                 if(confirmDelete) AlertDialog(
                     onDismissRequest={confirmDelete=false},
                     title={Text("حذف سفارش")},
-                    text={Text("آیا مطمئنید برای حذف این سفارش؟")},
+                    text={Text("با حذف این سفارش، اطلاعات مشتری، عکس و سابقهٔ مالی آن از برنامه برداشته می‌شود. ادامه می‌دهید؟")},
                     confirmButton={Button(onClick={confirmDelete=false;vm.deleteOrder(o.id)}){Text("بله")}},
                     dismissButton={TextButton(onClick={confirmDelete=false}){Text("خیر")}}
                 )
                 if(details) AlertDialog(onDismissRequest={details=false},title={Text(o.internalNumber)},text={
                     Column(Modifier.verticalScroll(rememberScrollState())){
                         x.costs.forEach{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text(it.name);Text(money(it.amountToman))}}
-                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("ارسال: ${money(o.shippingCostToman)}");Text("دریافتی: ${money(o.receivedToman)}")
+                        HorizontalDivider();Text("هزینه تولید: ${money(o.productCostSnapshotToman)}");Text("هزینه ارسال کارگاه: ${money(o.sellerShippingToman())}");if(o.shippingPayer=="RECIPIENT")Text("پس‌کرایه مشتری: ${money(o.shippingCostToman)}");Text("مبلغ توافق‌شده: ${money(o.quotedTotalToman)}");Text("بیعانه: ${money(o.depositToman)}");Text("پرداخت درب منزل: ${money(o.codDueToman)}");Text("جمع پرداخت‌ها: ${money(o.receivedToman)}");Text("مانده: ${money(o.outstandingToman())}");Text("سود فعلی: ${money(o.actualProfitToman)}")
                     }
                 },confirmButton={Button(onClick={details=false}){Text("بستن")}})
             }
         }
     }
-    if(add) OrderDialog(products,settings?.shippingDefaultToman?:0,null,{add=false}){pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
-        vm.saveOrder(pid,date,name,ig,phone,prov,city,address,postal,ship,recv,note);add=false
-    }
-    editing?.let{selected->
-        OrderDialog(products,settings?.shippingDefaultToman?:0,selected.order,{editing=null}){_,date,name,ig,phone,prov,city,address,postal,ship,recv,note->
-            vm.updateOrder(selected.order.id,date,name,ig,phone,prov,city,address,postal,ship,recv,note);editing=null
-        }
-    }
 }
 
-private fun summary(list:List<OrderWithCosts>):MonthlySummary{val sales=list.sumOf{it.order.receivedToman};val cost=list.sumOf{it.order.productCostSnapshotToman};val shipping=list.sumOf{it.order.shippingCostToman};val profit=list.sumOf{maxOf(0,it.order.actualProfitToman)};val loss=list.sumOf{maxOf(0,-it.order.actualProfitToman)};return MonthlySummary(list.size,list.sumOf{it.order.pieceCountSnapshot},sales,cost,shipping,profit,loss,profit-loss)}
-@Composable private fun SummaryGrid(s:MonthlySummary){Column(verticalArrangement=Arrangement.spacedBy(7.dp)){listOf("سفارش" to fa(s.orderCount),"تابلو" to fa(s.pieceCount),"فروش کل" to money(s.salesToman),"هزینه کل" to money(s.costToman),"ارسال" to money(s.shippingToman),"سود" to money(s.profitToman),"ضرر" to money(s.lossToman),"سود خالص" to money(s.netToman)).chunked(2).forEach{r->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){r.forEach{(l,v)->Card(Modifier.weight(1f)){Column(Modifier.padding(10.dp)){Text(v,fontWeight=FontWeight.Bold);Text(l,style=MaterialTheme.typography.bodySmall)}}}}}}}
-@Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0,x.order.actualProfitToman)})}?:1).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun OrderDialog(products:List<PricedProduct>,shippingDefault:Long,initial:SentOrderEntity?,onDismiss:()->Unit,onSave:(String,Long,String,String,String,String,String,String,String,Long,Long,String)->Unit){
-    val initialProductId=initial?.productId?.takeIf{id->products.any{it.product.id==id}}?:products.firstOrNull()?.product?.id.orEmpty()
-    var pid by rememberSaveable(initial?.id){mutableStateOf(initialProductId)}
-    var customer by rememberSaveable(initial?.id){mutableStateOf(initial?.customerName.orEmpty())}
-    var ig by rememberSaveable(initial?.id){mutableStateOf(initial?.instagramId.orEmpty())}
-    var phone by rememberSaveable(initial?.id){mutableStateOf(initial?.phone.orEmpty())}
-    var prov by rememberSaveable(initial?.id){mutableStateOf(initial?.province.orEmpty())}
-    var city by rememberSaveable(initial?.id){mutableStateOf(initial?.city.orEmpty())}
-    var addressDetails by rememberSaveable(initial?.id){mutableStateOf(initial?.addressDetails.orEmpty())}
-    var postalCode by rememberSaveable(initial?.id){mutableStateOf(initial?.postalCode.orEmpty())}
-    var ship by rememberSaveable(initial?.id){mutableStateOf((initial?.shippingCostToman?:shippingDefault).toString())}
-    var recv by rememberSaveable(initial?.id){mutableStateOf(initial?.receivedToman?.toString().orEmpty())}
-    var note by rememberSaveable(initial?.id){mutableStateOf(initial?.note.orEmpty())}
-    var date by rememberSaveable(initial?.id){mutableLongStateOf(initial?.dateEpochMillis?:System.currentTimeMillis())}
-    var picker by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var exp by rememberSaveable(initial?.id){mutableStateOf(false)}
-    var autoReceived by rememberSaveable(initial?.id){mutableStateOf(initial==null)}
-    val formScroll=rememberScrollState()
-
-    LaunchedEffect(pid,ship,autoReceived){
-        if(autoReceived){
-            products.find{it.product.id==pid}?.let{
-                recv=(it.pricing.finalPriceToman+(ship.toLongOrNull()?:0)).toString()
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest=onDismiss,
-        title={Text(if(initial==null)"ثبت سفارش ارسالی" else "ویرایش سفارش")},
-        text={
-            Column(
-                Modifier.fillMaxWidth().heightIn(max=590.dp).verticalScroll(formScroll),
-                verticalArrangement=Arrangement.spacedBy(8.dp)
-            ){
-                Box{
-                    OutlinedButton(onClick={exp=true},modifier=Modifier.fillMaxWidth(),enabled=initial==null){
-                        Text(products.find{it.product.id==pid}?.product?.name?:initial?.productNameSnapshot?:"انتخاب محصول")
-                    }
-                    DropdownMenu(exp,{exp=false}){
-                        products.forEach{p->DropdownMenuItem({Text(p.product.name)},{pid=p.product.id;autoReceived=true;exp=false})}
-                    }
-                }
-                OutlinedButton(onClick={picker=true},modifier=Modifier.fillMaxWidth()){Text("تاریخ: "+PersianDate.fromEpoch(date).label)}
-                OutlinedTextField(customer,{customer=it},label={Text("نام گیرنده")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(ig,{ig=it},label={Text("آیدی اینستاگرام")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(phone,{phone=it},label={Text("شماره تماس")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Phone),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(prov,{prov=it},label={Text("استان")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(city,{city=it},label={Text("شهر")},modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(addressDetails,{addressDetails=it},label={Text("جزئیات آدرس")},placeholder={Text("خیابان، کوچه، پلاک و ...")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=3)
-                OutlinedTextField(postalCode,{postalCode=it.filter(Char::isDigit)},label={Text("کد پستی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(ship,{ship=it.filter(Char::isDigit);autoReceived=true},label={Text("هزینه ارسال واقعی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(recv,{recv=it.filter(Char::isDigit);autoReceived=false},label={Text("مبلغ دریافتی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth(),singleLine=true)
-                OutlinedTextField(note,{note=it},label={Text("یادداشت")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4)
-            }
-        },
-        confirmButton={Button(onClick={onSave(pid,date,customer,ig,phone,prov,city,addressDetails,postalCode,ship.toLongOrNull()?:0,recv.toLongOrNull()?:0,note)},enabled=pid.isNotBlank()&&customer.isNotBlank()){Text(if(initial==null)"ثبت ارسال" else "ذخیره ویرایش")}},
-        dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}}
+private fun summary(list:List<OrderWithCosts>):MonthlySummary{
+    val profit=list.sumOf{maxOf(0L,it.order.actualProfitToman)}
+    val loss=list.sumOf{maxOf(0L,-it.order.actualProfitToman)}
+    return MonthlySummary(
+        orderCount=list.size,pieceCount=list.sumOf{it.order.pieceCountSnapshot},
+        salesToman=list.sumOf{it.order.quotedTotalToman},
+        costToman=list.sumOf{it.order.productCostSnapshotToman},
+        shippingToman=list.sumOf{it.order.sellerShippingToman()},
+        profitToman=profit,lossToman=loss,netToman=profit-loss,
+        receivedToman=list.sumOf{it.order.receivedToman},
+        outstandingToman=list.sumOf{it.order.outstandingToman()},
+        expectedProfitToman=list.sumOf{it.order.expectedProfitToman()},
     )
-    if(picker){
-        val state=rememberDatePickerState(initialSelectedDateMillis=date)
-        DatePickerDialog(onDismissRequest={picker=false},confirmButton={TextButton(onClick={state.selectedDateMillis?.let{date=it};picker=false}){Text("تأیید")}},dismissButton={TextButton(onClick={picker=false}){Text("انصراف")}}){DatePicker(state)}
-    }
 }
-
-@Composable fun ReportsScreen(vm:MainViewModel){val history by vm.history.collectAsState();LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){item{SectionTitle("گزارش تغییر قیمت","اثر تغییر متریال روی محصولات")};if(history.isEmpty())item{AppCard{Text("هنوز قیمت متغیری تغییر نکرده است.")}} else items(history,key={it.id}){h->AppCard{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Column{Text(h.materialName,fontWeight=FontWeight.Bold);Text(PersianDate.fromEpoch(h.changedAt).label,style=MaterialTheme.typography.bodySmall)};AssistChip(onClick={},label={Text("${fa(h.affectedProductCount)} محصول")})};Text(if(h.oldPriceToman!=h.newPriceToman)"${money(h.oldPriceToman)} ← ${money(h.newPriceToman)}" else "${percentFromBasisPoints(h.oldRateBasisPoints)} ← ${percentFromBasisPoints(h.newRateBasisPoints)}")}}}}
-
-@Composable fun SettingsScreen(vm:MainViewModel){
-    val settings by vm.settings.collectAsState();val rules by vm.profitRules.collectAsState();val context=LocalContext.current;val app=context.applicationContext as TablodecoriApp;val scope=rememberCoroutineScope();var rounding by remember(settings){mutableStateOf((settings?.roundingStepToman?:10000).toString())};var shipping by remember(settings){mutableStateOf((settings?.shippingDefaultToman?:0).toString())};var dark by remember(settings){mutableStateOf(settings?.darkMode?:false)};var restoreRaw by remember{mutableStateOf<String?>(null)}
-    val backupLauncher=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->if(uri!=null)scope.launch{try{val raw=app.backupManager.exportJson();context.contentResolver.openOutputStream(uri)?.use{it.write(raw.toByteArray())};vm.notify("پشتیبان JSON ذخیره شد.")}catch(t:Throwable){vm.notify(t.message?:"خطا در پشتیبان‌گیری")}}}
-    val restoreLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)scope.launch{runCatching{context.contentResolver.openInputStream(uri)?.bufferedReader()?.use{it.readText()}?:error("فایل خوانده نشد")}.onSuccess{restoreRaw=it}.onFailure{vm.notify("خواندن فایل ناموفق بود.")}}}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{SectionTitle("تنظیمات","قواعد قیمت‌گذاری و نگهداری اطلاعات")};item{AppCard{Text("هویت برنامه",fontWeight=FontWeight.Bold);Text("tablodecori | مدیریت کارگاه");Text("رابط فارسی، RTL و Offline First",style=MaterialTheme.typography.bodySmall)}};item{AppCard{Text("تنظیمات عمومی",fontWeight=FontWeight.Bold);OutlinedTextField(rounding,{rounding=it},label={Text("گرد کردن قیمت نهایی")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(6.dp));OutlinedTextField(shipping,{shipping=it},label={Text("ارسال پیش‌فرض")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=Modifier.fillMaxWidth());Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("حالت تیره");Switch(dark,{dark=it})};Button(onClick={vm.saveSettings(rounding.toLongOrNull()?:10000,shipping.toLongOrNull()?:0,dark)},modifier=Modifier.fillMaxWidth()){Text("ذخیره تنظیمات")}}};item{AppCard{Text("سود بر اساس تعداد تکه",fontWeight=FontWeight.Bold);rules.sortedBy{it.pieceCount}.forEach{r->var value by remember(r.fixedToman){mutableStateOf(r.fixedToman.toString())};Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){Text("${fa(r.pieceCount)} تکه",modifier=Modifier.width(64.dp));OutlinedTextField(value,{value=it},modifier=Modifier.weight(1f),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true);TextButton(onClick={vm.saveProfit(r.pieceCount,value.toLongOrNull()?:0)}){Text("ثبت")}}}}};item{AppCard{Text("پشتیبان‌گیری",fontWeight=FontWeight.Bold);Text("پشتیبان شامل متریال‌ها، محصولات، سفارش‌ها، Snapshot هزینه، تاریخچه و تنظیمات است.",style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button(onClick={backupLauncher.launch("tablodecori-backup.json")}){Text("Backup JSON")};OutlinedButton(onClick={restoreLauncher.launch(arrayOf("application/json","text/plain"))}){Text("Restore")}}}};item{AppCard{Text("فرض‌های نسخه ۱",fontWeight=FontWeight.Bold);Text("• تورم و هزینه پیش‌بینی‌نشده به‌صورت درصدی و به ترتیب روی هزینه جاری قبل از سود اعمال می‌شوند.\n• بسته‌بندی هوشمند بر پایه تعداد، بزرگ‌ترین تابلو، مساحت و تعداد بسته تقریبی است.\n• هزینه ارسال فقط هنگام سفارش ثبت می‌شود و وارد قیمت پایه محصول نمی‌شود.\n• پول با Long و محاسبات نسبتی با BigDecimal انجام می‌شود.",style=MaterialTheme.typography.bodySmall)}}}
-    restoreRaw?.let{raw->AlertDialog(onDismissRequest={restoreRaw=null},title={Text("بازیابی پشتیبان")},text={Text("اطلاعات فعلی با محتوای فایل جایگزین می‌شود. فایل قبل از اعمال اعتبارسنجی خواهد شد. ادامه می‌دهید؟")},confirmButton={Button(onClick={scope.launch{try{app.backupManager.restoreJson(raw);vm.notify("بازیابی انجام شد.")}catch(t:Throwable){vm.notify(t.message?:"فایل نامعتبر است.")}};restoreRaw=null}){Text("بازیابی")}},dismissButton={TextButton(onClick={restoreRaw=null}){Text("انصراف")}})}
-}
+@Composable private fun SummaryGrid(s:MonthlySummary){Column(verticalArrangement=Arrangement.spacedBy(7.dp)){listOf("سفارش" to fa(s.orderCount),"تابلو" to fa(s.pieceCount),"فروش توافقی" to money(s.salesToman),"پرداخت ثبت‌شده" to money(s.receivedToman),"مانده" to money(s.outstandingToman),"هزینه کل" to money(s.costToman),"ارسال" to money(s.shippingToman),"سود فعلی" to money(s.profitToman),"ضرر فعلی" to money(s.lossToman),"خالص فعلی" to money(s.netToman)).chunked(2).forEach{r->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(7.dp)){r.forEach{(l,v)->Card(Modifier.weight(1f)){Column(Modifier.padding(10.dp)){Text(v,fontWeight=FontWeight.Bold);Text(l,style=MaterialTheme.typography.bodySmall)}}}}}}}
+@Composable private fun DailyChart(list:List<OrderWithCosts>){if(list.isEmpty()){Box(Modifier.fillMaxWidth().height(160.dp),contentAlignment=Alignment.Center){Text("پس از ثبت سفارش، نمودار اینجا نمایش داده می‌شود.")};return};val by=list.groupBy{PersianDate.fromEpoch(it.order.dateEpochMillis).day}.toSortedMap();val vals=by.entries.toList().takeLast(12);val max=(vals.maxOfOrNull{maxOf(it.value.sumOf{x->x.order.receivedToman},it.value.sumOf{x->maxOf(0L,x.order.actualProfitToman)})}?:1).coerceAtLeast(1L).toFloat();val salesColor=MaterialTheme.colorScheme.primary.copy(alpha=.35f);val profitColor=MaterialTheme.colorScheme.primary;Canvas(Modifier.fillMaxWidth().height(180.dp).padding(top=12.dp)){val w=size.width/(vals.size.coerceAtLeast(1));vals.forEachIndexed{i,e->val sales=e.value.sumOf{it.order.receivedToman};val profit=e.value.sumOf{maxOf(0L,it.order.actualProfitToman)};val x=i*w;drawLine(salesColor,Offset(x+w*.28f,size.height),Offset(x+w*.28f,size.height-size.height*(sales/max)),strokeWidth=w*.22f);drawLine(profitColor,Offset(x+w*.62f,size.height),Offset(x+w*.62f,size.height-size.height*(profit/max)),strokeWidth=w*.22f)}}}

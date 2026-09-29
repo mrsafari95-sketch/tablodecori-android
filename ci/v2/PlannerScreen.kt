@@ -147,11 +147,12 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                 }
             }}
             item{Surface(onClick={page="FOCUS"},modifier=Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.primaryContainer){
+                val displayNow=rememberPomodoroNow(focus)
                 Row(Modifier.fillMaxWidth().padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
                     Column(Modifier.weight(1f)){
                         Text("⏱️ چرخهٔ تمرکز و استراحت",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
                         Text(if(focus.phase==PomodoroCycle.READY)"۲۵ دقیقه کار · ۵ دقیقه استراحت" else
-                            "${if(focus.phase==PomodoroCycle.FOCUS)"تمرکز" else "استراحت"} · ${pomodoroClock(focus.left(System.currentTimeMillis()))}",style=MaterialTheme.typography.bodySmall)
+                            "${if(focus.phase==PomodoroCycle.FOCUS)"تمرکز" else "استراحت"} · ${pomodoroClock(focus.left(displayNow))}",style=MaterialTheme.typography.bodySmall)
                     }
                     Text("باز کردن ←",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
                 }
@@ -246,6 +247,17 @@ private fun pomodoroClock(leftMillis:Long):String {
     return "${fa(seconds/60)}:${fa(seconds%60).padStart(2,'۰')}"
 }
 
+@Composable private fun rememberPomodoroNow(state:PomodoroCycle.State):Long {
+    var now by remember(state.endsAtMillis,state.running){mutableLongStateOf(System.currentTimeMillis())}
+    LaunchedEffect(state.endsAtMillis,state.running){
+        while(state.running){
+            now=System.currentTimeMillis()
+            delay(250L)
+        }
+    }
+    return now
+}
+
 @Composable private fun PomodoroPanel(
     state:PomodoroCycle.State,
     onStart:()->Unit,
@@ -256,7 +268,7 @@ private fun pomodoroClock(leftMillis:Long):String {
     onAskPermission:()->Unit,
 ){
     val context=LocalContext.current
-    val now=System.currentTimeMillis()
+    val now=rememberPomodoroNow(state)
     val left=state.left(now)
     val phaseTitle=when(state.phase){
         PomodoroCycle.FOCUS->"زمان تمرکز"

@@ -8,6 +8,7 @@ class PomodoroCycleTest {
         val start = PomodoroCycle.start(PomodoroCycle.State(), 1000L, "task", "طراحی", 1000L)
         assertEquals(PomodoroCycle.FOCUS, start.phase)
         assertEquals(PomodoroCycle.FOCUS_MILLIS, start.left(1000L))
+        assertEquals(PomodoroCycle.FOCUS_MILLIS-1000L, start.left(2000L))
         val focusDone = PomodoroCycle.advance(start, start.endsAtMillis)
         assertEquals(listOf("FOCUS_DONE"), focusDone.events)
         assertEquals(PomodoroCycle.SHORT_BREAK, focusDone.state.phase)

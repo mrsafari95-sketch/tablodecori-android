@@ -26,6 +26,7 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/order_share_paths" />
         </provider>
         <receiver android:name=".data.PlannerAlarmReceiver" android:exported="false" />
+        <receiver android:name=".data.PomodoroAlarmReceiver" android:exported="false" />
         <receiver android:name=".data.PlannerBootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

@@ -34,6 +34,8 @@ import androidx.core.content.ContextCompat
 import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.PlannerEngine
 import com.tablodecori.app.data.PlannerScheduler
+import com.tablodecori.app.data.PomodoroCycle
+import com.tablodecori.app.data.PomodoroTimer
 import com.tablodecori.app.data.db.PlannerOccurrenceEntity
 import com.tablodecori.app.data.db.PlannerSettingsEntity
 import com.tablodecori.app.data.db.PlannerTaskEntity
@@ -42,6 +44,7 @@ import com.tablodecori.app.util.PersianDate
 import com.tablodecori.app.util.fa
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import androidx.compose.ui.text.style.TextAlign
 
 private val taskCategories=listOf("SHIPPING" to "ارسال سفارش","CONTENT" to "اینستاگرام و محتوا","CUSTOMER" to "پیگیری مشتری","PURCHASE" to "خرید و تأمین","FINANCE" to "مالی و قیمت","BACKUP" to "بکاپ و نگهداری","PERSONAL" to "شخصی")
 private data class PlannerTemplate(val title:String,val category:String,val hour:Int,val recurrence:String="NONE",val weekday:Int=-1)
@@ -82,9 +85,20 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
     var showCreate by remember{mutableStateOf(false)}
     var editing by remember{mutableStateOf<PlannerTaskEntity?>(null)}
     var statusFor by remember{mutableStateOf<PlannerTaskEntity?>(null)}
-    var focusTask by remember{mutableStateOf<PlannerTaskEntity?>(null)}
-    var focusEnd by remember{mutableLongStateOf(0L)}
-    var focusRemaining by remember{mutableIntStateOf(0)}
+    var focus by remember{mutableStateOf(PomodoroTimer.state(context))}
+    val notifyPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->
+        if(!granted)vm.notify("تایمر کار می‌کند؛ برای اعلان پایان تمرکز، اجازهٔ اعلان را فعال کن.")
+    }
+    fun requestFocusNotice(){
+        if(Build.VERSION.SDK_INT>=33 && ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+            notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    fun beginFocus(task:PlannerTaskEntity?=null){
+        if(focus.phase!=PomodoroCycle.READY){vm.notify("یک چرخه باز است؛ ابتدا آن را تمام یا بازنشانی کن.");return}
+        focus=PomodoroTimer.start(context,task?.id.orEmpty(),task?.title.orEmpty(),System.currentTimeMillis())
+        requestFocusNotice()
+        page="FOCUS"
+    }
     var month by rememberSaveable{val p=PersianDate.fromEpoch(System.currentTimeMillis());mutableIntStateOf(p.year*100+p.month)}
     val dayKey=PlannerEngine.dateKey(selectedDay)
     val due=tasks.filter{PlannerEngine.due(it,selectedDay)}.sortedWith(compareByDescending<PlannerTaskEntity>{it.priority}.thenBy{it.plannedAtMillis})
@@ -96,20 +110,20 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
     val spentXp=rewards.filter{it.redeemedAt>0}.sumOf{it.xpCost}
     val streak=PlannerEngine.streak(tasks,occurrences,restDays.map{it.dateKey}.toSet(),System.currentTimeMillis())
     val weekly=PlannerEngine.weeklySummary(tasks,occurrences,restDays.map{it.dateKey}.toSet(),nowMillis)
-    LaunchedEffect(focusTask?.id,focusEnd){
-        val target=focusTask?:return@LaunchedEffect
-        while(focusEnd>0L){
-            val left=((focusEnd-System.currentTimeMillis())/1000L).toInt().coerceAtLeast(0)
-            focusRemaining=left
-            if(left==0){vm.plannerFocus(target.id,selectedDay,25);focusTask=null;focusEnd=0L;break}
+    LaunchedEffect(context){
+        while(true){
+            focus=PomodoroTimer.refresh(context)
             delay(1000L)
         }
     }
 
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-        item{Text("برنامهٔ کارگاه",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)}
+        item{Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally){
+            Text(if(page=="FOCUS")"زمانِ کار عمیق" else "برنامهٔ هدفمند",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.ExtraBold,textAlign=TextAlign.Center)
+            Text(if(page=="FOCUS")"یک کار، یک بازهٔ روشن، یک استراحت واقعی" else "کارهای مهم را ساده و روشن پیش ببر",style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant,textAlign=TextAlign.Center)
+        }}
         item{Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(7.dp)){
-            listOf("TODAY" to "روزانه","MONTH" to "تقویم شمسی","REWARDS" to "پیشرفت و پاداش","SETTINGS" to "تنظیمات پلنر").forEach{(key,label)->FilterChip(page==key,onClick={page=key},label={Text(label)})}
+            listOf("TODAY" to "امروز","FOCUS" to "تمرکز ۲۵/۵","MONTH" to "تقویم شمسی","REWARDS" to "پیشرفت","SETTINGS" to "یادآوری‌ها").forEach{(key,label)->FilterChip(page==key,onClick={page=key},label={Text(label)})}
         }}
         if(page=="TODAY"){
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
@@ -117,15 +131,37 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                 Text(PersianDate.fromEpoch(selectedDay).label,fontWeight=FontWeight.Bold)
                 TextButton(onClick={selectedDay=stepDay(selectedDay,1)}){Text("روز بعد")}
             }}
-            item{AppCard{
-                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){
-                    val color=MaterialTheme.colorScheme.primary
-                    Box(Modifier.size(82.dp),contentAlignment=Alignment.Center){Canvas(Modifier.fillMaxSize()){drawArc(color.copy(alpha=.15f),-90f,360f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(width=10.dp.toPx()));drawArc(color,-90f,(score?:0)*3.6f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(width=10.dp.toPx()))};Text("${fa(score?:0)}٪",fontWeight=FontWeight.Bold)}
-                    Column{Text("${fa(completed)} از ${fa(due.size)} کار انجام شد",fontWeight=FontWeight.Bold);Text(PlannerEngine.label(score));Text("🔥 ${fa(streak)} روز موفق · ⭐ ${fa(totalXp)} امتیاز",style=MaterialTheme.typography.bodySmall)}
+            item{Surface(modifier=Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.extraLarge,color=MaterialTheme.colorScheme.primaryContainer){
+                Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                    Text("نمای امروز",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.ExtraBold)
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(18.dp)){
+                        val color=MaterialTheme.colorScheme.primary
+                        Box(Modifier.size(86.dp),contentAlignment=Alignment.Center){Canvas(Modifier.fillMaxSize()){drawArc(color.copy(alpha=.15f),-90f,360f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(width=10.dp.toPx()));drawArc(color,-90f,(score?:0)*3.6f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(width=10.dp.toPx()))};Text(score?.let{"${fa(it)}٪"}?:"—",fontWeight=FontWeight.ExtraBold)}
+                        Column(Modifier.weight(1f)){
+                            Text(if(due.isEmpty())"هنوز کاری برنامه‌ریزی نشده" else "${fa(completed)} از ${fa(due.size)} کار انجام شد",fontWeight=FontWeight.Bold)
+                            Text(PlannerEngine.label(score),style=MaterialTheme.typography.bodySmall)
+                            Text("🔥 ${fa(streak)} روز پیاپی · ⭐ ${fa(totalXp)} امتیاز",style=MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Text(if(rest)"امروز روز استراحت است؛ رشتهٔ پیشرفت حفظ می‌شود." else "برای شروع، روی مهم‌ترین کار امروز تمرکز کن.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onPrimaryContainer)
                 }
-                Text(if(rest)"امروز روز استراحت است؛ رشته پیشرفت حفظ می‌شود." else "یک کار کوچک هم قدم مهمی است 🌿",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }}
-            item{AppCard{Text("۳ کار مهم این روز",fontWeight=FontWeight.Bold);due.filter{logs[it.id]?.status !in setOf("DONE","SKIPPED","DEFERRED")}.take(3).forEach{Text("• ${it.title}")};if(due.isEmpty())Text("برای این روز کاری نداری؛ یک کار تازه اضافه کن 🌿")}}
+            item{Surface(onClick={page="FOCUS"},modifier=Modifier.fillMaxWidth(),shape=MaterialTheme.shapes.large,color=MaterialTheme.colorScheme.primaryContainer){
+                Row(Modifier.fillMaxWidth().padding(16.dp),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){
+                    Column(Modifier.weight(1f)){
+                        Text("⏱️ چرخهٔ تمرکز و استراحت",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                        Text(if(focus.phase==PomodoroCycle.READY)"۲۵ دقیقه کار · ۵ دقیقه استراحت" else
+                            "${if(focus.phase==PomodoroCycle.FOCUS)"تمرکز" else "استراحت"} · ${pomodoroClock(focus.left(System.currentTimeMillis()))}",style=MaterialTheme.typography.bodySmall)
+                    }
+                    Text("باز کردن ←",color=MaterialTheme.colorScheme.primary,fontWeight=FontWeight.Bold)
+                }
+            }}
+            item{AppCard{
+                Text("اولویت‌های این روز",fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleMedium)
+                val open=due.filter{logs[it.id]?.status !in setOf("DONE","SKIPPED","DEFERRED")}.take(3)
+                open.forEachIndexed{index,task->Text("${fa(index+1)}. ${task.title}")}
+                if(open.isEmpty())Text(if(due.isEmpty())"برای این روز کاری نداری؛ یک کار تازه اضافه کن 🌿" else "همهٔ کارهای امروز را رسیدگی کردی 🌿")
+            }}
             if(due.size>6 || due.sumOf{it.durationMinutes}>360)item{AppCard{
                 Text("برنامهٔ امروز شلوغ است",fontWeight=FontWeight.Bold)
                 Text("${fa(due.size)} کار در برنامه داری. سه کار مهم را نگه دار و برای بقیه زمان تازه‌ای انتخاب کن.")
@@ -141,7 +177,6 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                     }
                 }
             }}
-            focusTask?.let{task->item{AppCard{Text("زمان تمرکز: ${task.title}",fontWeight=FontWeight.Bold);Text("${fa(focusRemaining/60)}:${fa(focusRemaining%60).padStart(2,'۰')} باقی مانده");OutlinedButton(onClick={focusTask=null;focusEnd=0L}){Text("توقف تمرکز")}}}}
             if(due.size>3 && PlannerEngine.dateKey(System.currentTimeMillis())==dayKey)item{OutlinedButton(onClick={
                 due.drop(3).filter{logs[it.id]?.status==null}.forEach{vm.plannerStatus(it.id,selectedDay,"DEFERRED","LITE_DAY")}
             },modifier=Modifier.fillMaxWidth()){Text("🌿 امروز سبک‌تر؛ کارهای دیگر به فردا منتقل شوند")}}
@@ -152,7 +187,7 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
             val nextTask=if(dayKey==PlannerEngine.dateKey(nowMillis))timeline.firstOrNull{PlannerEngine.occurrenceTime(it,selectedDay)>=nowMillis}?.id else null
             items(timeline,key={it.id}){task->
                 PlannerTaskCard(task,logs[task.id],selectedDay,dayKey,task.id==nextTask,vm,
-                    onEdit={editing=task},onSkip={statusFor=task},onFocus={focusTask=task;focusEnd=System.currentTimeMillis()+25*60*1000L},onNavigate=onNavigate)
+                    onEdit={editing=task},onSkip={statusFor=task},onFocus={beginFocus(task)},onNavigate=onNavigate)
             }
             item{
                 val low=stock.any{it.tracked && it.targetMicros>0L && it.onHandMicros*10<=it.targetMicros}
@@ -161,6 +196,22 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
                 val noRecentOrders=orders.isNotEmpty() && orders.none{nowMillis-it.order.dateEpochMillis in 0L..14L*86400000L}
                 PlannerSuggestions(vm,tasks,due,occurrences,low,shipping,stalePrices,noRecentOrders,lastBackup,nowMillis)
             }
+        }else if(page=="FOCUS"){
+            item{PomodoroPanel(focus,onStart={beginFocus()},onPause={focus=PomodoroTimer.pause(context)},
+                onResume={focus=PomodoroTimer.start(context);requestFocusNotice()},
+                onSkip={focus=PomodoroTimer.skipBreak(context)},onReset={focus=PomodoroTimer.reset(context)},
+                onAskPermission={requestFocusNotice()})}
+            item{AppCard{
+                Text("تمرکز روی یک کار مشخص",fontWeight=FontWeight.Bold,style=MaterialTheme.typography.titleMedium)
+                Text("اگر می‌خواهی ۲۵ دقیقه برای یک کار ثبت شود، آن را انتخاب کن.",style=MaterialTheme.typography.bodySmall)
+                val today=System.currentTimeMillis()
+                val candidates=tasks.filter{PlannerEngine.due(it,today)}.take(5)
+                if(candidates.isEmpty())Text("کاری برای امروز ثبت نشده؛ می‌توانی یک جلسهٔ آزاد شروع کنی.",style=MaterialTheme.typography.bodySmall)
+                candidates.forEach{task->OutlinedButton(onClick={beginFocus(task)},enabled=focus.phase==PomodoroCycle.READY,modifier=Modifier.fillMaxWidth()){
+                    Text("شروع: ${task.title}",maxLines=1)
+                }}
+            }}
+            item{Text("با پایان ۲۵ دقیقه، استراحت خودکار شروع می‌شود. پس از ۴ نوبت، استراحت ۱۵ دقیقه‌ای داری. پایان هر فاز با اعلان خبر داده می‌شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         }else if(page=="MONTH"){
             item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){TextButton(onClick={val s=(month/100)*12+(month%100-1)-1;month=Math.floorDiv(s,12)*100+Math.floorMod(s,12)+1}){Text("ماه قبل")};Text("${JalaliCalendar.months[month%100-1]} ${fa(month/100)}",fontWeight=FontWeight.Bold);TextButton(onClick={val s=(month/100)*12+(month%100-1)+1;month=Math.floorDiv(s,12)*100+Math.floorMod(s,12)+1}){Text("ماه بعد")}}}
             item{AppCard{Text("رنگ هر روز میزان پیشرفت همان روز را نشان می‌دهد.",style=MaterialTheme.typography.bodySmall);PlannerMonthGrid(month,tasks,occurrences,restDays.map{it.dateKey}.toSet()){selectedDay=it;page="TODAY"}}}
@@ -188,6 +239,88 @@ private fun stepDay(time:Long,delta:Int)=Calendar.getInstance().apply{timeInMill
         onDelete={id->vm.deletePlannerTask(id);showCreate=false;editing=null}
     )
     statusFor?.let{task->var reason by remember{mutableStateOf("")};AlertDialog(onDismissRequest={statusFor=null},title={Text("دلیل انجام نشدن، اختیاری است")},text={Column{Row(Modifier.horizontalScroll(rememberScrollState())){listOf("وقت نشد","منتظر دیگران","فراموش کردم","اولویتش عوض شد").forEach{value->FilterChip(reason==value,onClick={reason=value},label={Text(value)})}};OutlinedTextField(reason,{reason=it},label={Text("دلیل")})}},confirmButton={Button(onClick={vm.plannerStatus(task.id,selectedDay,"SKIPPED",reason);statusFor=null}){Text("ثبت")}},dismissButton={TextButton(onClick={statusFor=null}){Text("انصراف")}})}
+}
+
+private fun pomodoroClock(leftMillis:Long):String {
+    val seconds=(leftMillis.coerceAtLeast(0L)+999L)/1000L
+    return "${fa(seconds/60)}:${fa(seconds%60).padStart(2,'۰')}"
+}
+
+@Composable private fun PomodoroPanel(
+    state:PomodoroCycle.State,
+    onStart:()->Unit,
+    onPause:()->Unit,
+    onResume:()->Unit,
+    onSkip:()->Unit,
+    onReset:()->Unit,
+    onAskPermission:()->Unit,
+){
+    val context=LocalContext.current
+    val now=System.currentTimeMillis()
+    val left=state.left(now)
+    val phaseTitle=when(state.phase){
+        PomodoroCycle.FOCUS->"زمان تمرکز"
+        PomodoroCycle.SHORT_BREAK->"استراحت کوتاه"
+        PomodoroCycle.LONG_BREAK->"استراحت بلند"
+        else->"برای یک شروع خوب آماده‌ای؟"
+    }
+    val nextTitle=when(state.phase){
+        PomodoroCycle.FOCUS->if((state.completed+1)%4==0)"بعدی: ۱۵ دقیقه استراحت بلند" else "بعدی: ۵ دقیقه استراحت"
+        PomodoroCycle.SHORT_BREAK,PomodoroCycle.LONG_BREAK->"بعدی: نوبت تازهٔ ۲۵ دقیقه‌ای"
+        else->"۲۵ دقیقه کار، سپس ۵ دقیقه استراحت"
+    }
+    val accent=if(state.phase==PomodoroCycle.FOCUS)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+    val progress=(1f-left.toFloat()/state.durationMillis).coerceIn(0f,1f)
+    var confirmReset by remember{mutableStateOf(false)}
+    AppCard{
+        Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)){
+            Text("چرخهٔ تمرکز",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.ExtraBold,textAlign=TextAlign.Center)
+            Text(phaseTitle,style=MaterialTheme.typography.titleMedium,color=accent,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+            Box(Modifier.size(196.dp),contentAlignment=Alignment.Center){
+                Canvas(Modifier.fillMaxSize()){
+                    val stroke=12.dp.toPx()
+                    drawArc(accent.copy(alpha=.13f),-90f,360f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                    drawArc(accent,-90f,progress*360f,false,style=androidx.compose.ui.graphics.drawscope.Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                }
+                Column(horizontalAlignment=Alignment.CenterHorizontally){
+                    Text(pomodoroClock(left),style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.ExtraBold)
+                    Text(if(state.running)"در حال اجرا" else if(state.phase==PomodoroCycle.READY)"آمادهٔ شروع" else "مکث شده",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if(state.taskTitle.isNotBlank())Text("روی کار: ${state.taskTitle}",style=MaterialTheme.typography.bodyMedium,fontWeight=FontWeight.Bold,textAlign=TextAlign.Center)
+            Text(nextTitle,style=MaterialTheme.typography.bodyMedium,textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
+                repeat(4){index->
+                    val filled=index<state.completed%4 || (state.completed>0 && state.completed%4==0 && state.phase==PomodoroCycle.LONG_BREAK)
+                    Surface(shape=MaterialTheme.shapes.small,color=if(filled)accent else accent.copy(alpha=.14f)){
+                        Box(Modifier.size(width=42.dp,height=8.dp))
+                    }
+                }
+            }
+            Text("${fa(state.completed)} نوبت تمرکز کامل شده",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            if(state.phase==PomodoroCycle.READY){
+                Button(onClick=onStart,modifier=Modifier.fillMaxWidth()){Text("شروع ۲۵ دقیقه تمرکز")}
+            }else{
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                    Button(onClick=if(state.running)onPause else onResume,modifier=Modifier.weight(1f)){
+                        Text(if(state.running)"مکث" else "ادامه")
+                    }
+                    if(state.phase!=PomodoroCycle.FOCUS)OutlinedButton(onClick=onSkip,modifier=Modifier.weight(1f)){Text("پایان استراحت")}
+                }
+                TextButton(onClick={confirmReset=true}){Text("بازنشانی چرخه")}
+            }
+            val hasPermission=Build.VERSION.SDK_INT<33 || ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED
+            if(!hasPermission)OutlinedButton(onClick=onAskPermission,modifier=Modifier.fillMaxWidth()){Text("🔔 فعال کردن اعلان پایان زمان")}
+            val exact=Build.VERSION.SDK_INT<31 || (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+            if(!exact)TextButton(onClick={runCatching{context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply{data=android.net.Uri.parse("package:${context.packageName}")})}}){
+                Text("اجازهٔ آلارم دقیق برای اعلان به‌موقع")
+            }
+        }
+    }
+    if(confirmReset)AlertDialog(onDismissRequest={confirmReset=false},title={Text("بازنشانی چرخه؟")},
+        text={Text("زمان ناتمام ثبت نمی‌شود و چرخه از ابتدا شروع خواهد شد.")},
+        confirmButton={TextButton(onClick={confirmReset=false;onReset()}){Text("بازنشانی")}},
+        dismissButton={TextButton(onClick={confirmReset=false}){Text("انصراف")}})
 }
 
 @Composable private fun PlannerTaskCard(

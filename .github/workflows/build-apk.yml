@@ -49,8 +49,8 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 8/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.6.1"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 9/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.7.0"/' "$PROJECT_DIR/app/build.gradle.kts"
             python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
@@ -80,6 +80,8 @@ jobs:
             cp ci/v2/ReportsMath.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/ReportsMath.kt"
             cp ci/v2/PlannerEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerEngine.kt"
             cp ci/v2/PlannerScheduler.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PlannerScheduler.kt"
+            cp ci/v2/PomodoroCycle.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PomodoroCycle.kt"
+            cp ci/v2/PomodoroTimer.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/PomodoroTimer.kt"
             cp ci/v2/MaterialCatalog.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/MaterialCatalog.kt"
             cp ci/v2/StockAlert.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StockAlert.kt"
             cp ci/v2/OrderSharing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/OrderSharing.kt"
@@ -93,6 +95,7 @@ jobs:
             cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
             cp ci/v2/MaterialCatalogTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/MaterialCatalogTest.kt"
             cp ci/v2/PlannerEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PlannerEngineTest.kt"
+            cp ci/v2/PomodoroCycleTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PomodoroCycleTest.kt"
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens"
             cp ci/v2/JalaliCalendarTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens/JalaliCalendarTest.kt"
             # Export pricing sources from the archive once so frame math can be maintained safely.
@@ -282,7 +285,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
           head -n 1 badging-info.txt
           grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
-          grep -F "package: name='com.tablodecori.app' versionCode='8'" badging-info.txt
+          grep -F "package: name='com.tablodecori.app' versionCode='9'" badging-info.txt
 
       - name: Save failed build log
         if: failure()

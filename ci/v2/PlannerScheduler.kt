@@ -169,7 +169,7 @@ class PlannerBootReceiver:BroadcastReceiver(){
         if(intent.action !in setOf(Intent.ACTION_BOOT_COMPLETED,Intent.ACTION_TIME_CHANGED,Intent.ACTION_TIMEZONE_CHANGED))return
         val result=goAsync()
         CoroutineScope(SupervisorJob()+Dispatchers.IO).launch{
-            try{val dao=(context.applicationContext as TablodecoriApp).database.plannerDao();PlannerScheduler.refreshAll(context,dao.tasks(),dao.settings())}catch(_:Throwable){}finally{result.finish()}
+            try{val dao=(context.applicationContext as TablodecoriApp).database.plannerDao();PlannerScheduler.refreshAll(context,dao.tasks(),dao.settings());PomodoroTimer.refresh(context,rearm=true)}catch(_:Throwable){}finally{result.finish()}
         }
     }
 }

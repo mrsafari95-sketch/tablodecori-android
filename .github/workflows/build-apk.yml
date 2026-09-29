@@ -49,8 +49,8 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 7/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.6.0"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 8/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.6.1"/' "$PROJECT_DIR/app/build.gradle.kts"
             python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
@@ -91,6 +91,7 @@ jobs:
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
             cp ci/v2/OrderSharingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderSharingTest.kt"
             cp ci/v2/StockPlannerTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StockPlannerTest.kt"
+            cp ci/v2/MaterialCatalogTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/MaterialCatalogTest.kt"
             cp ci/v2/PlannerEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/PlannerEngineTest.kt"
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens"
             cp ci/v2/JalaliCalendarTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/ui/screens/JalaliCalendarTest.kt"
@@ -189,6 +190,7 @@ jobs:
           guard "all size tables expose delete" "$SRC/ui/screens/CoreScreens.kt" 'TextButton(onClick={deletingRow=r})'
           guard "dimension deletion requires confirmation" "$SRC/ui/screens/CoreScreens.kt" 'title={Text("حذف ابعاد")}'
           guard "Quick UI reads ViewModel draft" "$SRC/ui/screens/CoreScreens.kt" 'val draft by vm.quickDraft.collectAsState()'
+          guard "Quick lists newly added pricing materials" "$SRC/ui/screens/CoreScreens.kt" 'val selectable=MaterialCatalog.selectableForQuick(vars)'
           guard "dimension delete label is visible" "$SRC/ui/screens/CoreScreens.kt" 'Text("حذف ابعاد",color=MaterialTheme.colorScheme.error)'
           guard "deleted dimensions are disabled not destroyed" "$SRC/data/db/Daos.kt" 'UPDATE size_prices SET enabled = 0'
           guard "initialization sees disabled dimensions" "$SRC/data/db/Daos.kt" 'suspend fun getAllFor(materialId: String)'
@@ -280,7 +282,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
           head -n 1 badging-info.txt
           grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
-          grep -F "package: name='com.tablodecori.app' versionCode='7'" badging-info.txt
+          grep -F "package: name='com.tablodecori.app' versionCode='8'" badging-info.txt
 
       - name: Save failed build log
         if: failure()

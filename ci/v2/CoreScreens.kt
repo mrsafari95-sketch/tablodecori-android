@@ -368,7 +368,7 @@ private fun copyProductText(context:Context,text:String){
         .map{minOf(it.widthCm,it.heightCm) to maxOf(it.widthCm,it.heightCm)}
         .distinct()
         .sortedWith(compareBy<Pair<Int,Int>>{it.first*it.second}.thenBy{it.first}.thenBy{it.second})
-    val selectable=vars.filter{it.id in setOf("frame_pvc","glass","backboard_3mm","frame_supplies","production_labor","photo_lab","unexpected_cost","inflation") || it.smartKind==MaterialCatalog.RELIEF_CUSTOM}
+    val selectable=MaterialCatalog.selectableForQuick(vars)
     LaunchedEffect(selectable){vm.initializeQuickIds(selectable.associate{it.id to (it.enabled && it.smartKind!=MaterialCatalog.RELIEF_CUSTOM)} + ("packaging_bundle" to true))}
     val quickSelectedIds=ids.filterValues{it}.keys.let{if(productType=="RELIEF")it.intersect(selectable.filter(MaterialCatalog::selectableForRelief).map{m->m.id}.toSet() + newReliefQuickIds + "packaging_bundle") else it.filterTo(mutableSetOf()){id->selectable.any{m->m.id==id&&m.smartKind!=MaterialCatalog.RELIEF_CUSTOM}||id=="packaging_bundle"}}
     fun recalc(){scope.launch{try{result=vm.calculate(pieces.toList(),quickSelectedIds,selectedPackage,manualProfitToman=manualProfit,designMaterialsCostToman=if(productType=="RELIEF")designCost else 0L)}catch(_:Throwable){result=null}}}

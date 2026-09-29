@@ -18,6 +18,7 @@ object MaterialCatalog {
     fun isLegacy(id:String)=id in aliases
     fun mainMaterials(items:List<MaterialEntity>)=items.filter { !it.deleted && !isLegacy(it.id) && !it.id.startsWith("pack_") && it.smartKind!=STOCK_ONLY }
     fun selectableForProduct(items:List<MaterialEntity>)=mainMaterials(items)
+    fun selectableForQuick(items:List<MaterialEntity>)=selectableForProduct(items).filter { it.id!="packaging_bundle" }
     fun selectableForRelief(material:MaterialEntity)=material.id in setOf("frame_pvc","packaging_bundle") || (material.smartKind==RELIEF_CUSTOM && material.category=="PRODUCTION")
     fun selectedCanonicalIds(savedIds:Set<String>)=savedIds.map(::canonicalId).toSet()
 }

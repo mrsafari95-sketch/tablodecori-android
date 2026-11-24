@@ -10,6 +10,7 @@ import android.util.AtomicFile
 import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.tablodecori.app.TablodecoriApp
 import java.io.File
 import java.io.IOException
 import java.net.URL
@@ -26,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -36,19 +39,23 @@ import org.json.JSONObject
 internal data class StudioRow(
     val key: String, val revision: String, val group: String, val label: String,
     val prices: String, val products: Int, val count: Int, val sales: Int, val missing: Int,
-    val grouped: Boolean
+    val grouped: Boolean, val scope: JSONObject?,
+    val sampleTitle: String, val thumbnail: String, val description: String
 )
 
 internal fun JSONObject.objects(key: String): List<JSONObject> =
     optJSONArray(key)?.let { array -> List(array.length()) { array.getJSONObject(it) } }.orEmpty()
 
-private fun StudioRow(json: JSONObject): StudioRow {
+internal fun StudioRow(json: JSONObject): StudioRow {
+    val sample = json.optJSONObject("sample")
     val prices = json.getJSONArray("prices")
     return StudioRow(
         json.getString("key"), json.getString("revision"), json.getString("group_name"),
         json.getString("label"), List(prices.length()) { prices.getString(it) }.joinToString("، "),
         json.getInt("products"), json.getInt("count"), json.getInt("sales"), json.getInt("missing"),
-        json.getString("group_id").isNotEmpty()
+        json.getString("group_id").isNotEmpty() || json.has("scope"), json.optJSONObject("scope"),
+        sample?.optString("title").orEmpty(), sample?.optString("image").orEmpty(),
+        sample?.optString("description").orEmpty()
     )
 }
 
@@ -59,6 +66,7 @@ internal data class StudioState(
     val pending: JSONObject? = null,
     val preview: JSONObject? = null,
     val members: Map<String, JSONObject> = emptyMap(),
+    val links: Map<String, JSONObject> = emptyMap(),
     val salePolicy: String = "keep",
     val owner: String = "",
     val updatedAt: Long = 0,
@@ -66,7 +74,8 @@ internal data class StudioState(
     val busy: Boolean = false,
     val message: String = ""
 ) {
-    val rows get() = catalog?.objects("rows")?.map(::StudioRow).orEmpty()
+    val rows get() = catalog?.let { (it.objects("references") + it.objects("rows")).map(::StudioRow) }.orEmpty()
+    val linkedProducts get() = links.mapValues { it.value.getString("local_id") }
     val currency get() = catalog?.optString("currency").orEmpty()
     val acceptsToman get() = catalog?.optString("currency_code") in setOf("IRT", "TOMAN") || currency.trim() == "تومان"
     val inProgress get() = job?.optString("state") == "running" || pending != null
@@ -118,12 +127,14 @@ private class StudioStorage(context: Context) {
         val json = try { JSONObject(file.readFully().toString(Charsets.UTF_8)) }
         catch (_: java.io.FileNotFoundException) { JSONObject() }
         val members = json.optJSONObject("members") ?: JSONObject()
+        val links = json.optJSONObject("links") ?: JSONObject()
         return StudioState(
             catalog = json.optJSONObject("catalog"),
             drafts = json.objects("drafts"),
             job = json.optJSONObject("job"),
             pending = json.optJSONObject("pending"),
             members = members.keys().asSequence().associateWith { members.getJSONObject(it) },
+            links = links.keys().asSequence().associateWith { links.getJSONObject(it) },
             salePolicy = json.optString("sale_policy", "keep"),
             owner = json.optString("owner"),
             updatedAt = json.optLong("updated_at"),
@@ -135,7 +146,7 @@ private class StudioStorage(context: Context) {
         val json = JSONObject().put("catalog", state.catalog).put("drafts", JSONArray(state.drafts))
             .put("job", state.job).put("pending", state.pending)
             .put("members", JSONObject(state.members)).put("updated_at", state.updatedAt)
-            .put("sale_policy", state.salePolicy).put("owner", state.owner)
+            .put("sale_policy", state.salePolicy).put("owner", state.owner).put("links", JSONObject(state.links))
         val stream = file.startWrite()
         try {
             stream.write(json.toString().toByteArray(Charsets.UTF_8))
@@ -223,6 +234,8 @@ private class StudioApi(private val device: String) {
 
 internal class StudioPricingViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = StudioStorage(application)
+    val localProducts = (application as TablodecoriApp).repository.pricedProducts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val publicSigning = publiclySignedStudioBuild(application)
     private val mutable = MutableStateFlow(StudioState(busy = true))
     val state = mutable.asStateFlow()
@@ -305,15 +318,44 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         return page
     }
 
+    private fun restoreReferences(client: StudioApi, catalog: JSONObject, links: Map<String, JSONObject>): JSONObject {
+        val references = catalog.objects("references").associateBy { it.getString("key") }.toMutableMap()
+        val missing = links.filterKeys { it !in references }
+        for (batch in missing.values.toList().chunked(10)) {
+            val scopes = batch.map { it.getJSONObject("scope") }
+            val response = client.call("references", JSONObject().put("token", catalog.getString("token"))
+                .put("scopes", JSONArray(scopes)))
+            response.objects("references").forEach { references[it.getString("key")] = it }
+        }
+        return catalog.put("references", JSONArray(references.values.toList()))
+    }
+
+    fun saveReference(row: StudioRow, productId: String) = work {
+        val current = mutable.value
+        if (current.inProgress) return@work
+        val scope = row.scope ?: return@work
+        if (localProducts.value.none { it.product.id == productId && it.product.active })
+            throw StudioFailure("محصول مرجع فعال پیدا نشد.")
+        val link = JSONObject().put("local_id", productId).put("scope", scope)
+            .put("label", row.label).put("title", row.sampleTitle)
+        update(current.copy(links = current.links + (row.key to link), preview = null,
+            message = "اتصال مرجع ذخیره شد."))
+    }
+
+    fun removeReference(key: String) = work {
+        val current = mutable.value
+        if (!current.inProgress) update(current.copy(links = current.links - key, preview = null))
+    }
+
     fun refresh() = work {
         val client = api()
         val job = client.call("status").takeIf { it.has("id") }
         if (job?.optString("state") == "running") {
             update(mutable.value.copy(job = job, preview = null, message = "یک عملیات قیمت در حال اجراست."))
         } else {
-            val catalog = scan(client)
             val old = mutable.value
-            val revisions = catalog.objects("rows").associate { it.getString("key") to it.getString("revision") }
+            val catalog = restoreReferences(client, scan(client), old.links)
+            val revisions = (catalog.objects("rows") + catalog.objects("references")).associate { it.getString("key") to it.getString("revision") }
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
             update(old.copy(catalog = catalog, members = members, job = job, preview = null,
                 updatedAt = System.currentTimeMillis(), message = "فهرست قیمت فروشگاه دریافت شد."))
@@ -323,7 +365,9 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     fun loadMembers(row: StudioRow, page: Int) = work {
         val old = mutable.value
         val token = old.catalog?.getString("token") ?: throw StudioFailure("ابتدا فهرست قیمت‌ها را دریافت کنید.")
-        val members = api().call("members", JSONObject().put("token", token).put("key", row.key).put("page", page))
+        val request = JSONObject().put("token", token).put("key", row.key).put("page", page)
+        if (row.scope != null) request.put("scope", row.scope)
+        val members = api().call("members", request)
         val previous = old.members[row.key]?.takeIf { it.optString("revision") == row.revision }.orEmptyObjects("members")
         val combined = (previous + members.objects("members")).distinctBy { it.getLong("id") }
         members.put("members", JSONArray(combined)).put("revision", row.revision)
@@ -341,6 +385,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         val draft = JSONObject().put("key", row.key).put("revision", row.revision)
             .put("label", row.label).put("group", row.group).put("price", amount)
         if (selected != null) draft.put("product_ids", JSONArray(selected.sorted()))
+        if (row.scope != null) draft.put("scope", row.scope)
         val drafts = current.drafts.filterNot { it.getString("key") == row.key }
         if (drafts.size >= 100) throw StudioFailure("هر بار حداکثر ۱۰۰ ردیف قابل بررسی است.")
         update(current.copy(drafts = drafts + draft, preview = null, message = "پیش‌نویس روی گوشی ذخیره شد."))
@@ -355,20 +400,42 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         if (!mutable.value.inProgress) update(mutable.value.copy(salePolicy = policy, preview = null))
     }
 
-    fun review() = work {
+    fun review(fromReferences: Boolean = false) = work {
         val current = mutable.value
-        if (current.drafts.isEmpty() || current.inProgress) return@work
+        if (current.inProgress || (!fromReferences && current.drafts.isEmpty())) return@work
         val client = api()
-        val catalog = scan(client)
-        val request = JSONObject().put("token", catalog.getString("token"))
-            .put("request_id", UUID.randomUUID().toString()).put("sale_policy", current.salePolicy)
-            .put("rows", JSONArray(current.drafts))
-        val revisions = catalog.objects("rows").associate { it.getString("key") to it.getString("revision") }
+        val catalog = restoreReferences(client, scan(client), current.links)
+        val revisions = (catalog.objects("rows") + catalog.objects("references")).associate { it.getString("key") to it.getString("revision") }
         val members = current.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
         val updated = mutable.value.copy(catalog = catalog, members = members, updatedAt = System.currentTimeMillis(), preview = null)
         update(updated)
+        val proposed = if (fromReferences) referencePrices(updated) else current.drafts
+        val request = JSONObject().put("token", catalog.getString("token"))
+            .put("request_id", UUID.randomUUID().toString())
+            .put("sale_policy", if (fromReferences) "keep" else current.salePolicy)
+            .put("reference_job", fromReferences).put("rows", JSONArray(proposed))
         val review = client.call("preview", request)
-        mutable.value = updated.copy(preview = review.put("request", request))
+        mutable.value = updated.copy(preview = review.put("request", request).put("reference_job", fromReferences))
+    }
+
+    private fun referencePrices(state: StudioState): List<JSONObject> {
+        if (!state.acceptsToman) throw StudioFailure("واحد قیمت مرجع تومان است. واحد قیمت فروشگاه را بررسی کنید.")
+        val rows = state.catalog?.objects("references").orEmpty().associateBy { it.getString("key") }
+        val local = localProducts.value.filter { it.product.active }.associateBy { it.product.id }
+        val proposals = state.links.mapNotNull { (key, link) ->
+            val row = rows[key] ?: throw StudioFailure("دسته یا اندازهٔ یکی از مراجع تغییر کرده است. اتصال «${link.optString("title")}» را بررسی کنید.")
+            val amount = local[link.getString("local_id")]?.pricing?.finalPriceToman?.toString()
+                ?: throw StudioFailure("یکی از محصولات مرجع غیرفعال یا حذف شده است.")
+            val price = studioPrice(amount, state.catalog?.optInt("decimals") ?: 0)
+                ?: throw StudioFailure("مبلغ یکی از محصولات مرجع معتبر نیست.")
+            val latest = row.getJSONArray("prices")
+            if (latest.length() == 1 && latest.getString(0) == price && row.optInt("missing") == 0) null else
+                JSONObject().put("key", key).put("revision", row.getString("revision"))
+                    .put("price", price).put("scope", row.getJSONObject("scope"))
+        }
+        if (proposals.isEmpty()) throw StudioFailure("قیمت مراجع متصل با قیمت فعلی سایت یکسان است.")
+        if (proposals.size > 100) throw StudioFailure("حداکثر ۱۰۰ ردیف در هر عملیات قابل بررسی است.")
+        return proposals
     }
 
     fun start() = work {
@@ -414,7 +481,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     private fun finish(job: JSONObject) {
         val current = mutable.value
         val completed = job.getString("state") == "completed"
-        val drafts = if (completed && job.optInt("conflicts") == 0) {
+        val drafts = if (completed && !job.optBoolean("reference_job") && job.optInt("conflicts") == 0) {
             // Clear only drafts that belong to this job. A refreshed status may describe an older job.
             val keys = job.optJSONArray("mobile_keys")
             if (keys == null) current.drafts else current.drafts.filterNot { draft ->

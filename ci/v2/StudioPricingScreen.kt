@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,13 +81,16 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     var editModel by rememberSaveable { mutableStateOf<String?>(null) }
     val local = remember(products) { products.filter { it.product.active }.associateBy { it.product.id } }
     var referenceKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var showReferences by rememberSaveable { mutableStateOf(true) }
+    var pickSize by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedBySize = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
     var search by rememberSaveable { mutableStateOf("") }
     var connect by rememberSaveable { mutableStateOf(false) }
     var editorKey by rememberSaveable { mutableStateOf<String?>(null) }
     var cancel by remember { mutableStateOf(false) }
     val rows = remember(state.catalog) { state.rows }
-    val hasReferences = rows.any { it.scope != null }
+    val referenceRows = remember(rows) { rows.filter { it.scope != null } }
+    val bySize = remember(referenceRows) { referenceRows.groupBy { it.scope!!.getString("size_key") } }
+    val linkedProducts = remember(state.links) { state.linkedProducts }
     var pendingOnly by rememberSaveable { mutableStateOf(false) }
     val pendingRefs = remember(rows, state.links, local) {
         rows.filter { row ->
@@ -98,13 +102,11 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     val searchable = remember(rows) {
         rows.associate { it.key to studioSearchText("${it.group} ${it.label} ${it.sampleTitle} ${it.description}") }
     }
-    val filtered = remember(rows, search, showReferences, pendingOnly, pendingRefs) {
+    val filtered = remember(bySize, search, pendingOnly, pendingRefs) {
         val query = studioSearchText(search)
-        rows.filter { row ->
-            (!hasReferences || (row.scope != null) == showReferences) &&
-                (!showReferences || !pendingOnly || row.key in pendingRefs) &&
-                searchable.getValue(row.key).contains(query, ignoreCase = true)
-        }
+        bySize.mapValues { (_, choices) ->
+            choices.filter { (!pendingOnly || it.key in pendingRefs) && searchable.getValue(it.key).contains(query, ignoreCase = true) }
+        }.filterValues { it.isNotEmpty() }
     }
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -232,7 +234,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
         }
         if (state.linkedProducts.isNotEmpty()) item {
             AppCard {
-                Text("${state.linkedProducts.size} ردیف متصل به محصول مرجع", fontWeight = FontWeight.SemiBold)
+                Text("قیمت‌های محاسبه‌شده از مراجع متصل", fontWeight = FontWeight.SemiBold)
                 val foundKeys = rows.mapTo(mutableSetOf()) { it.key }
                 state.links.filterKeys { it !in foundKeys && it in state.linkedProducts }.forEach { (key, link) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -252,33 +254,36 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 }
             }
         }
-        if (rows.isNotEmpty()) item {
-            if (hasReferences) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = showReferences, onClick = { showReferences = true }, label = { Text("مراجع قیمت") })
-                    FilterChip(selected = !showReferences, onClick = { showReferences = false }, label = { Text("قیمت‌گذاری دستی") })
-                }
-            }
-            if (hasReferences && showReferences) {
-                FilterChip(selected = pendingOnly, onClick = { pendingOnly = !pendingOnly },
-                    label = { Text("نیازمند بررسی (${pendingRefs.size})") })
-            }
+        if (state.catalog != null) item {
+            Text("${bySize.size} اندازهٔ مرجع · ${state.catalog?.optInt("scanned") ?: 0} محصول بررسی‌شده", style = MaterialTheme.typography.titleMedium)
+            FilterChip(selected = pendingOnly, onClick = { pendingOnly = !pendingOnly },
+                label = { Text("نیازمند بررسی") })
             OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی گروه یا ابعاد") },
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
             if (suggestion != null && state.acceptsToman) {
                 Text("قیمت محاسبه‌شده · ${suggestion} تومان. برای استفاده، ردیف مقصد را انتخاب کنید.")
             }
         }
-        if (rows.isNotEmpty() && filtered.isEmpty()) item {
-            Text(if (showReferences && pendingOnly && pendingRefs.isEmpty()) "همهٔ مراجع اتصال تأییدشده دارند." else "ردیفی با این انتخاب پیدا نشد.")
+        if (state.catalog != null && filtered.isEmpty()) item {
+            Text(if (pendingOnly && bySize.isNotEmpty() && pendingRefs.isEmpty()) "همهٔ مراجع اتصال تأییدشده دارند." else "ردیفی با این انتخاب پیدا نشد.")
         }
-        items(filtered, key = { it.key }) { row ->
+        items(filtered.keys.toList(), key = { it }) { size ->
+            val choices = filtered.getValue(size)
+            val single = bySize.getValue(size).singleOrNull()
+            val row = single ?: choices.find { it.key == selectedBySize[size] }
             AppCard {
-                StudioRowHeading(row)
-                Text("قیمت عادی · ${row.prices.ifBlank { "ثبت نشده" }} ${state.currency}")
-                Text("${row.products} محصول · ${row.count} قیمت · ${row.sales} تخفیف · ${row.missing} بدون قیمت")
-                if (row.scope != null) {
-                    val linkedId = state.linkedProducts[row.key]
+                if (single == null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (row == null) StudioThumbnail(choices.first().thumbnail, choices.first().sampleTitle)
+                        Text(choices.first().label, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                        OutlinedButton(onClick = { pickSize = size }) { Text("انتخاب دسته (${choices.size})") }
+                    }
+                }
+                if (row != null) {
+                    StudioRowHeading(row)
+                    Text("قیمت عادی · ${row.prices.ifBlank { "ثبت نشده" }} ${state.currency}")
+                    Text("${row.products} محصول · ${row.count} قیمت · ${row.sales} تخفیف · ${row.missing} بدون قیمت")
+                    val linkedId = linkedProducts[row.key]
                     if (row.pieces.isEmpty() && linkedId == null) {
                         Text("ترکیب تکه‌ها از توضیح سایت قابل استخراج نبود.", color = MaterialTheme.colorScheme.error)
                     }
@@ -297,13 +302,29 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                     TextButton(onClick = { referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
                         Text(if (linkedId == null) "وصل کردن محصول مرجع" else "ویرایش اتصال مرجع")
                     }
-                } else {
-                    TextButton(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) {
-                        Text("ویرایش قیمت")
+                    Button(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) {
+                        Text("تغییر قیمت همین دسته و اندازه")
                     }
                 }
             }
         }
+    }
+    pickSize?.let { filtered[it] }?.let { choices ->
+        AlertDialog(onDismissRequest = { pickSize = null }, title = { Text("انتخاب دسته · ${choices.first().label}") },
+            text = {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                    items(choices, key = { it.key }) { choice ->
+                        OutlinedButton(onClick = { selectedBySize[choice.scope!!.getString("size_key")] = choice.key; pickSize = null },
+                            modifier = Modifier.fillMaxWidth()) {
+                            StudioThumbnail(choice.thumbnail, choice.sampleTitle)
+                            Column(Modifier.weight(1f)) {
+                                Text("${choice.group} · ${choice.sampleTitle}")
+                                Text("${choice.products} محصول · ${choice.prices} ${state.currency}")
+                            }
+                        }
+                    }
+                }
+            }, confirmButton = { TextButton(onClick = { pickSize = null }) { Text("بستن") } })
     }
     if (connect) StudioConnectDialog(onDismiss = { connect = false }, onConnect = {
         connect = false
@@ -388,7 +409,7 @@ private fun StudioDraftDialog(
     val previous = state.drafts.find { it.getString("key") == row.key && it.getString("revision") == row.revision }
     val previousIds = previous?.optJSONArray("product_ids")
     var amount by rememberSaveable(row.revision) { mutableStateOf(previous?.optString("price").orEmpty()) }
-    var all by rememberSaveable(row.revision) { mutableStateOf(row.grouped && previous != null && previousIds == null) }
+    var all by rememberSaveable(row.revision) { mutableStateOf(row.grouped && previousIds == null && (row.scope != null || previous != null)) }
     var selected by rememberSaveable(row.revision) {
         mutableStateOf(ArrayList((0 until (previousIds?.length() ?: 0)).map { previousIds!!.getLong(it) }))
     }

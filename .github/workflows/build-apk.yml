@@ -55,6 +55,14 @@ jobs:
             python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
+            # Both endpoints serve the same Maven Central coordinates. Prefer the Central mirror for KSP.
+            python3 - "$PROJECT_DIR/settings.gradle.kts" <<'PYSETTINGS'
+          import sys
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          s = p.read_text().replace('        google()', '        maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/"); content { includeGroup("com.google.devtools.ksp") } }\n        google()')
+          p.write_text(s)
+          PYSETTINGS
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
@@ -266,7 +274,7 @@ jobs:
         run: |
           cd "$PROJECT_DIR"
           set -o pipefail
-          gradle --no-daemon testDebugUnitTest assembleDebug assembleRelease 2>&1 | tee build-output.log
+          gradle --info --no-daemon testDebugUnitTest assembleDebug assembleRelease 2>&1 | tee build-output.log
 
       - name: Verify install identity and signing certificate
         shell: bash

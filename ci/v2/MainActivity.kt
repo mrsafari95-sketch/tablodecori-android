@@ -63,6 +63,7 @@ private data class NavItem(val route:String,val icon:ImageVector,val label:Strin
 private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
+    NavItem("studioPricing",Icons.Rounded.Storefront,"محصولات سایت"),
     NavItem("quick",Icons.Rounded.Calculate,"سریع"),
     NavItem("inventory",Icons.Rounded.Inventory2,"انبار"),
     NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
@@ -136,7 +137,7 @@ private val bottomItems=listOf(
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,
-                        onClick={navigateTopLevel(i.route)},
+                        onClick={if(i.route=="studioPricing") studioSuggestion=null;navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
                         label={Text(i.label,maxLines=1)},
                         colors=NavigationBarItemDefaults.colors(
@@ -160,7 +161,7 @@ private val bottomItems=listOf(
             composable("pricebook"){
                 LaunchedEffect(Unit){nav.navigate("products"){popUpTo("pricebook"){inclusive=true};launchSingleTop=true}}
             }
-            composable("studioPricing"){ StudioPricingScreen(viewModel<StudioPricingViewModel>(),studioSuggestion) }
+            composable("studioPricing"){ StudioPricingScreen(viewModel<StudioPricingViewModel>(),vm,studioSuggestion) }
             composable("orders"){OrdersScreen(vm)}
             composable("inventory"){InventoryScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
@@ -179,7 +180,7 @@ private fun titleFor(r:String)=when(r){
     "inventory"->"کنترل انبار"
     "reports"->"گزارش‌ها"
     "planner"->"پلنر کارگاه"
-    "studioPricing"->"قیمت‌های فروشگاه"
+    "studioPricing"->"محصولات سایت"
     "settings"->"تنظیمات"
     else->"مدیریت کارگاه"
 }

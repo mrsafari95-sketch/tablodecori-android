@@ -53,7 +53,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.PricedProduct
+import com.tablodecori.app.data.SITE_REFERENCE_PREFIX
 import com.tablodecori.app.data.StudioPricingViewModel
 import com.tablodecori.app.data.StudioRow
 import com.tablodecori.app.data.StudioState
@@ -64,9 +66,11 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) {
+internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewModel, suggestion: Long?) {
     val state by vm.state.collectAsState()
     val products by vm.localProducts.collectAsState()
+    val materials by workshop.materials.collectAsState()
+    var editModel by rememberSaveable { mutableStateOf<String?>(null) }
     val local = remember(products) { products.filter { it.product.active }.associateBy { it.product.id } }
     var referenceKey by rememberSaveable { mutableStateOf<String?>(null) }
     var showReferences by rememberSaveable { mutableStateOf(true) }
@@ -89,7 +93,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) 
     ) {
         item {
             AppCard {
-                Text("قیمت‌های فروشگاه", style = MaterialTheme.typography.titleLarge)
+                Text("محصولات سایت", style = MaterialTheme.typography.titleLarge)
                 if (vm.publicSigning) {
                     Text("برای اتصال آنلاین، نسخهٔ اندرویدی با امضای خصوصی لازم است.")
                 } else {
@@ -107,8 +111,15 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) 
                 }
                 if (state.busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
                 if (state.message.isNotEmpty()) Text(state.message)
+                if (vm.hasOwnerRates && !state.ownerRatesApplied && !state.inProgress) {
+                    OutlinedButton(onClick = vm::applyOwnerRates, enabled = !state.busy) {
+                        Text("اعمال تعرفه‌های بکاپ ارسالی")
+                    }
+                }
                 if (state.connected && !state.inProgress) {
-                    Button(onClick = vm::refresh, enabled = !state.busy) { Text("دریافت قیمت‌های سایت") }
+                    Button(onClick = vm::refresh, enabled = !state.busy && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
+                        Text("دریافت محصولات و ساخت مراجع")
+                    }
                 }
             }
         }
@@ -171,11 +182,11 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) 
                 }
             }
         }
-        if (state.links.isNotEmpty()) item {
+        if (state.linkedProducts.isNotEmpty()) item {
             AppCard {
-                Text("${state.links.size} ردیف متصل به محصول مرجع", fontWeight = FontWeight.SemiBold)
+                Text("${state.linkedProducts.size} ردیف متصل به محصول مرجع", fontWeight = FontWeight.SemiBold)
                 val foundKeys = rows.mapTo(mutableSetOf()) { it.key }
-                state.links.filterKeys { it !in foundKeys }.forEach { (key, link) ->
+                state.links.filterKeys { it !in foundKeys && it in state.linkedProducts }.forEach { (key, link) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("نیازمند بررسی · ${link.optString("title")} · ${link.optString("label")}", Modifier.weight(1f))
                         TextButton(onClick = { vm.removeReference(key) }, enabled = !state.inProgress && !state.busy) {
@@ -209,10 +220,20 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) 
                 Text("${row.products} محصول · ${row.count} قیمت · ${row.sales} تخفیف · ${row.missing} بدون قیمت")
                 if (row.scope != null) {
                     val linkedId = state.linkedProducts[row.key]
+                    if (row.pieces.isEmpty() && linkedId == null) {
+                        Text("ترکیب تکه‌ها از توضیح سایت قابل استخراج نبود.", color = MaterialTheme.colorScheme.error)
+                    }
                     if (linkedId != null) {
                         val model = local[linkedId]
                         Text(if (model == null) "محصول مرجع روی گوشی در دسترس نیست" else
                             "${model.product.name} · ${model.pricing.finalPriceToman} تومان")
+                        if (state.links[row.key]?.optBoolean("confirm_recipe") == true)
+                            Text("مرجع ساخته شد. ترکیب و مبلغ را بررسی و اتصال را تأیید کنید.")
+                        if (model != null && linkedId.startsWith(SITE_REFERENCE_PREFIX)) {
+                            TextButton(onClick = { editModel = linkedId }, enabled = !state.inProgress && !state.busy) {
+                                Text("ویرایش ترکیب و هزینهٔ مرجع")
+                            }
+                        }
                     }
                     TextButton(onClick = { referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
                         Text(if (linkedId == null) "وصل کردن محصول مرجع" else "ویرایش اتصال مرجع")
@@ -230,9 +251,20 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, suggestion: Long?) 
         vm.connect(it)
     })
     rows.find { it.key == referenceKey }?.let { row ->
-        StudioReferenceDialog(row, state, local.values.toList(), onDismiss = { referenceKey = null },
+        val linkedId = state.linkedProducts[row.key]
+        val available = local.values.filter { it.product.id == linkedId || !it.product.id.startsWith(SITE_REFERENCE_PREFIX) }
+        StudioReferenceDialog(row, state, available, onDismiss = { referenceKey = null },
             onLink = { productId -> vm.saveReference(row, productId); referenceKey = null },
             onUnlink = { vm.removeReference(row.key); referenceKey = null })
+    }
+    editModel?.let(local::get)?.product?.let { model ->
+        ProductDialog(workshop, materials, model, { editModel = null }) { id, name, pieces, ids, profit,
+            mode, formula, packaging, type, design, photo, remove ->
+            workshop.saveProduct(id, name, pieces, ids, manualProfit = profit, profitMode = mode,
+                profitFormula = formula, packagingSizeKey = packaging, productType = type,
+                designMaterialsCostToman = design, selectedPhotoUri = photo, removePhoto = remove)
+            editModel = null
+        }
     }
     val editorRow = rows.find { it.key == editorKey }
     if (editorRow != null) StudioDraftDialog(vm, state, editorRow, suggestion) { editorKey = null }
@@ -375,7 +407,7 @@ private fun StudioReferenceDialog(
                 OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی محصول ساخته‌شده در گوشی") },
                     modifier = Modifier.fillMaxWidth(), singleLine = true)
                 if (matches.isEmpty()) Text("محصولی پیدا نشد. مدل مرجع و اندازهٔ تکه‌ها را در بخش محصولات گوشی تعریف کنید.")
-                matches.forEach { item ->
+                matches.sortedByDescending { it.product.id == linked }.forEach { item ->
                     val composition = item.product.pieces.joinToString("، ") {
                         "${it.quantity} عدد ${it.widthCm}×${it.heightCm}"
                     }

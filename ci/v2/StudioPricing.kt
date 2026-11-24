@@ -11,6 +11,7 @@ import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.tablodecori.app.TablodecoriApp
+import com.tablodecori.app.pricing.PieceInput
 import java.io.File
 import java.io.IOException
 import java.net.URL
@@ -40,7 +41,7 @@ internal data class StudioRow(
     val key: String, val revision: String, val group: String, val label: String,
     val prices: String, val products: Int, val count: Int, val sales: Int, val missing: Int,
     val grouped: Boolean, val scope: JSONObject?,
-    val sampleTitle: String, val thumbnail: String, val description: String
+    val sampleTitle: String, val thumbnail: String, val description: String, val pieces: List<PieceInput>
 )
 
 internal fun JSONObject.objects(key: String): List<JSONObject> =
@@ -55,7 +56,8 @@ internal fun StudioRow(json: JSONObject): StudioRow {
         json.getInt("products"), json.getInt("count"), json.getInt("sales"), json.getInt("missing"),
         json.getString("group_id").isNotEmpty() || json.has("scope"), json.optJSONObject("scope"),
         sample?.optString("title").orEmpty(), sample?.optString("image").orEmpty(),
-        sample?.optString("description").orEmpty()
+        sample?.optString("description").orEmpty(),
+        sample?.objects("pieces")?.map { PieceInput(it.getInt("width"), it.getInt("height"), it.getInt("quantity")) }.orEmpty()
     )
 }
 
@@ -70,12 +72,13 @@ internal data class StudioState(
     val salePolicy: String = "keep",
     val owner: String = "",
     val updatedAt: Long = 0,
+    val ownerRatesApplied: Boolean = false,
     val connected: Boolean = false,
     val busy: Boolean = false,
     val message: String = ""
 ) {
     val rows get() = catalog?.let { (it.objects("references") + it.objects("rows")).map(::StudioRow) }.orEmpty()
-    val linkedProducts get() = links.mapValues { it.value.getString("local_id") }
+    val linkedProducts get() = links.filterValues { !it.optBoolean("disabled") }.mapValues { it.value.getString("local_id") }
     val currency get() = catalog?.optString("currency").orEmpty()
     val acceptsToman get() = catalog?.optString("currency_code") in setOf("IRT", "TOMAN") || currency.trim() == "تومان"
     val inProgress get() = job?.optString("state") == "running" || pending != null
@@ -138,6 +141,7 @@ private class StudioStorage(context: Context) {
             salePolicy = json.optString("sale_policy", "keep"),
             owner = json.optString("owner"),
             updatedAt = json.optLong("updated_at"),
+            ownerRatesApplied = json.optBoolean("owner_rates_applied"),
             connected = preferences.contains("device")
         )
     }
@@ -147,6 +151,7 @@ private class StudioStorage(context: Context) {
             .put("job", state.job).put("pending", state.pending)
             .put("members", JSONObject(state.members)).put("updated_at", state.updatedAt)
             .put("sale_policy", state.salePolicy).put("owner", state.owner).put("links", JSONObject(state.links))
+            .put("owner_rates_applied", state.ownerRatesApplied)
         val stream = file.startWrite()
         try {
             stream.write(json.toString().toByteArray(Charsets.UTF_8))
@@ -234,7 +239,9 @@ private class StudioApi(private val device: String) {
 
 internal class StudioPricingViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = StudioStorage(application)
-    val localProducts = (application as TablodecoriApp).repository.pricedProducts
+    private val repository = (application as TablodecoriApp).repository
+    val hasOwnerRates = application.assets.list("")?.contains("tdps-owner-pricing.json") == true
+    val localProducts = repository.allPricedProducts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val publicSigning = publiclySignedStudioBuild(application)
     private val mutable = MutableStateFlow(StudioState(busy = true))
@@ -297,7 +304,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             throw StudioFailure("برای ادامهٔ عملیات نیمه‌تمام، کلید همان حساب وردپرس را وارد کنید.")
         }
         storage.saveDevice(device)
-        val account = if (current.owner == owner) current else StudioState(busy = true)
+        val account = if (current.owner == owner) current else StudioState(busy = true, ownerRatesApplied = current.ownerRatesApplied)
         update(account.copy(job = job, connected = true, preview = null, owner = owner,
             message = "اتصال به استودیوی محصولات برقرار شد."))
     }
@@ -320,7 +327,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
 
     private fun restoreReferences(client: StudioApi, catalog: JSONObject, links: Map<String, JSONObject>): JSONObject {
         val references = catalog.objects("references").associateBy { it.getString("key") }.toMutableMap()
-        val missing = links.filterKeys { it !in references }
+        val missing = links.filterValues { !it.optBoolean("disabled") }.filterKeys { it !in references }
         for (batch in missing.values.toList().chunked(10)) {
             val scopes = batch.map { it.getJSONObject("scope") }
             val response = client.call("references", JSONObject().put("token", catalog.getString("token"))
@@ -344,7 +351,48 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
 
     fun removeReference(key: String) = work {
         val current = mutable.value
-        if (!current.inProgress) update(current.copy(links = current.links - key, preview = null))
+        val existing = current.links[key] ?: return@work
+        if (!current.inProgress) {
+            val disabled = JSONObject(existing.toString()).put("disabled", true)
+            update(current.copy(links = current.links + (key to disabled), preview = null))
+        }
+    }
+
+    fun applyOwnerRates() = work {
+        if (!hasOwnerRates || mutable.value.inProgress) return@work
+        val raw = getApplication<TablodecoriApp>().assets.open("tdps-owner-pricing.json")
+            .bufferedReader().use { it.readText() }
+        repository.importOwnerPricing(raw)
+        update(mutable.value.copy(ownerRatesApplied = true, preview = null,
+            message = "تعرفه‌های متریال، سوابق تغییر قیمت و سود بکاپ اعمال شد."))
+    }
+
+    private suspend fun createReferences(catalog: JSONObject, current: StudioState): Map<String, JSONObject> {
+        val links = current.links.toMutableMap()
+        val ownersByDimensions = links.filterValues { !it.optBoolean("disabled") }.values
+            .groupBy { it.getJSONObject("scope").getString("size_key") }
+            .mapValues { (_, linked) -> linked.flatMap { link ->
+                val ids = link.getJSONObject("scope").getJSONArray("product_ids")
+                List(ids.length()) { ids.getLong(it) }
+            }.toMutableSet() }
+            .toMutableMap()
+        val pendingSeeds = mutableListOf<SiteReferenceSeed>()
+        for (row in catalog.objects("references").map(::StudioRow)) {
+            val scope = row.scope ?: continue
+            if (row.key in links || row.pieces.isEmpty()) continue
+            val ids = scope.getJSONArray("product_ids")
+            val members = List(ids.length()) { ids.getLong(it) }
+            val claimed = ownersByDimensions.getOrPut(scope.getString("size_key")) { mutableSetOf() }
+            if (members.any { it in claimed }) continue
+            val id = SITE_REFERENCE_PREFIX + row.key
+            val title = listOf(row.sampleTitle.ifBlank { row.group }, row.label).joinToString(" · ")
+            pendingSeeds += SiteReferenceSeed(id, title, row.pieces)
+            links[row.key] = JSONObject().put("local_id", id).put("scope", scope).put("label", row.label)
+                .put("title", row.sampleTitle).put("confirm_recipe", true)
+            claimed.addAll(members)
+        }
+        repository.ensureSiteReferences(pendingSeeds)
+        return links
     }
 
     fun refresh() = work {
@@ -357,8 +405,10 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             val catalog = restoreReferences(client, scan(client), old.links)
             val revisions = (catalog.objects("rows") + catalog.objects("references")).associate { it.getString("key") to it.getString("revision") }
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
-            update(old.copy(catalog = catalog, members = members, job = job, preview = null,
-                updatedAt = System.currentTimeMillis(), message = "فهرست قیمت فروشگاه دریافت شد."))
+            val links = createReferences(catalog, old)
+            val created = links.size - old.links.size
+            update(old.copy(catalog = catalog, members = members, links = links, job = job, preview = null,
+                updatedAt = System.currentTimeMillis(), message = "فهرست قیمت فروشگاه دریافت شد · ${created} مرجع ساخته شد."))
         }
     }
 
@@ -422,7 +472,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         if (!state.acceptsToman) throw StudioFailure("واحد قیمت مرجع تومان است. واحد قیمت فروشگاه را بررسی کنید.")
         val rows = state.catalog?.objects("references").orEmpty().associateBy { it.getString("key") }
         val local = localProducts.value.filter { it.product.active }.associateBy { it.product.id }
-        val proposals = state.links.mapNotNull { (key, link) ->
+        val proposals = state.links.filterValues { !it.optBoolean("disabled") && !it.optBoolean("confirm_recipe") }.mapNotNull { (key, link) ->
             val row = rows[key] ?: throw StudioFailure("دسته یا اندازهٔ یکی از مراجع تغییر کرده است. اتصال «${link.optString("title")}» را بررسی کنید.")
             val amount = local[link.getString("local_id")]?.pricing?.finalPriceToman?.toString()
                 ?: throw StudioFailure("یکی از محصولات مرجع غیرفعال یا حذف شده است.")
@@ -433,7 +483,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
                 JSONObject().put("key", key).put("revision", row.getString("revision"))
                     .put("price", price).put("scope", row.getJSONObject("scope"))
         }
-        if (proposals.isEmpty()) throw StudioFailure("قیمت مراجع متصل با قیمت فعلی سایت یکسان است.")
+        if (proposals.isEmpty()) throw StudioFailure("قیمت متفاوتی در مراجع تأییدشده پیدا نشد. مراجع تازه را در فهرست بررسی کنید.")
         if (proposals.size > 100) throw StudioFailure("حداکثر ۱۰۰ ردیف در هر عملیات قابل بررسی است.")
         return proposals
     }

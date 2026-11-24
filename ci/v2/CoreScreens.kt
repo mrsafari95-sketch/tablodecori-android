@@ -244,7 +244,7 @@ private fun copyProductText(context:Context,text:String){
     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("tablodecori",text))
 }
 
-@Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long,String?,Boolean)->Unit){
+@Composable internal fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long,String?,Boolean)->Unit){
     var addingReliefMaterial by remember{mutableStateOf(false)}
     val newReliefIds=remember{mutableStateListOf<String>()}
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};var profitMode by remember(initial?.id){mutableStateOf(if(initial?.profitMode=="FORMULA")"FORMULA" else "MANUAL")};var manualProfit by remember(initial?.id){mutableStateOf((initial?.manualProfitToman?:0L).toString())}

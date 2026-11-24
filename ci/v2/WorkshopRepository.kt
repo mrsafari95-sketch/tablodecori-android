@@ -13,13 +13,17 @@ import com.tablodecori.app.pricing.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 class WorkshopRepository(private val db: AppDatabase, context: Context, private val engine: PricingEngine = PricingEngine()) {
     private val appContext = context.applicationContext
     private val photos = OrderPhotoStore(appContext)
     val materials: Flow<List<MaterialEntity>> = db.materialDao().observeAll()
-    val products: Flow<List<ProductWithDetails>> = db.productDao().observeAll()
+    private val allProducts = db.productDao().observeAll()
+    val products: Flow<List<ProductWithDetails>> = allProducts.map { items ->
+        items.filterNot { it.product.id.startsWith(SITE_REFERENCE_PREFIX) }
+    }
     val profitRules: Flow<List<ProfitRuleEntity>> = db.profitRuleDao().observeAll()
     val orders: Flow<List<OrderWithCosts>> = db.orderDao().observeAll()
     val history: Flow<List<PriceChangeHistoryEntity>> = db.historyDao().observeAll()
@@ -236,13 +240,82 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
     }
 
 
-    val pricedProducts: Flow<List<PricedProduct>> = combine(products, materials, profitRules, settings, db.sizePriceDao().observeAll()) { ps, ms, rs, st, sizeRules ->
+    internal val allPricedProducts: Flow<List<PricedProduct>> = combine(allProducts, materials, profitRules, settings, db.sizePriceDao().observeAll()) { ps, ms, rs, st, sizeRules ->
         val pMaterials = ms.map { it.toPricing() }
         val profits = rs.associate { it.pieceCount to it.fixedToman }
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
             val model = rel.toModel()
             runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey, model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)) }.getOrNull()
+        }
+    }
+
+    val pricedProducts: Flow<List<PricedProduct>> = allPricedProducts.map { items ->
+        items.filterNot { it.product.id.startsWith(SITE_REFERENCE_PREFIX) }
+    }
+
+    internal suspend fun importOwnerPricing(raw: String) {
+        val root = JSONObject(raw)
+        require(root.optString("format") == "tdps-owner-pricing-1") { "بکاپ قیمت‌گذاری معتبر نیست." }
+        val tables = root.getJSONObject("tables")
+        val sql = db.openHelper.writableDatabase
+        val keys = mapOf("materials" to "id", "size_prices" to "id",
+            "profit_rules" to "pieceCount", "price_change_history" to "id")
+        db.withTransaction {
+            for ((table, primaryKey) in keys) {
+                val rows = tables.getJSONArray(table)
+                val columns = mutableSetOf<String>()
+                sql.query("PRAGMA table_info($table)").use { cursor ->
+                    while (cursor.moveToNext()) columns += cursor.getString(1)
+                }
+                for (index in 0 until rows.length()) {
+                    val row = rows.getJSONObject(index)
+                    val values = ContentValues()
+                    for (key in columns) {
+                        val value = row.get(key)
+                        when (value) {
+                            JSONObject.NULL -> values.putNull(key)
+                            is Number -> values.put(key, value.toLong())
+                            is String -> values.put(key, value)
+                            else -> error("مقدار بکاپ قیمت‌گذاری نامعتبر است.")
+                        }
+                    }
+                    val id = row.getString(primaryKey)
+                    if (sql.update(table, SQLiteDatabase.CONFLICT_ABORT, values, "$primaryKey = ?", arrayOf(id)) == 0) {
+                        check(sql.insert(table, SQLiteDatabase.CONFLICT_ABORT, values) != -1L)
+                    }
+                }
+            }
+            val rounding = root.getLong("rounding_step_toman")
+            require(rounding > 0)
+            val settings = db.settingsDao().get() ?: AppSettingsEntity(updatedAt = System.currentTimeMillis())
+            db.settingsDao().upsert(settings.copy(roundingStepToman = rounding))
+        }
+    }
+
+    internal suspend fun ensureSiteReferences(items: List<SiteReferenceSeed>) {
+        if (items.isEmpty()) return
+        db.withTransaction {
+            val normal = db.productDao().getAll().filter {
+                it.product.active && !it.product.id.startsWith(SITE_REFERENCE_PREFIX)
+            }.map { it.toModel() }.filter { it.productType == "STANDARD" }
+            val templates = normal.groupBy { studioShape(it.pieces) }
+            val defaultMaterials = MaterialCatalog.selectableForProduct(db.materialDao().getAll())
+                .filter { it.enabled && it.smartKind != MaterialCatalog.RELIEF_CUSTOM }.map { it.id }.toSet()
+            val profitRules = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
+            for (item in items) {
+                require(item.id.startsWith(SITE_REFERENCE_PREFIX))
+                if (db.productDao().get(item.id) != null) continue
+                val template = templates[studioShape(item.pieces)].orEmpty().distinctBy {
+                    listOf(it.enabledMaterialIds, it.manualProfitToman, it.profitMode, it.profitFormula, it.packagingSizeKey)
+                }.singleOrNull()
+                val count = item.pieces.sumOf { it.quantity }
+                val profit = profitRules[count] ?: profitRules.entries.filter { it.key <= count }.maxByOrNull { it.key }?.value ?: 0L
+                saveProduct(item.id, item.name, item.pieces, template?.enabledMaterialIds ?: defaultMaterials,
+                    manualProfitToman = template?.manualProfitToman ?: profit,
+                    profitMode = template?.profitMode ?: "MANUAL", profitFormula = template?.profitFormula.orEmpty(),
+                    packagingSizeKey = template?.packagingSizeKey.orEmpty())
+            }
         }
     }
 
@@ -716,3 +789,11 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         db.profitRuleDao().upsert(ProfitRuleEntity(pieceCount, fixedToman=amount, updatedAt=System.currentTimeMillis()))
     }
 }
+
+internal const val SITE_REFERENCE_PREFIX = "studio_ref_"
+
+internal fun studioShape(pieces: List<PieceInput>): Map<Pair<Int, Int>, Int> =
+    pieces.groupingBy { minOf(it.widthCm, it.heightCm) to maxOf(it.widthCm, it.heightCm) }
+        .fold(0) { count, piece -> count + piece.quantity }
+
+internal data class SiteReferenceSeed(val id: String, val name: String, val pieces: List<PieceInput>)

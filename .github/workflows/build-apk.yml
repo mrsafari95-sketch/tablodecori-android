@@ -293,6 +293,13 @@ jobs:
           bash ci/sign-studio-update.sh "$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk" \
             "$tdps_test_dir/test.p12" "$tdps_test_dir/test.apk"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tablodecori-studio-unsigned
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 2
+          if-no-files-found: error
+
       - name: Sign the owner update
         if: github.event_name == 'workflow_dispatch'
         id: signed-update

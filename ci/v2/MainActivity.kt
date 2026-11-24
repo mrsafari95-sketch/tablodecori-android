@@ -139,7 +139,7 @@ private val bottomItems=listOf(
                         selected=route==i.route,
                         onClick={if(i.route=="studioPricing") studioSuggestion=null;navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
-                        label={Text(i.label,maxLines=1)},
+                        label={Text(if(i.route=="studioPricing") "فروشگاه" else i.label,maxLines=1)},
                         colors=NavigationBarItemDefaults.colors(
                             selectedIconColor=MaterialTheme.colorScheme.onPrimaryContainer,
                             selectedTextColor=MaterialTheme.colorScheme.primary,

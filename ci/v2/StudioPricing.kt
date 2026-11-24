@@ -83,6 +83,9 @@ internal data class StudioState(
     val updatedAt: Long = 0,
     val ownerRatesApplied: Boolean = false,
     val connected: Boolean = false,
+    val canResumeScan: Boolean = false,
+    val scanned: Int = 0,
+    val scanTotal: Int = 0,
     val busy: Boolean = false,
     val message: String = ""
 ) {
@@ -151,6 +154,7 @@ private class StudioStorage(context: Context) {
             owner = json.optString("owner"),
             updatedAt = json.optLong("updated_at"),
             ownerRatesApplied = json.optBoolean("owner_rates_applied"),
+            canResumeScan = scanToken() != null,
             connected = preferences.contains("device")
         )
     }
@@ -171,6 +175,13 @@ private class StudioStorage(context: Context) {
         }
     }
 
+    fun scanToken(): String? = preferences.getString("scan_token", null)
+
+    fun setScanToken(token: String?) {
+        if (token != scanToken() && !preferences.edit().putString("scan_token", token).commit())
+            throw StudioFailure("ذخیرهٔ نقطهٔ ادامه روی گوشی انجام نشد.")
+    }
+
     fun saveDevice(device: String) {
         val key = keys.getKey(alias, null) as? SecretKey ?: KeyGenerator
             .getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
@@ -182,7 +193,7 @@ private class StudioStorage(context: Context) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key)
         val encoded = Base64.encodeToString(cipher.iv + cipher.doFinal(device.toByteArray()), Base64.NO_WRAP)
-        check(preferences.edit().putString("device", encoded).commit())
+        check(preferences.edit().putString("device", encoded).remove("scan_token").commit())
     }
 
     fun device(): String {
@@ -200,7 +211,7 @@ private class StudioStorage(context: Context) {
     }
 
     fun disconnect() {
-        check(preferences.edit().remove("device").commit())
+        check(preferences.edit().remove("device").remove("scan_token").commit())
     }
 }
 
@@ -281,12 +292,16 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
                 throw error
             } catch (error: StudioFailure) {
                 mutable.update { it.copy(message = error.message.orEmpty()) }
+            } catch (_: java.net.SocketTimeoutException) {
+                mutable.update { it.copy(message = "فروشگاه در زمان انتظار پاسخ نداد.") }
+            } catch (_: java.net.UnknownHostException) {
+                mutable.update { it.copy(message = "اتصال به آدرس فروشگاه برقرار نشد. اینترنت گوشی را بررسی کنید.") }
             } catch (_: IOException) {
                 mutable.update { it.copy(message = "ارتباط یا ذخیره‌سازی انجام نشد. می‌توانید ادامهٔ کار را دوباره امتحان کنید.") }
             } catch (_: Exception) {
                 mutable.update { it.copy(message = "پردازش اطلاعات فروشگاه انجام نشد.") }
             } finally {
-                mutable.update { it.copy(busy = false) }
+                mutable.update { it.copy(busy = false, scanned = 0, scanTotal = 0) }
             }
         }
     }
@@ -320,7 +335,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         }
         storage.saveDevice(device)
         val account = if (current.owner == owner) current else StudioState(busy = true, ownerRatesApplied = current.ownerRatesApplied)
-        update(account.copy(job = job, connected = true, preview = null, owner = owner,
+        update(account.copy(job = job, connected = true, canResumeScan = false, preview = null, owner = owner,
             message = "اتصال به استودیوی محصولات برقرار شد."))
     }
 
@@ -328,17 +343,41 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         requireNoOfflineJob()
         if (mutable.value.inProgress) return@work
         storage.disconnect()
-        update(mutable.value.copy(connected = false, preview = null, message = "کلید از این گوشی پاک شد."))
+        update(mutable.value.copy(connected = false, canResumeScan = false, preview = null, message = "کلید از این گوشی پاک شد."))
     }
 
-    private suspend fun scan(client: StudioApi): JSONObject {
-        var page = client.call("scan", JSONObject().put("reset", true))
-        while (!page.getBoolean("done")) {
-            currentCoroutineContext().ensureActive()
-            mutable.update { it.copy(message = "در حال خواندن قیمت‌ها · ${page.getInt("scanned")} محصول") }
-            page = client.call("scan", JSONObject().put("token", page.getString("token")))
+    private suspend fun scan(client: StudioApi, resumable: Boolean = false): JSONObject {
+        val token = if (resumable) storage.scanToken() else null
+        if (!resumable) {
+            storage.setScanToken(null)
+            mutable.update { it.copy(canResumeScan = false) }
         }
-        return page
+        mutable.update { it.copy(message = if (token == null) "در حال دریافت فهرست فروشگاه" else "در حال ادامهٔ دریافت از فروشگاه") }
+        val first = if (token == null) JSONObject().put("reset", true) else JSONObject().put("token", token).put("resume", true)
+        var page = try {
+            client.call("scan", first)
+        } catch (error: StudioFailure) {
+            if (token == null || error.serverCode != "tdps_scan_expired") throw error
+            storage.setScanToken(null)
+            mutable.update { it.copy(canResumeScan = false, message = "فهرست قبلی منقضی شده است. دریافت تازه شروع شد.") }
+            client.call("scan", JSONObject().put("reset", true))
+        }
+        while (true) {
+            val durable = resumable && page.optInt("scan_protocol") == 2
+            val next = page.getString("token")
+            if (durable) storage.setScanToken(next)
+            if (page.getBoolean("done")) {
+                mutable.update { it.copy(canResumeScan = durable, scanned = 0, scanTotal = 0,
+                    message = "فهرست دریافت شد. در حال بررسی اتصال مراجع") }
+                return page
+            }
+            currentCoroutineContext().ensureActive()
+            val count = page.getInt("scanned")
+            val total = page.optInt("total_products")
+            val message = if (total > 0) "دریافت و بررسی ${count} از ${total} محصول" else "در حال دریافت قیمت و ابعاد · ${count} محصول"
+            mutable.update { it.copy(canResumeScan = durable, scanned = count, scanTotal = total, message = message) }
+            page = client.call("scan", JSONObject().put("token", next))
+        }
     }
 
     private fun restoreReferences(client: StudioApi, catalog: JSONObject, links: Map<String, JSONObject>): JSONObject {
@@ -419,13 +458,16 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             update(mutable.value.copy(job = job, preview = null, message = "یک عملیات قیمت در حال اجراست."))
         } else {
             val old = mutable.value
-            val catalog = restoreReferences(client, scan(client), old.links)
+            val catalog = restoreReferences(client, scan(client, resumable = true), old.links)
             val revisions = (catalog.objects("rows") + catalog.objects("references")).associate { it.getString("key") to it.getString("revision") }
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
+            mutable.update { it.copy(message = "در حال ساخت و ذخیرهٔ مراجع روی گوشی") }
             val links = createReferences(catalog, old)
             val created = links.size - old.links.size
             update(old.copy(catalog = catalog, members = members, links = links, job = job, preview = null,
-                updatedAt = System.currentTimeMillis(), message = "فهرست قیمت فروشگاه دریافت شد · ${created} مرجع ساخته شد."))
+                canResumeScan = false, updatedAt = System.currentTimeMillis(),
+                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${created} مرجع جدید"))
+            storage.setScanToken(null)
         }
     }
 

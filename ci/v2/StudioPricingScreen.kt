@@ -33,7 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -83,9 +83,18 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     var cancel by remember { mutableStateOf(false) }
     val rows = remember(state.catalog) { state.rows }
     val hasReferences = rows.any { it.scope != null }
-    val filtered = remember(rows, search, showReferences) {
+    var pendingOnly by rememberSaveable { mutableStateOf(false) }
+    val pendingRefs = remember(rows, state.links, local) {
+        rows.filter { row ->
+            val link = state.links[row.key]
+            row.scope != null && (link == null || link.optBoolean("disabled") ||
+                link.optBoolean("confirm_recipe") || link.optString("local_id") !in local)
+        }.mapTo(mutableSetOf()) { it.key }
+    }
+    val filtered = remember(rows, search, showReferences, pendingOnly, pendingRefs) {
         rows.filter { row ->
             (!hasReferences || (row.scope != null) == showReferences) &&
+                (!showReferences || !pendingOnly || row.key in pendingRefs) &&
                 "${row.group} ${row.label} ${row.sampleTitle} ${row.description}".contains(search.trim(), ignoreCase = true)
         }
     }
@@ -112,7 +121,10 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 if (state.updatedAt > 0) {
                     Text("آخرین فهرست ذخیره‌شده · ${DateFormat.getDateTimeInstance().format(Date(state.updatedAt))}")
                 }
-                if (state.busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+                if (state.busy && state.scanTotal > 0) {
+                    LinearProgressIndicator(progress = { (state.scanned.toFloat() / state.scanTotal).coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth())
+                } else if (state.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 if (state.message.isNotEmpty()) Text(state.message)
                 if (vm.hasOwnerRates && !state.ownerRatesApplied && !state.inProgress) {
                     OutlinedButton(onClick = vm::applyOwnerRates, enabled = !state.busy) {
@@ -121,7 +133,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 }
                 if (state.connected && !state.inProgress) {
                     Button(onClick = vm::refresh, enabled = !state.busy && !sendingOffline && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
-                        Text("دریافت محصولات و ساخت مراجع")
+                        Text(if (state.canResumeScan) "ادامهٔ دریافت محصولات" else "دریافت محصولات و ساخت مراجع")
                     }
                 }
             }
@@ -239,11 +251,18 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                     FilterChip(selected = !showReferences, onClick = { showReferences = false }, label = { Text("قیمت‌گذاری دستی") })
                 }
             }
+            if (hasReferences && showReferences) {
+                FilterChip(selected = pendingOnly, onClick = { pendingOnly = !pendingOnly },
+                    label = { Text("نیازمند بررسی (${pendingRefs.size})") })
+            }
             OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی گروه یا ابعاد") },
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
             if (suggestion != null && state.acceptsToman) {
                 Text("قیمت محاسبه‌شده · ${suggestion} تومان. برای استفاده، ردیف مقصد را انتخاب کنید.")
             }
+        }
+        if (rows.isNotEmpty() && filtered.isEmpty()) item {
+            Text(if (showReferences && pendingOnly && pendingRefs.isEmpty()) "همهٔ مراجع اتصال تأییدشده دارند." else "ردیفی با این انتخاب پیدا نشد.")
         }
         items(filtered, key = { it.key }) { row ->
             AppCard {

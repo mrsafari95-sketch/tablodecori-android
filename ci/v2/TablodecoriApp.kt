@@ -3,6 +3,7 @@ package com.tablodecori.app
 import android.app.Application
 import com.tablodecori.app.data.BackupManager
 import com.tablodecori.app.data.SeedData
+import com.tablodecori.app.data.StudioOfflineQueue
 import com.tablodecori.app.data.WorkshopRepository
 import com.tablodecori.app.data.PlannerScheduler
 import com.tablodecori.app.data.db.AppDatabase
@@ -20,6 +21,6 @@ class TablodecoriApp : Application() {
         database = AppDatabase.create(this)
         repository = WorkshopRepository(database, this)
         backupManager = BackupManager(database)
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { SeedData.seedIfNeeded(database);PlannerScheduler.refreshAll(this@TablodecoriApp,database.plannerDao().tasks(),database.plannerDao().settings()) }
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { StudioOfflineQueue.restore(this@TablodecoriApp); SeedData.seedIfNeeded(database);PlannerScheduler.refreshAll(this@TablodecoriApp,database.plannerDao().tasks(),database.plannerDao().settings()) }
     }
 }

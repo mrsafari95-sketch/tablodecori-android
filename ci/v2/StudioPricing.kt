@@ -10,6 +10,14 @@ import android.util.AtomicFile
 import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
 import com.tablodecori.app.TablodecoriApp
 import com.tablodecori.app.pricing.PieceInput
 import java.io.File
@@ -18,6 +26,7 @@ import java.net.URL
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -102,7 +111,7 @@ internal fun studioPrice(raw: String, decimals: Int): String? {
         ?.toPlainString()
 }
 
-private class StudioFailure(message: String, val status: Int = 0) : IOException(message)
+private class StudioFailure(message: String, val status: Int = 0, val serverCode: String = "") : IOException(message)
 
 @Suppress("DEPRECATION")
 internal fun publiclySignedStudioBuild(context: Context): Boolean {
@@ -228,7 +237,7 @@ private class StudioApi(private val device: String) {
             if (code == 404) throw StudioFailure("مسیر اتصال پیدا نشد. نسخهٔ استودیوی محصولات را بررسی کنید.", code)
             if (code !in 200..299) throw StudioFailure(
                 response?.optString("message")?.take(350)?.takeIf(String::isNotBlank)
-                    ?: "درخواست فروشگاه انجام نشد (خطای ${code}).", code
+                    ?: "درخواست فروشگاه انجام نشد (خطای ${code}).", code, response?.optString("code").orEmpty()
             )
             return response ?: throw StudioFailure("پاسخ فروشگاه معتبر نیست.")
         } finally {
@@ -239,6 +248,8 @@ private class StudioApi(private val device: String) {
 
 internal class StudioPricingViewModel(application: Application) : AndroidViewModel(application) {
     private val storage = StudioStorage(application)
+    private val context = application.applicationContext
+    val offlineQueue = StudioOfflineQueue.state
     private val repository = (application as TablodecoriApp).repository
     val hasOwnerRates = application.assets.list("")?.contains("tdps-owner-pricing.json") == true
     val localProducts = repository.allPricedProducts
@@ -250,7 +261,10 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     init {
         viewModelScope.launch {
             try {
-                mutable.value = withContext(Dispatchers.IO) { storage.load() }
+                mutable.value = withContext(Dispatchers.IO) {
+                    StudioOfflineQueue.restore(context)
+                    storage.load()
+                }
             } catch (_: Exception) {
                 mutable.value = StudioState(message = "خواندن اطلاعات ذخیره‌شدهٔ فروشگاه انجام نشد.")
             }
@@ -293,6 +307,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
 
     fun connect(input: String) = work {
         requirePrivateSigning()
+        requireNoOfflineJob()
         val device = input.trim()
         if (!Regex("[1-9][0-9]{0,15}\\.[a-f0-9]{64}").matches(device)) {
             throw StudioFailure("قالب کلید اتصال معتبر نیست.")
@@ -310,6 +325,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     }
 
     fun disconnect() = work {
+        requireNoOfflineJob()
         if (mutable.value.inProgress) return@work
         storage.disconnect()
         update(mutable.value.copy(connected = false, preview = null, message = "کلید از این گوشی پاک شد."))
@@ -396,6 +412,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     }
 
     fun refresh() = work {
+        requireNoOfflineJob()
         val client = api()
         val job = client.call("status").takeIf { it.has("id") }
         if (job?.optString("state") == "running") {
@@ -451,6 +468,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     }
 
     fun review(fromReferences: Boolean = false) = work {
+        requireNoOfflineJob()
         val current = mutable.value
         if (current.inProgress || (!fromReferences && current.drafts.isEmpty())) return@work
         val client = api()
@@ -488,16 +506,71 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         return proposals
     }
 
+    private fun requireNoOfflineJob() {
+        if (StudioOfflineQueue.active(offlineQueue.value)) throw StudioFailure("ارسال تغییرات آفلاین در حال پیگیری است.")
+    }
+
+    fun previewOffline(fromReferences: Boolean) = work {
+        requirePrivateSigning()
+        requireNoOfflineJob()
+        val current = mutable.value
+        if (current.inProgress || !current.connected) return@work
+        val catalog = current.catalog ?: throw StudioFailure("برای شروع، یک‌بار فهرست فروشگاه را دریافت کنید.")
+        val changes = if (fromReferences) referencePrices(current) else current.drafts
+        if (changes.isEmpty()) return@work
+        val rows = current.rows.associateBy { it.key }
+        val review = changes.map { change ->
+            val row = rows[change.getString("key")]
+                ?.takeIf { it.revision == change.getString("revision") }
+                ?: throw StudioFailure("فهرست ذخیره‌شده با یکی از پیش‌نویس‌ها سازگار نیست.")
+            val selected = change.optJSONArray("product_ids")
+            JSONObject().put("group_name", listOf(row.group, row.sampleTitle).filter { it.isNotBlank() }.joinToString(" · "))
+                .put("label", row.label).put("before", row.prices).put("price", change.getString("price"))
+                .put("products", selected?.length() ?: row.products)
+        }
+        val request = JSONObject().put("request_id", UUID.randomUUID().toString())
+            .put("sale_policy", if (fromReferences) "keep" else current.salePolicy)
+            .put("reference_job", fromReferences).put("rows", JSONArray(changes))
+        mutable.value = current.copy(preview = JSONObject().put("offline_job", true)
+            .put("reference_job", fromReferences).put("request", request).put("review", JSONArray(review))
+            .put("currency_code", catalog.getString("currency_code")).put("decimals", catalog.getInt("decimals")))
+    }
+
+    fun cancelOffline() = work {
+        val cancelled = StudioOfflineQueue.cancel(context) ?: return@work
+        val request = cancelled.getJSONObject("request")
+        if (!request.optBoolean("reference_job")) {
+            val current = mutable.value
+            val savedKeys = current.drafts.mapTo(mutableSetOf()) { it.getString("key") }
+            update(current.copy(drafts = current.drafts + request.objects("rows").filter { it.getString("key") !in savedKeys }))
+        }
+    }
+
     fun start() = work {
+        requireNoOfflineJob()
         val current = mutable.value
         val approved = current.preview ?: return@work
+        if (approved.optBoolean("offline_job")) {
+            val request = approved.getJSONObject("request")
+            StudioOfflineQueue.enqueue(context, JSONObject().put("owner", current.owner)
+                .put("currency_code", approved.getString("currency_code")).put("decimals", approved.getInt("decimals"))
+                .put("request", request))
+            val queuedKeys = request.objects("rows").mapTo(mutableSetOf()) { it.getString("key") }
+            val drafts = if (approved.optBoolean("reference_job")) current.drafts else
+                current.drafts.filterNot { it.getString("key") in queuedKeys }
+            update(current.copy(preview = null, drafts = drafts, message = "تغییرات برای ارسال پس از اتصال ذخیره شد."))
+            return@work
+        }
         val request = JSONObject(approved.getJSONObject("request").toString())
             .put("receipt", approved.getString("receipt"))
         update(current.copy(pending = request, preview = null, job = null))
         continueJob(api())
     }
 
-    fun resume() = work { continueJob(api()) }
+    fun resume() = work {
+        requireNoOfflineJob()
+        continueJob(api())
+    }
 
     private suspend fun continueJob(client: StudioApi) {
         var current = mutable.value
@@ -543,9 +616,136 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
     }
 
     fun cancel() = work {
+        requireNoOfflineJob()
         val job = mutable.value.job ?: return@work
         finish(api().call("cancel", JSONObject().put("id", job.getString("id"))))
     }
 }
 
 private fun JSONObject?.orEmptyObjects(key: String): List<JSONObject> = this?.objects(key).orEmpty()
+
+/** Stores the user's confirmed offline amount separately from editable draft and catalogue state. */
+internal object StudioOfflineQueue {
+    private const val workName = "studio-confirmed-offline-pricing"
+    private val lock = Any()
+    private val snapshot = MutableStateFlow<JSONObject?>(null)
+    val state = snapshot.asStateFlow()
+
+    fun active(value: JSONObject?) = value?.optString("phase") in setOf("queued", "sending")
+
+    private fun file(context: Context) = AtomicFile(File(context.noBackupFilesDir, "studio-offline-pricing.json"))
+
+    fun restore(context: Context, schedulePending: Boolean = true) {
+        synchronized(lock) {
+            val stored = runCatching { JSONObject(file(context).readFully().toString(Charsets.UTF_8)) }.getOrNull()
+            snapshot.value = stored
+            if (schedulePending && active(stored)) schedule(context)
+        }
+    }
+
+    private fun save(context: Context, value: JSONObject) {
+        val file = file(context)
+        val stream = file.startWrite()
+        try {
+            stream.write(value.toString().toByteArray(Charsets.UTF_8))
+            file.finishWrite(stream)
+        } catch (error: Exception) {
+            file.failWrite(stream)
+            throw error
+        }
+        snapshot.value = value
+    }
+
+    private fun schedule(context: Context) {
+        val request = OneTimeWorkRequestBuilder<StudioOfflineWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request)
+    }
+
+    fun enqueue(context: Context, value: JSONObject) = synchronized(lock) {
+        check(!active(snapshot.value))
+        save(context, value.put("phase", "queued"))
+        schedule(context)
+    }
+
+    fun cancel(context: Context) = synchronized(lock) {
+        val value = snapshot.value ?: return@synchronized null
+        if (value.optString("phase") != "queued") return@synchronized null
+        save(context, JSONObject(value.toString()).put("phase", "cancelled"))
+        WorkManager.getInstance(context).cancelUniqueWork(workName)
+        value
+    }
+
+    fun update(context: Context, id: String, phase: String, message: String = ""): Boolean = synchronized(lock) {
+        val value = snapshot.value ?: return@synchronized false
+        if (!active(value) || value.getJSONObject("request").getString("request_id") != id) return@synchronized false
+        save(context, JSONObject(value.toString()).put("phase", phase).put("message", message))
+        true
+    }
+}
+
+class StudioOfflineWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val context = applicationContext
+        StudioOfflineQueue.restore(context, schedulePending = false)
+        val queued = StudioOfflineQueue.state.value?.takeIf(StudioOfflineQueue::active) ?: return@withContext Result.success()
+        val request = JSONObject(queued.getJSONObject("request").toString())
+        val id = request.getString("request_id")
+        if (!StudioOfflineQueue.update(context, id, "sending")) return@withContext Result.success()
+        try {
+            if (publiclySignedStudioBuild(context)) throw StudioFailure("برای ارسال آفلاین، نسخهٔ دارای امضای خصوصی لازم است.")
+            val device = StudioStorage(context).device()
+            if (device.substringBefore('.') != queued.getString("owner"))
+                throw StudioFailure("حساب فروشگاه تغییر کرده است. تغییرات را دوباره بررسی کنید.")
+            val client = StudioApi(device)
+            var job = client.call("status")
+            if (job.optString("request_id") != id) {
+                if (job.optString("state") == "running") {
+                    if (runAttemptCount < 6) return@withContext Result.retry()
+                    throw StudioFailure("یک عملیات قیمت دیگر در فروشگاه در جریان است.")
+                }
+                var catalog = client.call("scan", JSONObject().put("reset", true))
+                while (!catalog.getBoolean("done")) {
+                    currentCoroutineContext().ensureActive()
+                    catalog = client.call("scan", JSONObject().put("token", catalog.getString("token")))
+                }
+                if (catalog.getString("currency_code") != queued.getString("currency_code") ||
+                    catalog.getInt("decimals") != queued.getInt("decimals"))
+                    throw StudioFailure("واحد یا دقت مبلغ فروشگاه تغییر کرده است.")
+                request.put("token", catalog.getString("token"))
+                val preview = client.call("preview", request)
+                currentCoroutineContext().ensureActive()
+                job = client.call("start", request.put("receipt", preview.getString("receipt")))
+            }
+            while (job.optString("state") == "running") {
+                currentCoroutineContext().ensureActive()
+                job = client.call("step", JSONObject().put("id", job.getString("id")))
+            }
+            val done = job.optString("state") == "completed" && job.optInt("conflicts") == 0
+            StudioOfflineQueue.update(context, id, if (done) "applied" else "attention",
+                "${job.optInt("updated")} قیمت اعمال شد · ${job.optInt("conflicts")} مورد نیازمند بررسی")
+            Result.success()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: StudioFailure) {
+            val retryable = error.status in 500..599 || error.status == 429 ||
+                (error.status == 409 && error.serverCode == "tdps_pricing")
+            if (retryable && runAttemptCount < 6) Result.retry()
+            else {
+                StudioOfflineQueue.update(context, id, "attention", error.message.orEmpty())
+                Result.success()
+            }
+        } catch (_: IOException) {
+            if (runAttemptCount < 6) Result.retry()
+            else {
+                StudioOfflineQueue.update(context, id, "attention", "ارسال کامل نشد. وضعیت فروشگاه را بررسی کنید.")
+                Result.success()
+            }
+        } catch (_: Exception) {
+            StudioOfflineQueue.update(context, id, "attention", "محدوده و قیمت تازه را در پیش‌نمایش بررسی کنید.")
+            Result.success()
+        }
+    }
+}

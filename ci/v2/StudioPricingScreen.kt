@@ -57,6 +57,7 @@ import com.tablodecori.app.MainViewModel
 import com.tablodecori.app.data.PricedProduct
 import com.tablodecori.app.data.SITE_REFERENCE_PREFIX
 import com.tablodecori.app.data.StudioPricingViewModel
+import com.tablodecori.app.data.StudioOfflineQueue
 import com.tablodecori.app.data.StudioRow
 import com.tablodecori.app.data.StudioState
 import com.tablodecori.app.data.objects
@@ -68,6 +69,8 @@ import java.util.Date
 @Composable
 internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewModel, suggestion: Long?) {
     val state by vm.state.collectAsState()
+    val queued by vm.offlineQueue.collectAsState()
+    val sendingOffline = StudioOfflineQueue.active(queued)
     val products by vm.localProducts.collectAsState()
     val materials by workshop.materials.collectAsState()
     var editModel by rememberSaveable { mutableStateOf<String?>(null) }
@@ -98,10 +101,10 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                     Text("برای اتصال آنلاین، نسخهٔ اندرویدی با امضای خصوصی لازم است.")
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { connect = true }, enabled = !state.busy) {
+                        OutlinedButton(onClick = { connect = true }, enabled = !state.busy && !sendingOffline) {
                             Text(if (state.connected) "تغییر کلید اتصال" else "اتصال فروشگاه")
                         }
-                        if (state.connected && !state.inProgress) TextButton(onClick = vm::disconnect, enabled = !state.busy) {
+                        if (state.connected && !state.inProgress) TextButton(onClick = vm::disconnect, enabled = !state.busy && !sendingOffline) {
                             Text("قطع اتصال")
                         }
                     }
@@ -117,8 +120,29 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                     }
                 }
                 if (state.connected && !state.inProgress) {
-                    Button(onClick = vm::refresh, enabled = !state.busy && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
+                    Button(onClick = vm::refresh, enabled = !state.busy && !sendingOffline && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
                         Text("دریافت محصولات و ساخت مراجع")
+                    }
+                }
+            }
+        }
+        queued?.let { queue ->
+            item {
+                val phase = queue.optString("phase")
+                val title = when (phase) {
+                    "queued" -> "تغییرات آفلاین در صف ارسال"
+                    "sending" -> "در حال بررسی و ارسال تغییرات آفلاین"
+                    "applied" -> "تغییرات آفلاین به فروشگاه رسید"
+                    "attention" -> "تغییرات آفلاین نیازمند بررسی"
+                    else -> "ارسال آفلاین لغو شد"
+                }
+                AppCard {
+                    Text(title, fontWeight = FontWeight.SemiBold)
+                    if (phase == "queued") {
+                        Text("${queue.getJSONObject("request").getJSONArray("rows").length()} ردیف · ارسال با اینترنت")
+                        TextButton(onClick = vm::cancelOffline, enabled = !state.busy) { Text("لغو ارسال") }
+                    } else {
+                        queue.optString("message").takeIf { it.isNotBlank() }?.let { Text(it) }
                     }
                 }
             }
@@ -177,8 +201,12 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 }
                 Text(if (state.salePolicy == "keep") "تخفیفی که برابر یا بیشتر از قیمت جدید شود حذف خواهد شد."
                     else "قیمتِ تخفیف و زمان‌بندی تخفیفِ موارد انتخاب‌شده حذف می‌شود.")
-                Button(onClick = { vm.review() }, enabled = state.connected && !state.busy && !state.inProgress) {
+                Button(onClick = { vm.review() }, enabled = state.connected && !state.busy && !state.inProgress && !sendingOffline) {
                     Text("خواندن قیمت روز و پیش‌نمایش تغییرات")
+                }
+                TextButton(onClick = { vm.previewOffline(fromReferences = false) },
+                    enabled = state.connected && !state.busy && !state.inProgress && !sendingOffline) {
+                    Text("ثبت آفلاین پیش‌نویس‌ها")
                 }
             }
         }
@@ -195,8 +223,12 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                     }
                 }
                 Button(onClick = { vm.review(fromReferences = true) },
-                    enabled = state.connected && !state.busy && !state.inProgress && local.isNotEmpty()) {
+                    enabled = state.connected && !state.busy && !state.inProgress && !sendingOffline && local.isNotEmpty()) {
                     Text("پیش‌نمایش قیمت مراجع")
+                }
+                TextButton(onClick = { vm.previewOffline(fromReferences = true) },
+                    enabled = state.connected && !state.busy && !state.inProgress && !sendingOffline && local.isNotEmpty()) {
+                    Text("ثبت آفلاین قیمت مراجع")
                 }
             }
         }
@@ -270,21 +302,26 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     if (editorRow != null) StudioDraftDialog(vm, state, editorRow, suggestion) { editorKey = null }
     state.preview?.let { preview ->
         var opened by remember(preview) { mutableStateOf(true) }
+        val offline = preview.optBoolean("offline_job")
         if (opened) AlertDialog(
             onDismissRequest = { opened = false },
-            title = { Text("تأیید نهایی تغییر قیمت") },
+            title = { Text(if (offline) "تأیید ارسال آفلاین قیمت" else "تأیید نهایی تغییر قیمت") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${preview.getInt("products")} محصول · ${preview.getInt("count")} قیمت")
+                    if (offline) Text("مبلغ‌ها با اولین اتصال ارسال می‌شوند. اگر قیمت یا محدوده در سایت تغییر کرده باشد، ارسال متوقف می‌شود.")
+                    else Text("${preview.getInt("products")} محصول · ${preview.getInt("count")} قیمت")
                     Text(if (preview.optBoolean("reference_job") || state.salePolicy == "keep")
                         "تخفیف‌های معتبر حفظ می‌شوند." else "تخفیف‌ها و زمان‌بندی آن‌ها حذف می‌شوند.")
                     preview.objects("review").forEach { row ->
                         Text("${row.getString("group_name")} · ${row.getString("label")}")
-                        Text("${row.getString("before").ifBlank { "بدون قیمت" }} ← ${row.getString("price")} ${state.currency} · ${row.getInt("count")} قیمت")
+                        val scopeLabel = if (offline) "${row.getInt("products")} محصول" else "${row.getInt("count")} قیمت"
+                        Text("${row.getString("before").ifBlank { "بدون قیمت" }} ← ${row.getString("price")} ${state.currency} · $scopeLabel")
                     }
                 }
             },
-            confirmButton = { Button(onClick = vm::start, enabled = !state.busy) { Text("اعمال در فروشگاه") } },
+            confirmButton = { Button(onClick = vm::start, enabled = !state.busy) {
+                Text(if (offline) "ذخیره در صف ارسال" else "اعمال در فروشگاه")
+            } },
             dismissButton = { TextButton(onClick = { opened = false }) { Text("بازگشت") } }
         )
     }

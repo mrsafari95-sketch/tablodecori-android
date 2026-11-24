@@ -96,6 +96,22 @@ internal data class StudioState(
     val inProgress get() = job?.optString("state") == "running" || pending != null
 }
 
+private val studioDimensionSeparator = Regex("""(?<=\d)\s*(?:[×xX*]|در)\s*(?=\d)""")
+
+internal fun studioSearchText(raw: String): String {
+    val normalized = raw.trim().map { glyph ->
+        when (glyph) {
+            in '۰'..'۹' -> '0' + (glyph - '۰')
+            in '٠'..'٩' -> '0' + (glyph - '٠')
+            'ي' -> 'ی'
+            'ك' -> 'ک'
+            '\u200c' -> ' '
+            else -> glyph
+        }
+    }.joinToString("")
+    return studioDimensionSeparator.replace(normalized, "×")
+}
+
 internal fun studioPrice(raw: String, decimals: Int): String? {
     val value = buildString {
         for (glyph in raw.trim()) {

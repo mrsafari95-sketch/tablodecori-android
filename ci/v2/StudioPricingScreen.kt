@@ -17,6 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.net.URL
+import java.io.File
+import java.security.MessageDigest
 import javax.net.ssl.HttpsURLConnection
 
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -61,6 +64,7 @@ import com.tablodecori.app.data.StudioOfflineQueue
 import com.tablodecori.app.data.StudioRow
 import com.tablodecori.app.data.StudioState
 import com.tablodecori.app.data.objects
+import com.tablodecori.app.data.studioSearchText
 import com.tablodecori.app.data.studioPrice
 import com.tablodecori.app.ui.AppCard
 import java.text.DateFormat
@@ -91,11 +95,15 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 link.optBoolean("confirm_recipe") || link.optString("local_id") !in local)
         }.mapTo(mutableSetOf()) { it.key }
     }
+    val searchable = remember(rows) {
+        rows.associate { it.key to studioSearchText("${it.group} ${it.label} ${it.sampleTitle} ${it.description}") }
+    }
     val filtered = remember(rows, search, showReferences, pendingOnly, pendingRefs) {
+        val query = studioSearchText(search)
         rows.filter { row ->
             (!hasReferences || (row.scope != null) == showReferences) &&
                 (!showReferences || !pendingOnly || row.key in pendingRefs) &&
-                "${row.group} ${row.label} ${row.sampleTitle} ${row.description}".contains(search.trim(), ignoreCase = true)
+                searchable.getValue(row.key).contains(query, ignoreCase = true)
         }
     }
     LazyColumn(
@@ -496,11 +504,12 @@ private val studioThumbnails = LruCache<String, Bitmap>(80)
 
 @Composable
 private fun StudioThumbnail(address: String, title: String) {
+    val directory = File(LocalContext.current.cacheDir, "studio-thumbnails")
     val image by produceState<Bitmap?>(initialValue = null, key1 = address) {
         value = null
         if (address.isNotBlank()) {
             value = withContext(Dispatchers.IO) {
-                studioThumbnails.get(address) ?: loadStudioThumbnail(address)?.also { studioThumbnails.put(address, it) }
+                studioThumbnails.get(address) ?: cachedStudioThumbnail(directory, address)?.also { studioThumbnails.put(address, it) }
             }
         }
     }
@@ -513,6 +522,33 @@ private fun StudioThumbnail(address: String, title: String) {
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         }
     }
+}
+
+private fun cachedStudioThumbnail(directory: File, address: String): Bitmap? {
+    val key = MessageDigest.getInstance("SHA-256").digest(address.toByteArray()).joinToString("") { "%02x".format(it) }
+    val file = File(directory, "$key.png")
+    val cached = if (file.isFile) BitmapFactory.decodeFile(file.path) else null
+    if (cached != null && System.currentTimeMillis() - file.lastModified() < 86_400_000L) return cached
+    val image = loadStudioThumbnail(address) ?: return cached
+    runCatching {
+        directory.mkdirs()
+        val temp = File.createTempFile("photo-", ".tmp", directory)
+        try {
+            val wrote = temp.outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            if (wrote && temp.renameTo(file)) {
+                val files = directory.listFiles { item -> item.extension == "png" }.orEmpty().sortedBy { it.lastModified() }
+                var bytes = files.sumOf { it.length() }
+                for (old in files) {
+                    if (bytes <= 12L * 1024 * 1024) break
+                    val size = old.length()
+                    if (old.delete()) bytes -= size
+                }
+            }
+        } finally {
+            temp.delete()
+        }
+    }
+    return image
 }
 
 private fun loadStudioThumbnail(address: String): Bitmap? = runCatching {

@@ -5,6 +5,13 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class StudioPricingTest {
+    @Test fun sizeSearchAcceptsStoreAndKeyboardSpellings() {
+        for (size in listOf("۳۰ × ۴۰", "30x40", "٣٠ در ٤٠", "30*40")) {
+            assertEquals("30×40", studioSearchText(size))
+        }
+        assertEquals("تک تکه", studioSearchText("تك‌تكه"))
+    }
+
     @Test fun pricesKeepExactStoreUnits() {
         assertEquals("1600000", studioPrice("۱٬۶۰۰٬۰۰۰", 0))
         assertEquals("1600.05", studioPrice("١٦٠٠٫٠٥", 2))

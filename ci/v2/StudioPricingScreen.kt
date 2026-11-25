@@ -111,7 +111,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             val matches = if (all) card.rows else card.rows.filter { row ->
                 studioSearchText("${row.label} ${row.sampleTitle} ${row.description}").contains(query, ignoreCase = true)
             }
-            if (matches.isEmpty()) null else card to matches
+            if (!all && matches.isEmpty()) null else card to matches
         }
     }
     LazyColumn(
@@ -124,22 +124,22 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("محصولات سایت", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                     if (state.catalog != null) TextButton(onClick = { showTools = !showTools }) {
-                        Text(if (showTools) "بستن تنظیمات" else "ابزارهای قیمت")
+                        Text(if (showTools) "بستن ابزارها" else "ابزارهای قیمت")
                     }
                 }
                 if (state.catalog == null || showTools || !state.connected) {
-                if (vm.publicSigning) {
-                    Text("برای اتصال آنلاین، نسخهٔ اندرویدی با امضای خصوصی لازم است.")
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { connect = true }, enabled = !state.busy && !sendingOffline) {
-                            Text(if (state.connected) "تغییر کلید اتصال" else "اتصال فروشگاه")
-                        }
-                        if (state.connected && !state.inProgress) TextButton(onClick = vm::disconnect, enabled = !state.busy && !sendingOffline) {
-                            Text("قطع اتصال")
+                    if (vm.publicSigning) {
+                        Text("برای اتصال آنلاین، نسخهٔ اندرویدی با امضای خصوصی لازم است.")
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { connect = true }, enabled = !state.busy && !sendingOffline) {
+                                Text(if (state.connected) "تغییر کلید اتصال" else "اتصال فروشگاه")
+                            }
+                            if (state.connected && !state.inProgress) TextButton(onClick = vm::disconnect, enabled = !state.busy && !sendingOffline) {
+                                Text("قطع اتصال")
+                            }
                         }
                     }
-                }
                 }
                 if (state.updatedAt > 0 && showTools) {
                     Text("آخرین فهرست ذخیره‌شده · ${DateFormat.getDateTimeInstance().format(Date(state.updatedAt))}")
@@ -182,7 +182,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 }
             }
         }
-        state.job?.let { job ->
+        state.job?.takeIf { showTools || it.optString("state") == "running" || it.optInt("conflicts") > 0 }?.let { job ->
             item {
                 AppCard {
                     val status = when (job.optString("state")) {
@@ -299,6 +299,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                         contentDescription = if (expanded) "بستن دسته" else "بازکردن دسته")
                 }
                 if (expanded) {
+                    if (card.rows.isEmpty()) Text("برای این دسته اندازهٔ قابل قیمت‌گذاری پیدا نشد. مشخصات محصول را در استودیو بررسی کنید.")
                     matches.forEach { row ->
                         HorizontalDivider()
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,

@@ -3,6 +3,7 @@ package com.tablodecori.app.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.json.JSONObject
 
 class StudioPricingTest {
     @Test fun sizeSearchAcceptsStoreAndKeyboardSpellings() {
@@ -10,6 +11,20 @@ class StudioPricingTest {
             assertEquals("30×40", studioSearchText(size))
         }
         assertEquals("تک تکه", studioSearchText("تك‌تكه"))
+    }
+
+    @Test fun priceCardsKeepServerOrderAndSeparateIdenticallyNamedSizes() {
+        fun row(key: String, item: Int) = StudioRow(key, "revision", "دسته", "مدیوم", "100", 1, 1, 0, 0,
+            true, JSONObject("""{"size_key":"medium","group_id":"","product_ids":[$item]}"""), "", "", "", emptyList())
+        val catalog = JSONObject("""{"cards":[
+            {"key":"first","kind":"suggested","name":"اول","products":1,"rows":["a"],"images":[]},
+            {"key":"second","kind":"suggested","name":"دوم","products":1,"rows":["b"],"images":[]},
+            {"key":"ambiguous","kind":"review","name":"بررسی","products":1,"rows":[],"images":[]}
+        ]}""")
+        val cards = studioCards(catalog, listOf(row("b", 2), row("a", 1)))
+        assertEquals(listOf("first", "second", "ambiguous"), cards.map { it.key })
+        assertEquals(listOf(listOf("a"), listOf("b"), emptyList()), cards.map { card -> card.rows.map { it.key } })
+        assertEquals(2, studioCards(null, listOf(row("a", 1), row("b", 2))).size)
     }
 
     @Test fun pricesKeepExactStoreUnits() {

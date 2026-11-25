@@ -78,10 +78,9 @@ internal data class StudioCard(
 internal fun studioCards(catalog: JSONObject?, references: List<StudioRow>): List<StudioCard> {
     val byKey = references.associateBy { it.key }
     val seen = mutableSetOf<String>()
-    val cards = catalog?.objects("cards").orEmpty().mapNotNull { card ->
+    val cards = catalog?.objects("cards").orEmpty().map { card ->
         val keys = card.getJSONArray("rows")
         val rows = List(keys.length()) { byKey[keys.getString(it)] }.filterNotNull()
-        if (rows.isEmpty()) return@mapNotNull null
         seen.addAll(rows.map { it.key })
         StudioCard(card.getString("key"), card.getString("kind"), card.getString("name"), card.getInt("products"),
             rows, card.objects("images").map { it.optString("image") to it.optString("title") })

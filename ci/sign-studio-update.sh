@@ -36,7 +36,7 @@ if [[ -n ${TDPS_RELEASE_CERT_SHA256:-} && $owner_fingerprint != "$TDPS_RELEASE_C
 fi
 
 "$TDPS_BUILD_TOOLS/aapt" dump badging "$unsigned_apk" > "$scratch/unsigned-badging.txt"
-grep -Fq "package: name='com.tablodecori.app' versionCode='15' versionName='1.8.4'" "$scratch/unsigned-badging.txt"
+grep -Fq "package: name='com.tablodecori.app' versionCode='16' versionName='1.8.5'" "$scratch/unsigned-badging.txt"
 grep -Fxq "sdkVersion:'28'" "$scratch/unsigned-badging.txt"
 if grep -q '^application-debuggable' "$scratch/unsigned-badging.txt"; then
     echo "The APK must be a release build." >&2

@@ -76,6 +76,8 @@ import com.tablodecori.app.data.studioCards
 import com.tablodecori.app.data.studioSearchText
 import com.tablodecori.app.data.studioPrice
 import com.tablodecori.app.ui.AppCard
+import com.tablodecori.app.ui.PieceChips
+import com.tablodecori.app.ui.PricingBreakdown
 import java.text.DateFormat
 import java.util.Date
 
@@ -109,18 +111,29 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             if (found.isEmpty()) null else card.copy(rows = found)
         }
     }
-    val sections = listOf("references" to "مراجع قیمت", "group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
+    var costKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var createKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val sections = listOf("references" to "محصولات مرجع گوشی", "pending" to "مرجع آماده‌نشده",
+        "group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
     val section = selectedSection ?: "references"
     val eligibleRows = remember(referenceCards) { referenceCards.flatMap { it.rows } }
     val readyRows = remember(eligibleRows, state.links, local, linkedProducts) { eligibleRows.filter { row ->
         val link = state.links[row.key]
-        link?.optBoolean("store_recipe") == true && linkedProducts[row.key]?.let(local::containsKey) == true
+        link != null && linkedProducts[row.key]?.let(local::containsKey) == true
     } }
     val readySizes = readyRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
     val eligibleSizes = eligibleRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
-    val filtered = remember(cards, referenceCards, local, linkedProducts, section, search) {
+    val readyKeys = readyRows.mapTo(mutableSetOf()) { it.key }
+    val filtered = remember(cards, referenceCards, local, linkedProducts, readyKeys, section, search) {
         val query = studioSearchText(search)
-        (if (section == "references") referenceCards else cards.filter { it.kind == section }).mapNotNull { card ->
+        val visible = when (section) {
+            "references", "pending" -> referenceCards.mapNotNull { card ->
+                val selected = card.rows.filter { (it.key in readyKeys) == (section == "references") }
+                card.copy(rows = selected).takeIf { selected.isNotEmpty() }
+            }
+            else -> cards.filter { it.kind == section }
+        }
+        visible.mapNotNull { card ->
             val all = query.isEmpty() || studioSearchText(card.name).contains(query, ignoreCase = true)
             val matches = if (all) card.rows else card.rows.filter { row ->
                 studioSearchText("${row.label} ${row.sampleTitle} ${row.description} ${linkedProducts[row.key]?.let(local::get)?.product?.name.orEmpty()}").contains(query, ignoreCase = true)
@@ -282,23 +295,32 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             }
         }
         if (state.catalog != null) item {
-            Text(if (section == "references") "$readySizes از $eligibleSizes اندازهٔ قابل ارجاع آماده است"
+            Text(if (section == "references") "${readyRows.size} محصول مرجع در گوشی · $readySizes اندازه از $eligibleSizes"
                 else "${bySize.size} اندازه · ${state.catalog?.optInt("scanned") ?: 0} محصول",
                 style = MaterialTheme.typography.titleMedium)
-            if (section == "references" && state.catalog?.optBoolean("reference_rules") != true) {
-                Text("برای ساخت مراجع، افزونهٔ ۰.۱۲.۶ را فعال کنید و «به‌روزرسانی و ساخت مراجع قیمت» را بزنید.")
+            if (section == "references" && (state.catalog?.optInt("reference_schema") ?: 0) < 2) {
+                Text("این فهرست با نسخهٔ قبلی افزونه دریافت شده. افزونهٔ ۰.۱۲.۸ را فعال کنید و دریافت تازه انجام دهید.")
+            }
+            if (section == "references" && eligibleRows.size > readyRows.size) {
+                TextButton(onClick = { selectedSection = "pending"; openCard = null }) {
+                    Text("${eligibleRows.size - readyRows.size} ردیف هنوز محصول مرجع ندارد")
+                }
             }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 sections.forEach { (kind, name) ->
                     FilterChip(selected = section == kind, onClick = { selectedSection = kind; openCard = null },
-                        label = { Text(if (kind == "references") name else "$name (${cards.count { it.kind == kind }})") })
+                        label = { Text(if (kind == "references" || kind == "pending") name else "$name (${cards.count { it.kind == kind }})") })
                 }
             }
             OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی دسته یا اندازه") },
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
         }
         if (state.catalog != null && filtered.isEmpty()) item {
-            Text(if (search.isBlank()) "در این بخش دسته‌ای ثبت نشده است." else "دسته یا اندازه‌ای با این عبارت پیدا نشد.")
+            Text(when {
+                search.isNotBlank() -> "دسته یا اندازه‌ای با این عبارت پیدا نشد."
+                section == "references" -> "هنوز محصول محاسباتی در گوشی آماده نشده است."
+                else -> "در این بخش دسته‌ای ثبت نشده است."
+            })
         }
         items(filtered, key = { it.first.key }) { (card, matches) ->
             val expanded = openCard == card.key
@@ -330,18 +352,60 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                                 Text(label, fontWeight = FontWeight.SemiBold)
                                 val price = row.prices.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(java.util.Locale.forLanguageTag("fa-IR")).format(it) }
                                     ?: row.prices.ifBlank { "ثبت نشده" }
-                                Text("$price ${state.currency}", style = MaterialTheme.typography.bodySmall)
+                                Text("سایت · $price ${state.currency}", style = MaterialTheme.typography.bodySmall)
+                                if (section == "references" && reference != null) {
+                                    Text("محاسبهٔ گوشی · ${reference.pricing.finalPriceToman} تومان", style = MaterialTheme.typography.bodySmall)
+                                }
                                 if (section == "references" && row !in readyRows) {
                                     Text(if (row.pieces.isEmpty()) "ترکیب تکه‌ها نیازمند بررسی" else "مرجع در انتظار آماده‌سازی",
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
-                            TextButton(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) { Text("ویرایش قیمت") }
+                            when (section) {
+                                "references" -> TextButton(onClick = { costKey = row.key }) { Text("ریز هزینه") }
+                                "pending" -> TextButton(onClick = { createKey = row.key },
+                                    enabled = !state.inProgress && !state.busy && (state.catalog?.optInt("reference_schema") ?: 0) >= 2) {
+                                    Text("ساخت مرجع")
+                                }
+                                else -> TextButton(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) { Text("ویرایش قیمت") }
+                            }
                             IconButton(onClick = { detailsKey = row.key }) { Icon(Icons.Rounded.MoreVert, "جزئیات مرجع") }
                         }
                     }
                 }
             }
+        }
+    }
+    rows.find { it.key == costKey }?.let { row ->
+        val reference = linkedProducts[row.key]?.let(local::get)
+        if (reference != null) AlertDialog(onDismissRequest = { costKey = null },
+            title = { Text(reference.product.name) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StudioThumbnail(row.thumbnail, row.sampleTitle)
+                    PieceChips(reference.product.pieces)
+                    Text("قیمت فعلی سایت · ${row.prices} ${state.currency}")
+                    if ("glass" !in reference.product.enabledMaterialIds) Text("شیشه غیرفعال است.")
+                    if (state.links[row.key]?.optBoolean("profit_unavailable") == true) Text("سود از قیمت سایت قابل برآورد نبود. مبلغ را بررسی کنید.")
+                    PricingBreakdown(reference.pricing)
+                }
+            },
+            confirmButton = { TextButton(onClick = { costKey = null }) { Text("بستن") } },
+            dismissButton = { TextButton(onClick = { costKey = null; editModel = reference.product.id },
+                enabled = !state.busy && !state.inProgress && reference.product.id.startsWith(SITE_REFERENCE_PREFIX)) { Text("ویرایش محصول مرجع") } })
+    }
+    rows.find { it.key == createKey }?.let { row ->
+        val seed = remember(row.key, materials) {
+            val packing = if (com.tablodecori.app.data.studioHasThirtyByFortyLargest(row.pieces)) "manual:220000" else ""
+            com.tablodecori.app.data.ProductModel(SITE_REFERENCE_PREFIX + row.key, "مرجع ${row.label} · ${row.sampleTitle}",
+                true, 0L, "MANUAL", "", packing, "STANDARD", 0L, "", row.pieces,
+                materials.filter { it.enabled && it.id != "glass" && !it.name.contains("شیشه") &&
+                    it.smartKind != "RELIEF_CUSTOM" }.mapTo(mutableSetOf()) { it.id })
+        }
+        ProductDialog(workshop, materials, seed, { createKey = null }) { _, name, pieces, ids, profit,
+            mode, formula, packaging, _, _, photo, remove ->
+            vm.saveLocalReference(row, name, pieces, ids, profit, mode, formula, packaging, photo, remove)
+            createKey = null
         }
     }
     rows.find { it.key == detailsKey }?.let { row ->

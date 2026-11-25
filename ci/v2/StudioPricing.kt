@@ -460,6 +460,22 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             message = "اتصال مرجع ذخیره شد."))
     }
 
+    fun saveLocalReference(row: StudioRow, name: String, pieces: List<PieceInput>, materials: Set<String>,
+        profit: Long, mode: String, formula: String, packaging: String, photo: String?, removePhoto: Boolean) = work {
+        val current = mutable.value
+        val scope = row.scope ?: return@work
+        if (current.inProgress || row.referenceExcluded || (current.catalog?.optInt("reference_schema") ?: 0) < 2) return@work
+        val id = SITE_REFERENCE_PREFIX + row.key
+        val fixedPackaging = studioHasThirtyByFortyLargest(pieces)
+        repository.saveProduct(id, name, pieces, materials - "glass" +
+            if (fixedPackaging) setOf("packaging_bundle") else emptySet(), manualProfitToman = profit,
+            profitMode = mode, profitFormula = formula, packagingSizeKey = if (fixedPackaging) "manual:220000" else packaging,
+            selectedPhotoUri = photo, removePhoto = removePhoto)
+        val link = JSONObject().put("local_id", id).put("scope", scope).put("label", row.label)
+            .put("title", row.sampleTitle).put("confirm_recipe", true).put("store_recipe", true)
+        update(current.copy(links = current.links + (row.key to link), preview = null, message = "محصول مرجع روی گوشی ذخیره شد."))
+    }
+
     fun removeReference(key: String) = work {
         val current = mutable.value
         val existing = current.links[key] ?: return@work
@@ -483,7 +499,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         val seeds = mutableListOf<SiteReferenceSeed>()
         val seedKeys = mutableMapOf<String, MutableList<String>>()
         val canUseToman = current.copy(catalog = catalog).acceptsToman
-        if (!catalog.optBoolean("reference_rules")) return links
+        if (catalog.optInt("reference_schema") < 2) return links
         for (entry in catalog.objects("references")) {
             val row = StudioRow(entry)
             val scope = row.scope ?: continue
@@ -522,16 +538,19 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             update(mutable.value.copy(job = job, preview = null, message = "یک عملیات قیمت در حال اجراست."))
         } else {
             val old = mutable.value
-            val catalog = restoreReferences(client, scan(client, resumable = true), old.links)
+            val fresh = scan(client, resumable = true)
+            val catalog = restoreReferences(client, fresh, old.links)
             val revisions = (catalog.objects("rows") + catalog.objects("references")).associate { it.getString("key") to it.getString("revision") }
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
             mutable.update { it.copy(message = "در حال ساخت و ذخیرهٔ مراجع روی گوشی") }
+            update(old.copy(catalog = catalog, members = members, job = job, preview = null,
+                updatedAt = System.currentTimeMillis(), message = "فهرست سایت ذخیره شد. در حال ساخت محصولات گوشی"))
             val links = createReferences(catalog, old)
             val rows = catalog.objects("references")
             val sizes = rows.mapNotNull { it.optJSONObject("scope")?.optString("size_key") }.distinct().size
             val missingPieces = rows.count { !it.optBoolean("reference_excluded") && StudioRow(it).pieces.isEmpty() }
             val note = when {
-                !catalog.optBoolean("reference_rules") -> " · نسخهٔ فعال افزونه هنوز اطلاعات ساخت مرجع را ارسال نمی‌کند."
+                catalog.optInt("reference_schema") < 2 -> " · افزونهٔ ۰.۱۲.۸ روی سایت تأیید نشد. نسخهٔ فعال را بررسی کنید."
                 missingPieces > 0 -> " · ترکیب تکه‌های $missingPieces ردیف نیازمند بررسی است."
                 links.values.any { it.optBoolean("profit_unavailable") } -> " · سود بعضی مراجع نیازمند ورود دستی است."
                 else -> ""

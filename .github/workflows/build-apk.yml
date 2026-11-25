@@ -51,8 +51,8 @@ jobs:
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/testImplementation("junit:junit:4.13.2")/a\    testImplementation("org.json:json:20240303")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i 's/minSdk = 23/minSdk = 28/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 14/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.8.3"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 15/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.8.4"/' "$PROJECT_DIR/app/build.gradle.kts"
             python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
@@ -286,7 +286,7 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
           head -n 1 badging-info.txt
           grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
-          grep -F "package: name='com.tablodecori.app' versionCode='14'" badging-info.txt
+          grep -F "package: name='com.tablodecori.app' versionCode='15'" badging-info.txt
 
       - name: Test private key rotation for Android 9 and later
         shell: bash
@@ -332,12 +332,12 @@ jobs:
           unset TDPS_RELEASE_KEYSTORE_B64
           export TDPS_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
           bash ci/sign-studio-update.sh "$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk" \
-            "$tdps_keystore" out/tablodecori-studio-1.8.3.apk
+            "$tdps_keystore" out/tablodecori-studio-1.8.4.apk
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         if: steps.signed-update.outputs.ready == 'true'
         with:
           name: tablodecori-studio-signed-update
-          path: out/tablodecori-studio-1.8.3.apk
+          path: out/tablodecori-studio-1.8.4.apk
           if-no-files-found: error

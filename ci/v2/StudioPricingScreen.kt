@@ -102,16 +102,22 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     val bySize = remember(referenceRows) { referenceRows.groupBy { it.scope!!.getString("size_key") } }
     val linkedProducts = remember(state.links) { state.linkedProducts }
     val cards = remember(state.catalog, referenceRows) { studioCards(state.catalog, referenceRows) }
-    val referenceCards = remember(cards, linkedProducts, local) {
+    val referenceCards = remember(cards) {
         val seen = mutableSetOf<String>()
         cards.mapNotNull { card ->
-            val found = card.rows.filter { !it.referenceExcluded && linkedProducts[it.key]?.startsWith(SITE_REFERENCE_PREFIX) == true &&
-                linkedProducts[it.key]?.let(local::containsKey) == true && seen.add(it.key) }
+            val found = card.rows.filter { !it.referenceExcluded && seen.add(it.key) }
             if (found.isEmpty()) null else card.copy(rows = found)
         }
     }
     val sections = listOf("references" to "مراجع قیمت", "group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
-    val section = selectedSection ?: if (cards.any { it.kind == "suggested" }) "suggested" else cards.firstOrNull()?.kind
+    val section = selectedSection ?: "references"
+    val eligibleRows = remember(referenceCards) { referenceCards.flatMap { it.rows } }
+    val readyRows = eligibleRows.filter { row ->
+        val link = state.links[row.key]
+        link?.optBoolean("store_recipe") == true && linkedProducts[row.key]?.let(local::containsKey) == true
+    }
+    val readySizes = readyRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
+    val eligibleSizes = eligibleRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
     val filtered = remember(cards, referenceCards, local, linkedProducts, section, search) {
         val query = studioSearchText(search)
         (if (section == "references") referenceCards else cards.filter { it.kind == section }).mapNotNull { card ->
@@ -130,7 +136,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
         item {
             AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("محصولات سایت", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    Text("مراجع قیمت سایت", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                     if (state.catalog != null) TextButton(onClick = { showTools = !showTools }) {
                         Text(if (showTools) "بستن ابزارها" else "ابزارهای قیمت")
                     }
@@ -157,14 +163,14 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                         modifier = Modifier.fillMaxWidth())
                 } else if (state.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 if (state.message.isNotEmpty()) Text(state.message)
-                if (vm.hasOwnerRates && !state.ownerRatesApplied && !state.inProgress) {
+                if (showTools && vm.hasOwnerRates && !state.inProgress) {
                     OutlinedButton(onClick = vm::applyOwnerRates, enabled = !state.busy) {
                         Text("اعمال تعرفه‌های بکاپ ارسالی")
                     }
                 }
-                if (state.connected && !state.inProgress && (state.catalog == null || showTools || state.canResumeScan)) {
-                    Button(onClick = vm::refresh, enabled = !state.busy && !sendingOffline && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
-                        Text(if (state.canResumeScan) "ادامهٔ دریافت محصولات" else "دریافت محصولات و ساخت مراجع")
+                if (state.connected && !state.inProgress) {
+                    Button(onClick = vm::refresh, enabled = !state.busy && !sendingOffline) {
+                        Text(if (state.canResumeScan) "ادامهٔ دریافت محصولات" else if (state.catalog == null) "دریافت و ساخت مراجع قیمت" else "به‌روزرسانی و ساخت مراجع قیمت")
                     }
                 }
             }
@@ -276,11 +282,16 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             }
         }
         if (state.catalog != null) item {
-            Text("${bySize.size} اندازهٔ مرجع · ${state.catalog?.optInt("scanned") ?: 0} محصول", style = MaterialTheme.typography.titleMedium)
+            Text(if (section == "references") "$readySizes از $eligibleSizes اندازهٔ قابل ارجاع آماده است"
+                else "${bySize.size} اندازه · ${state.catalog?.optInt("scanned") ?: 0} محصول",
+                style = MaterialTheme.typography.titleMedium)
+            if (section == "references" && state.catalog?.optBoolean("reference_rules") != true) {
+                Text("برای ساخت مراجع، افزونهٔ ۰.۱۲.۶ را فعال کنید و «به‌روزرسانی و ساخت مراجع قیمت» را بزنید.")
+            }
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 sections.forEach { (kind, name) ->
                     FilterChip(selected = section == kind, onClick = { selectedSection = kind; openCard = null },
-                        label = { Text("$name (${if (kind == "references") referenceCards.size else cards.count { it.kind == kind }})") })
+                        label = { Text(if (kind == "references") name else "$name (${cards.count { it.kind == kind }})") })
                 }
             }
             OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی دسته یا اندازه") },
@@ -320,6 +331,10 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                                 val price = row.prices.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(java.util.Locale.forLanguageTag("fa-IR")).format(it) }
                                     ?: row.prices.ifBlank { "ثبت نشده" }
                                 Text("$price ${state.currency}", style = MaterialTheme.typography.bodySmall)
+                                if (section == "references" && row !in readyRows) {
+                                    Text(if (row.pieces.isEmpty()) "ترکیب تکه‌ها نیازمند بررسی" else "مرجع در انتظار آماده‌سازی",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                             TextButton(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) { Text("ویرایش قیمت") }
                             IconButton(onClick = { detailsKey = row.key }) { Icon(Icons.Rounded.MoreVert, "جزئیات مرجع") }

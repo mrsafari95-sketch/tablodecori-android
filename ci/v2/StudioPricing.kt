@@ -505,6 +505,11 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
 
     fun refresh() = work {
         requireNoOfflineJob()
+        if (hasOwnerRates && !mutable.value.ownerRatesApplied) {
+            val rates = context.assets.open("tdps-owner-pricing.json").bufferedReader().use { it.readText() }
+            repository.importOwnerPricing(rates)
+            update(mutable.value.copy(ownerRatesApplied = true))
+        }
         val client = api()
         val job = client.call("status").takeIf { it.has("id") }
         if (job?.optString("state") == "running") {
@@ -516,11 +521,18 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
             mutable.update { it.copy(message = "در حال ساخت و ذخیرهٔ مراجع روی گوشی") }
             val links = createReferences(catalog, old)
-            val sizes = catalog.objects("references").mapNotNull { it.optJSONObject("scope")?.optString("size_key") }.distinct().size
+            val rows = catalog.objects("references")
+            val sizes = rows.mapNotNull { it.optJSONObject("scope")?.optString("size_key") }.distinct().size
+            val missingPieces = rows.count { !it.optBoolean("reference_excluded") && StudioRow(it).pieces.isEmpty() }
+            val note = when {
+                !catalog.optBoolean("reference_rules") -> " · نسخهٔ فعال افزونه هنوز اطلاعات ساخت مرجع را ارسال نمی‌کند."
+                missingPieces > 0 -> " · ترکیب تکه‌های $missingPieces ردیف نیازمند بررسی است."
+                links.values.any { it.optBoolean("profit_unavailable") } -> " · سود بعضی مراجع نیازمند ورود دستی است."
+                else -> ""
+            }
             update(old.copy(catalog = catalog, members = members, links = links, job = job, preview = null,
                 canResumeScan = false, updatedAt = System.currentTimeMillis(),
-                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${sizes} اندازه" +
-                    if (links.values.any { it.optBoolean("profit_unavailable") }) " · سود بعضی مراجع نیازمند ورود دستی است." else ""))
+                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · $sizes اندازه$note"))
             storage.setScanToken(null)
         }
     }

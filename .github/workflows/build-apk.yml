@@ -2,11 +2,11 @@ name: Build installable APK
 
 on:
   push:
-    branches: [ main, 'feature/**' ]
+    branches: [ 'feature/product-studio-sync' ]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -49,14 +49,26 @@ jobs:
             sed -i 's/room-compiler:2.8.5/room-compiler:2.8.1/g' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.compose.material:material-icons-extended")' "$PROJECT_DIR/app/build.gradle.kts"
             sed -i '/implementation("androidx.compose.material3:material3")/a\    implementation("androidx.work:work-runtime-ktx:2.11.2")' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionCode = 1/versionCode = 10/' "$PROJECT_DIR/app/build.gradle.kts"
-            sed -i 's/versionName = "1.0.0"/versionName = "1.7.1"/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i '/testImplementation("junit:junit:4.13.2")/a\    testImplementation("org.json:json:20240303")' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/minSdk = 23/minSdk = 28/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionCode = 1/versionCode = 16/' "$PROJECT_DIR/app/build.gradle.kts"
+            sed -i 's/versionName = "1.0.0"/versionName = "1.8.5"/' "$PROJECT_DIR/app/build.gradle.kts"
             python3 -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); m="    buildTypes {"; assert m in s, "Android debug signing location was not found"; signing="    signingConfigs.getByName(\"debug\").apply { storeFile = file(System.getenv(\"TABLODECORI_SIGNING_KEYSTORE\") ?: error(\"Signing keystore is missing\")); storePassword = \"android\"; keyAlias = \"androiddebugkey\"; keyPassword = \"android\" }\n"; p.write_text(s.replace(m,signing+m,1))' "$PROJECT_DIR/app/build.gradle.kts"
             printf '\norg.gradle.jvmargs=-Xmx11g -XX:+UseG1GC -Xlog:gc -Dfile.encoding=UTF-8\nkotlin.compiler.execution.strategy=in-process\nkotlin.incremental=false\norg.gradle.workers.max=1\n' >> "$PROJECT_DIR/gradle.properties"
             free -h
+            # Both endpoints serve the same Maven Central coordinates. Prefer the mirror when Central rate-limits the build runner.
+            python3 - "$PROJECT_DIR/settings.gradle.kts" <<'PYSETTINGS'
+          import sys
+          from pathlib import Path
+          p = Path(sys.argv[1])
+          s = p.read_text().replace('        google()', '        maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2/") }\n        google()')
+          p.write_text(s)
+          PYSETTINGS
             # Apply V2 interface overrides maintained in the repository.
             cp ci/v2/TablodecoriApp.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/TablodecoriApp.kt"
             cp ci/v2/MainActivity.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/MainActivity.kt"
+            cp ci/v2/StudioPricing.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/data/StudioPricing.kt"
+            cp ci/v2/StudioPricingScreen.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/StudioPricingScreen.kt"
             cp ci/v2/Components.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/Components.kt"
             cp ci/v2/Theme.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/theme/Theme.kt"
             python3 -c 'import sys; from pathlib import Path; p=Path(sys.argv[1]); s=p.read_text(); a=s.index("@Composable fun HomeScreen"); b=s.index("@Composable fun VariablesScreen"); s=s[:a]+s[b:]; s=s.replace("متغیرها و متریال‌ها","متریال‌ها و هزینه‌ها").replace("قیمت، پرت، فرمول و روشن/خاموش","قیمت، پرت، روش محاسبه و وضعیت فعال").replace("ست‌ها و محصولات","محصولات و ست‌ها").replace("هر تعداد تابلو با هر ابعاد","ترکیب تابلوها با قیمت‌گذاری زنده").replace("محاسبه سریع ست","محاسبه سریع").replace("بدون نیاز به ذخیره محصول","قیمت‌گیری فوری، بدون نیاز به ذخیره محصول"); p.write_text(s)' "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/ui/screens/CoreScreens.kt"
@@ -88,6 +100,8 @@ jobs:
             cp ci/v2/Exporters.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/util/Exporters.kt"
             cp ci/v2/PricingEngine.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/PricingEngine.kt"
             cp ci/v2/FormulaEvaluator.kt "$PROJECT_DIR/app/src/main/java/com/tablodecori/app/pricing/FormulaEvaluator.kt"
+            mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data"
+            cp ci/v2/StudioPricingTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/StudioPricingTest.kt"
             cp ci/v2/PricingEngineTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/pricing/PricingEngineTest.kt"
             mkdir -p "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data"
             cp ci/v2/OrderPaymentMathTest.kt "$PROJECT_DIR/app/src/test/java/com/tablodecori/app/data/OrderPaymentMathTest.kt"
@@ -232,19 +246,6 @@ jobs:
           fi
           echo "All regression guards passed."
 
-      - name: Persist maintainable source exports
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci/v2/CoreScreens.kt ci/v2/BusinessScreens.kt ci/v2/MainViewModel.kt ci/v2/WorkshopRepository.kt ci/v2/Entities.kt ci/v2/Models.kt 2>/dev/null || true
-          if [ -f ci/v2/PricingEngine.kt ]; then git add ci/v2/PricingEngine.kt; fi
-          if ! git diff --cached --quiet; then
-            git commit -m "Export maintainable pricing sources [skip ci]"
-            git push
-          fi
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -269,12 +270,12 @@ jobs:
           echo "TABLODECORI_SIGNING_KEYSTORE=$KEYSTORE" >> "$GITHUB_ENV"
           keytool -list -keystore "$KEYSTORE" -storepass android -alias androiddebugkey >/dev/null
 
-      - name: Test and build debug APK
+      - name: Test and build debug and release APKs
         shell: bash
         run: |
           cd "$PROJECT_DIR"
           set -o pipefail
-          gradle --no-daemon testDebugUnitTest assembleDebug 2>&1 | tee build-output.log
+          gradle --info --no-daemon testDebugUnitTest assembleDebug assembleRelease 2>&1 | tee build-output.log
 
       - name: Verify install identity and signing certificate
         shell: bash
@@ -285,29 +286,58 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > badging-info.txt
           head -n 1 badging-info.txt
           grep -iq 'c4697509e1237ec43a799eaeca5e924401b5766c75ced7c79ba4675828d0d29e' signing-info.txt
-          grep -F "package: name='com.tablodecori.app' versionCode='10'" badging-info.txt
+          grep -F "package: name='com.tablodecori.app' versionCode='16'" badging-info.txt
 
-      - name: Save failed build log
-        if: failure()
+      - name: Test private key rotation for Android 9 and later
         shell: bash
         run: |
-          if [ -f "$PROJECT_DIR/build-output.log" ]; then
-            cp "$PROJECT_DIR/build-output.log" ci/last-build.log
-            git config user.name "github-actions"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ci/last-build.log
-            git commit -m "Save latest failed build log [skip ci]" || exit 0
-            git push
-          fi
-
-      - name: Collect APK
-        shell: bash
-        run: |
-          mkdir -p out
-          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" out/tablodecori-debug.apk
+          set -euo pipefail
+          tdps_test_dir="$(mktemp -d "$RUNNER_TEMP/tdps-rotation-test.XXXXXX")"
+          trap 'rm -rf "$tdps_test_dir"' EXIT
+          export TDPS_RELEASE_PASSWORD="$(openssl rand -hex 32)"
+          export TDPS_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          keytool -genkeypair -noprompt -storetype PKCS12 -alias tablodecori-release \
+            -keyalg RSA -keysize 3072 -validity 3650 -dname "CN=Tablodecori CI Rotation Test" \
+            -keystore "$tdps_test_dir/test.p12" -storepass:env TDPS_RELEASE_PASSWORD
+          bash ci/sign-studio-update.sh "$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk" \
+            "$tdps_test_dir/test.p12" "$tdps_test_dir/test.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tablodecori-installable-apk
-          path: out/tablodecori-debug.apk
+          name: tablodecori-studio-unsigned
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 2
+          if-no-files-found: error
+
+      - name: Sign the owner update
+        if: github.event_name == 'workflow_dispatch'
+        id: signed-update
+        shell: bash
+        env:
+          TDPS_RELEASE_KEYSTORE_B64: ${{ secrets.TDPS_RELEASE_KEYSTORE_B64 }}
+          TDPS_RELEASE_PASSWORD: ${{ secrets.TDPS_RELEASE_PASSWORD }}
+          TDPS_RELEASE_CERT_SHA256: ${{ vars.TDPS_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TDPS_RELEASE_KEYSTORE_B64" ]; then
+            echo "::notice::The owner release keystore is not configured. A production update will not be published."
+            exit 0
+          fi
+          test -n "$TDPS_RELEASE_PASSWORD"
+          test -n "$TDPS_RELEASE_CERT_SHA256"
+          umask 077
+          tdps_keystore="$(mktemp "$RUNNER_TEMP/tdps-owner-signing.XXXXXX")"
+          trap 'rm -f "$tdps_keystore"' EXIT
+          printf '%s' "$TDPS_RELEASE_KEYSTORE_B64" | base64 -d > "$tdps_keystore"
+          unset TDPS_RELEASE_KEYSTORE_B64
+          export TDPS_BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
+          bash ci/sign-studio-update.sh "$PROJECT_DIR/app/build/outputs/apk/release/app-release-unsigned.apk" \
+            "$tdps_keystore" out/tablodecori-studio-1.8.5.apk
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.signed-update.outputs.ready == 'true'
+        with:
+          name: tablodecori-studio-signed-update
+          path: out/tablodecori-studio-1.8.5.apk
           if-no-files-found: error

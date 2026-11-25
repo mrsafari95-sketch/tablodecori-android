@@ -56,7 +56,9 @@ class PricingEngine {
 
         val active = materials.filter { it.enabled && it.id in enabledMaterialIds }
         val photoParent = active.firstOrNull { it.id == "photo_lab" }
-        val packagingParent = active.firstOrNull { it.id == "packaging_bundle" }
+        val packagingParent = if (selectedPackagingSizeKey.startsWith("manual:") && "packaging_bundle" in enabledMaterialIds)
+            materials.firstOrNull { it.id == "packaging_bundle" }
+        else active.firstOrNull { it.id == "packaging_bundle" }
         val packagingComponents = materials.filter { it.enabled && it.id.startsWith("pack_") }
         val regularMaterials = active.filterNot { it.id.startsWith("photo_") || it.id=="photo_lab" || it.id=="packaging_bundle" || it.id.startsWith("pack_") || (it.name.trim() == "عکس" && it.calculationType == CalculationType.PER_SQUARE_METER) }
         val lines = mutableListOf<CostLine>()

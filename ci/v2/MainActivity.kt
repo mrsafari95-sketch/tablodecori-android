@@ -10,6 +10,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.tablodecori.app.data.StudioPricingViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +63,7 @@ private data class NavItem(val route:String,val icon:ImageVector,val label:Strin
 private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
+    NavItem("studioPricing",Icons.Rounded.Storefront,"سایت"),
     NavItem("quick",Icons.Rounded.Calculate,"سریع"),
     NavItem("inventory",Icons.Rounded.Inventory2,"انبار"),
     NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
@@ -69,6 +72,11 @@ private val bottomItems=listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun MainShell(vm:MainViewModel){
     val nav=rememberNavController()
+    var studioSuggestion by rememberSaveable { mutableStateOf<Long?>(null) }
+    fun openStudio(price: Long?) {
+        studioSuggestion = price
+        nav.navigate("studioPricing") { launchSingleTop = true }
+    }
     val entry by nav.currentBackStackEntryAsState()
     val route=entry?.destination?.route?:"home"
     val snackbar=remember{SnackbarHostState()}
@@ -115,6 +123,7 @@ private val bottomItems=listOf(
                         DropdownMenu(expanded=moreMenu,onDismissRequest={moreMenu=false}){
                             DropdownMenuItem(text={Text("متریال‌ها و هزینه‌ها")},onClick={moreMenu=false;navigateTopLevel("variables")},leadingIcon={Icon(Icons.Rounded.Tune,null)})
                             DropdownMenuItem(text={Text("گزارش‌ها و هزینه‌ها")},onClick={moreMenu=false;navigateTopLevel("reports")},leadingIcon={Icon(Icons.Rounded.BarChart,null)})
+                            DropdownMenuItem(text={Text("قیمت‌های فروشگاه")},onClick={moreMenu=false;openStudio(null)},leadingIcon={Icon(Icons.Rounded.Storefront,null)})
                             DropdownMenuItem(text={Text("برنامهٔ امروز")},onClick={moreMenu=false;navigateTopLevel("planner")},leadingIcon={Icon(Icons.Rounded.EventAvailable,null)})
                         }
                     }
@@ -128,7 +137,7 @@ private val bottomItems=listOf(
                 bottomItems.forEach{i->
                     NavigationBarItem(
                         selected=route==i.route,
-                        onClick={navigateTopLevel(i.route)},
+                        onClick={if(i.route=="studioPricing") studioSuggestion=null;navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
                         label={Text(i.label,maxLines=1)},
                         colors=NavigationBarItemDefaults.colors(
@@ -146,12 +155,13 @@ private val bottomItems=listOf(
         NavHost(nav,"home",Modifier.padding(pad)){
             composable("home"){HomeScreen(vm){target->navigateTopLevel(target)}}
             composable("variables"){VariablesScreen(vm)}
-            composable("products"){ProductsScreen(vm)}
-            composable("quick"){QuickScreen(vm)}
+            composable("products"){ProductsScreen(vm,::openStudio)}
+            composable("quick"){QuickScreen(vm,::openStudio)}
             // Keep older in-app links valid without showing a second product list.
             composable("pricebook"){
                 LaunchedEffect(Unit){nav.navigate("products"){popUpTo("pricebook"){inclusive=true};launchSingleTop=true}}
             }
+            composable("studioPricing"){ StudioPricingScreen(viewModel<StudioPricingViewModel>(),vm,studioSuggestion) }
             composable("orders"){OrdersScreen(vm)}
             composable("inventory"){InventoryScreen(vm)}
             composable("reports"){ReportsScreen(vm)}
@@ -170,6 +180,7 @@ private fun titleFor(r:String)=when(r){
     "inventory"->"کنترل انبار"
     "reports"->"گزارش‌ها"
     "planner"->"پلنر کارگاه"
+    "studioPricing"->"محصولات سایت"
     "settings"->"تنظیمات"
     else->"مدیریت کارگاه"
 }

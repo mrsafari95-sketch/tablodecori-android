@@ -146,7 +146,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
     AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"متغیر جدید" else "ویرایش متغیر")},text={Column(Modifier.fillMaxWidth().verticalScroll(androidx.compose.foundation.rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(name,{name=it},label={Text("نام")},singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){FilterChip(formulaMode=="STANDARD",{formulaMode="STANDARD"},{Text("استاندارد")});FilterChip(formulaMode=="CUSTOM",{formulaMode="CUSTOM"},{Text("فرمول سفارشی")})};if(formulaMode=="CUSTOM")OutlinedTextField(formula,{formula=it},label={Text("فرمول")},supportingText={Text("width, height, qty, unitPrice, area, perimeter, count, subtotal")},modifier=Modifier.fillMaxWidth()) else Box{OutlinedButton(onClick={catExpanded=true},modifier=Modifier.fillMaxWidth()){Text(when(cat){"PRODUCTION"->"ساخت تابلو";"PACKAGING"->"بسته‌بندی";else->"هزینه عمومی"})};DropdownMenu(catExpanded,{catExpanded=false}){listOf("PRODUCTION" to "ساخت تابلو","PACKAGING" to "بسته‌بندی","OVERHEAD" to "هزینه عمومی").forEach{(v,l)->DropdownMenuItem({Text(l)},{cat=v;catExpanded=false})}}};Box{OutlinedButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth()){Text(calcLabel(type))};DropdownMenu(expanded,{expanded=false}){CalculationType.entries.forEach{v->DropdownMenuItem({Text(calcLabel(v.name))},{type=v.name;expanded=false})}}};if(type=="PERCENT_OF_COST")OutlinedTextField(rate,{rate=it},label={Text("درصد")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true)else OutlinedTextField(price,{price=it},label={Text("قیمت (تومان)")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),singleLine=true);OutlinedTextField(waste,{waste=it},label={Text("پرت درصد")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),singleLine=true)}},confirmButton={Button(onClick={val e=MaterialEntity(id=initial?.id?:UUID.randomUUID().toString(),name=name,category=cat,calculationType=type,priceToman=price.toLongOrNull()?:0,rateBasisPoints=((rate.toDoubleOrNull()?:0.0)*100).toInt(),wasteBasisPoints=((waste.toDoubleOrNull()?:0.0)*100).toInt(),enabled=initial?.enabled?:true,smartKind=initial?.smartKind?:"GENERIC",formulaMode=formulaMode,customFormula=formula,deleted=false,createdAt=initial?.createdAt?:now,updatedAt=now);onSave(e)},enabled=name.isNotBlank()){Text("ذخیره")}},dismissButton={TextButton(onClick=onDismiss){Text("انصراف")}})
 }
 
-@Composable fun ProductsScreen(vm:MainViewModel){
+@Composable fun ProductsScreen(vm:MainViewModel,onStudioPrice:(Long)->Unit){
     val priced by vm.pricedProducts.collectAsState()
     val vars by vm.materials.collectAsState()
     val context=LocalContext.current
@@ -221,6 +221,7 @@ private fun calcLabel(t:String)=when(t){"PER_SQUARE_METER"->"متر مربع";"P
                 }){Text("کپی ابعاد و قیمت")}
             }
             FlowRow(horizontalArrangement=Arrangement.spacedBy(4.dp)){
+                if(p.pricing.finalPriceToman>0) TextButton(onClick={onStudioPrice(p.pricing.finalPriceToman)}){Text("قیمت فروشگاه")}
                 TextButton(onClick={details=p}){Text("ریز هزینه")}
                 TextButton(onClick={edit=p.product}){Text("ویرایش")}
                 TextButton(onClick={vm.duplicateProduct(p.product.id)}){Text("تکثیر ست")}
@@ -243,7 +244,7 @@ private fun copyProductText(context:Context,text:String){
     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("tablodecori",text))
 }
 
-@Composable private fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long,String?,Boolean)->Unit){
+@Composable internal fun ProductDialog(vm:MainViewModel,vars:List<MaterialEntity>,initial:ProductModel?,onDismiss:()->Unit,onSave:(String?,String,List<PieceInput>,Set<String>,Long,String,String,String,String,Long,String?,Boolean)->Unit){
     var addingReliefMaterial by remember{mutableStateOf(false)}
     val newReliefIds=remember{mutableStateListOf<String>()}
     var name by remember{mutableStateOf(initial?.name?:"")};var profitPercent by remember{mutableStateOf(initial?.profitFormula?.substringAfter("cost*","")?.substringBefore("/100","")?.takeIf{it.isNotBlank()}?:"0")};var profitMode by remember(initial?.id){mutableStateOf(if(initial?.profitMode=="FORMULA")"FORMULA" else "MANUAL")};var manualProfit by remember(initial?.id){mutableStateOf((initial?.manualProfitToman?:0L).toString())}
@@ -342,7 +343,7 @@ private fun copyProductText(context:Context,text:String){
 @Composable fun PieceEditorRow(p:PieceInput,onChange:(PieceInput)->Unit,onDelete:()->Unit){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(6.dp),verticalAlignment=Alignment.CenterVertically){SmallNumber("عرض",p.widthCm,{onChange(p.copy(widthCm=it))},Modifier.weight(1f));SmallNumber("ارتفاع",p.heightCm,{onChange(p.copy(heightCm=it))},Modifier.weight(1f));SmallNumber("تعداد",p.quantity,{onChange(p.copy(quantity=it))},Modifier.weight(.8f));TextButton(onClick=onDelete){Text("×",color=MaterialTheme.colorScheme.error)}}}
 @Composable private fun SmallNumber(label:String,value:Int,on:(Int)->Unit,modifier:Modifier){var text by remember(value){mutableStateOf(if(value==0) "" else value.toString())};OutlinedTextField(text,{raw->val digits=raw.filter{it.isDigit()};text=digits;if(digits.isNotEmpty())on(digits.toIntOrNull()?:0)},label={Text(label)},placeholder={Text("0")},keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),modifier=modifier,singleLine=true)}
 
-@Composable fun QuickScreen(vm:MainViewModel){
+@Composable fun QuickScreen(vm:MainViewModel,onStudioPrice:(Long)->Unit){
     val vars by vm.materials.collectAsState()
     val foamPrices by vm.sizePrices("pack_foam").collectAsState(initial=emptyList())
     val cartonPrices by vm.sizePrices("pack_carton").collectAsState(initial=emptyList())
@@ -391,7 +392,7 @@ private fun copyProductText(context:Context,text:String){
             }
         }}
         item{AppCard{Text(if(productType=="RELIEF")"اجزای تابلو برجسته" else "متغیرهای قیمت",fontWeight=FontWeight.Bold);selectable.filter{if(productType=="RELIEF")MaterialCatalog.selectableForRelief(it) else it.smartKind!=MaterialCatalog.RELIEF_CUSTOM}.forEach{m->Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(m.name);Text(if(m.id=="photo_lab")"خودکار بر اساس ابعاد تابلو" else calcLabel(m.calculationType),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)};Switch(ids[m.id]?:false,{vm.setQuickId(m.id,it)})}};Divider();Text(if(selectedPackage.isBlank())"بسته‌بندی خودکار" else if(selectedPackage.startsWith("manual:"))"بسته‌بندی با قیمت دستی" else "بسته‌بندی "+selectedPackage.replace("x","×"),fontWeight=FontWeight.Bold)}}
-        result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")}}}}
+        result?.let{r->item{AppCard{PricingBreakdown(r);Button(onClick={saveDialog=true},modifier=Modifier.fillMaxWidth().padding(top=10.dp)){Text("ذخیره به عنوان محصول")};if(r.finalPriceToman>0) OutlinedButton(onClick={onStudioPrice(r.finalPriceToman)},modifier=Modifier.fillMaxWidth()){Text("پیشنهاد این قیمت برای فروشگاه")}}}}
     }
     if(saveDialog){var name by remember{mutableStateOf("ست جدید")};AlertDialog(onDismissRequest={saveDialog=false},title={Text("ذخیره محصول")},text={OutlinedTextField(name,{name=it},label={Text("نام محصول")})},confirmButton={Button(onClick={vm.saveProduct(null,name,pieces.toList(),quickSelectedIds,manualProfit=manualProfit,packagingSizeKey=selectedPackage,productType=productType,designMaterialsCostToman=if(productType=="RELIEF")designCost else 0L);saveDialog=false}){Text("ذخیره")}},dismissButton={TextButton(onClick={saveDialog=false}){Text("انصراف")}})}
     if(addReliefQuick) CustomMaterialDialog("متغیر تابلو برجسته","در محاسبهٔ سریع و ست‌های برجسته قابل انتخاب می‌شود.",onDismiss={addReliefQuick=false}){materialName,price,type->

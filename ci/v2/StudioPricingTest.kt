@@ -27,6 +27,13 @@ class StudioPricingTest {
         assertEquals(2, studioCards(null, listOf(row("a", 1), row("b", 2))).size)
     }
 
+    @Test fun manualProfitCanMatchOnlyARepresentableStorePrice() {
+        assertEquals(170000L, studioProfitFromStorePrice(400000, 230000, 10000))
+        assertNull(studioProfitFromStorePrice(230001, 230000, 10000))
+        assertNull(studioProfitFromStorePrice(200000, 230000, 10000))
+        assertNull(studioProfitFromStorePrice(null, 230000, 10000))
+    }
+
     @Test fun pricesKeepExactStoreUnits() {
         assertEquals("1600000", studioPrice("۱٬۶۰۰٬۰۰۰", 0))
         assertEquals("1600.05", studioPrice("١٦٠٠٫٠٥", 2))

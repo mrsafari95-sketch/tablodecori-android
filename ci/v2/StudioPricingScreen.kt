@@ -102,14 +102,22 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     val bySize = remember(referenceRows) { referenceRows.groupBy { it.scope!!.getString("size_key") } }
     val linkedProducts = remember(state.links) { state.linkedProducts }
     val cards = remember(state.catalog, referenceRows) { studioCards(state.catalog, referenceRows) }
-    val sections = listOf("group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
+    val referenceCards = remember(cards, linkedProducts, local) {
+        val seen = mutableSetOf<String>()
+        cards.mapNotNull { card ->
+            val found = card.rows.filter { !it.referenceExcluded && linkedProducts[it.key]?.startsWith(SITE_REFERENCE_PREFIX) == true &&
+                linkedProducts[it.key]?.let(local::containsKey) == true && seen.add(it.key) }
+            if (found.isEmpty()) null else card.copy(rows = found)
+        }
+    }
+    val sections = listOf("references" to "مراجع قیمت", "group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
     val section = selectedSection ?: if (cards.any { it.kind == "suggested" }) "suggested" else cards.firstOrNull()?.kind
-    val filtered = remember(cards, section, search) {
+    val filtered = remember(cards, referenceCards, local, linkedProducts, section, search) {
         val query = studioSearchText(search)
-        cards.filter { it.kind == section }.mapNotNull { card ->
+        (if (section == "references") referenceCards else cards.filter { it.kind == section }).mapNotNull { card ->
             val all = query.isEmpty() || studioSearchText(card.name).contains(query, ignoreCase = true)
             val matches = if (all) card.rows else card.rows.filter { row ->
-                studioSearchText("${row.label} ${row.sampleTitle} ${row.description}").contains(query, ignoreCase = true)
+                studioSearchText("${row.label} ${row.sampleTitle} ${row.description} ${linkedProducts[row.key]?.let(local::get)?.product?.name.orEmpty()}").contains(query, ignoreCase = true)
             }
             if (!all && matches.isEmpty()) null else card to matches
         }
@@ -272,7 +280,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 sections.forEach { (kind, name) ->
                     FilterChip(selected = section == kind, onClick = { selectedSection = kind; openCard = null },
-                        label = { Text("$name (${cards.count { it.kind == kind }})") })
+                        label = { Text("$name (${if (kind == "references") referenceCards.size else cards.count { it.kind == kind }})") })
                 }
             }
             OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی دسته یا اندازه") },
@@ -306,7 +314,9 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             StudioThumbnail(row.thumbnail, row.sampleTitle, 32)
                             Column(Modifier.weight(1f).clickable { detailsKey = row.key }) {
-                                Text(row.label, fontWeight = FontWeight.SemiBold)
+                                val reference = linkedProducts[row.key]?.let(local::get)
+                                val label = if (section == "references") reference?.product?.name ?: row.label else row.label
+                                Text(label, fontWeight = FontWeight.SemiBold)
                                 val price = row.prices.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(java.util.Locale.forLanguageTag("fa-IR")).format(it) }
                                     ?: row.prices.ifBlank { "ثبت نشده" }
                                 Text("$price ${state.currency}", style = MaterialTheme.typography.bodySmall)
@@ -328,11 +338,17 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 val model = linkedId?.let(local::get)
                 if (model != null) Text("${model.product.name} · ${model.pricing.finalPriceToman} تومان")
                 if (row.pieces.isEmpty() && model == null) Text("ترکیب تکه‌ها در توضیح این اندازه مشخص نشده است.")
-                if (state.links[row.key]?.optBoolean("confirm_recipe") == true) Text("ترکیب و مبلغ را بررسی و اتصال را تأیید کنید.")
-                if (model != null && linkedId?.startsWith(SITE_REFERENCE_PREFIX) == true) {
+                if (state.links[row.key]?.optBoolean("profit_unavailable") == true) {
+                    Text("سود از این قیمت قابل محاسبه نبود. مبلغ سود را در ویرایش مرجع وارد کنید.")
+                } else if (state.links[row.key]?.optBoolean("store_recipe") == true && model != null) {
+                    Text("سود دستی برآوردی · ${model.product.manualProfitToman} تومان")
+                }
+                if (row.referenceExcluded) Text("تابلو ماه یا برجسته در این ردیف است و مرجع محاسباتی برای آن ساخته نمی‌شود.")
+                if (state.links[row.key]?.optBoolean("confirm_recipe") == true && !row.referenceExcluded) Text("ترکیب و مبلغ را بررسی و اتصال را تأیید کنید.")
+                if (!row.referenceExcluded && model != null && linkedId?.startsWith(SITE_REFERENCE_PREFIX) == true) {
                     TextButton(onClick = { detailsKey = null; editModel = linkedId }, enabled = !state.inProgress && !state.busy) { Text("ویرایش ترکیب و هزینهٔ مرجع") }
                 }
-                TextButton(onClick = { detailsKey = null; referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
+                if (!row.referenceExcluded) TextButton(onClick = { detailsKey = null; referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
                     Text(if (linkedId == null) "اتصال محصول مرجع" else "ویرایش اتصال مرجع")
                 }
             }

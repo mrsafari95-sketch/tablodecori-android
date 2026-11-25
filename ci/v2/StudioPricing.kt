@@ -50,7 +50,8 @@ internal data class StudioRow(
     val key: String, val revision: String, val group: String, val label: String,
     val prices: String, val products: Int, val count: Int, val sales: Int, val missing: Int,
     val grouped: Boolean, val scope: JSONObject?,
-    val sampleTitle: String, val thumbnail: String, val description: String, val pieces: List<PieceInput>
+    val sampleTitle: String, val thumbnail: String, val description: String, val pieces: List<PieceInput>,
+    val referenceExcluded: Boolean = false
 )
 
 internal fun JSONObject.objects(key: String): List<JSONObject> =
@@ -66,7 +67,8 @@ internal fun StudioRow(json: JSONObject): StudioRow {
         json.getString("group_id").isNotEmpty() || json.has("scope"), json.optJSONObject("scope"),
         sample?.optString("title").orEmpty(), sample?.optString("image").orEmpty(),
         sample?.optString("description").orEmpty(),
-        sample?.objects("pieces")?.map { PieceInput(it.getInt("width"), it.getInt("height"), it.getInt("quantity")) }.orEmpty()
+        sample?.objects("pieces")?.map { PieceInput(it.getInt("width"), it.getInt("height"), it.getInt("quantity")) }.orEmpty(),
+        json.optBoolean("reference_excluded")
     )
 }
 
@@ -445,7 +447,8 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         val scope = row.scope ?: return@work
         if (localProducts.value.none { it.product.id == productId && it.product.active })
             throw StudioFailure("محصول مرجع فعال پیدا نشد.")
-        val link = JSONObject().put("local_id", productId).put("scope", scope)
+        val link = JSONObject().put("store_recipe", current.links[row.key]?.optBoolean("store_recipe") == true)
+            .put("local_id", productId).put("scope", scope)
             .put("label", row.label).put("title", row.sampleTitle)
         update(current.copy(links = current.links + (row.key to link), preview = null,
             message = "اتصال مرجع ذخیره شد."))
@@ -471,29 +474,32 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
 
     private suspend fun createReferences(catalog: JSONObject, current: StudioState): Map<String, JSONObject> {
         val links = current.links.toMutableMap()
-        val ownersByDimensions = links.filterValues { !it.optBoolean("disabled") }.values
-            .groupBy { it.getJSONObject("scope").getString("size_key") }
-            .mapValues { (_, linked) -> linked.flatMap { link ->
-                val ids = link.getJSONObject("scope").getJSONArray("product_ids")
-                List(ids.length()) { ids.getLong(it) }
-            }.toMutableSet() }
-            .toMutableMap()
-        val pendingSeeds = mutableListOf<SiteReferenceSeed>()
-        for (row in catalog.objects("references").map(::StudioRow)) {
+        val seeds = mutableListOf<SiteReferenceSeed>()
+        val seedKeys = mutableMapOf<String, MutableList<String>>()
+        val canUseToman = current.copy(catalog = catalog).acceptsToman
+        if (!catalog.optBoolean("reference_rules")) return links
+        for (entry in catalog.objects("references")) {
+            val row = StudioRow(entry)
             val scope = row.scope ?: continue
-            if (row.key in links || row.pieces.isEmpty()) continue
-            val ids = scope.getJSONArray("product_ids")
-            val members = List(ids.length()) { ids.getLong(it) }
-            val claimed = ownersByDimensions.getOrPut(scope.getString("size_key")) { mutableSetOf() }
-            if (members.any { it in claimed }) continue
-            val id = SITE_REFERENCE_PREFIX + row.key
-            val title = listOf(row.sampleTitle.ifBlank { row.group }, row.label).joinToString(" · ")
-            pendingSeeds += SiteReferenceSeed(id, title, row.pieces)
-            links[row.key] = JSONObject().put("local_id", id).put("scope", scope).put("label", row.label)
-                .put("title", row.sampleTitle).put("confirm_recipe", true)
-            claimed.addAll(members)
+            val old = links[row.key]
+            if (entry.optBoolean("reference_excluded")) continue
+            if (row.pieces.isEmpty() || old?.optBoolean("disabled") == true) continue
+            val localId = old?.optString("local_id") ?: (SITE_REFERENCE_PREFIX + row.key)
+            if (!localId.startsWith(SITE_REFERENCE_PREFIX) || old?.optBoolean("store_recipe") == true) continue
+            val pieces = studioShape(row.pieces).entries.sortedWith(compareBy({ it.key.first }, { it.key.second }))
+            val dimension = pieces.joinToString(" + ") { (wh, quantity) -> "$quantity عدد ${wh.first}×${wh.second}" }
+            val title = "مرجع ${row.label} · $dimension · ${row.sampleTitle.ifBlank { row.group }}"
+            val price = row.prices.toLongOrNull()?.takeIf { canUseToman && row.missing == 0 }
+            val keepEdited = old != null && !old.optBoolean("confirm_recipe")
+            seeds += SiteReferenceSeed(localId, title, row.pieces, price, keepEdited)
+            seedKeys.getOrPut(localId) { mutableListOf() }.add(row.key)
+            links[row.key] = JSONObject().put("local_id", localId).put("scope", scope).put("label", row.label)
+                .put("title", row.sampleTitle).put("confirm_recipe", true).put("store_recipe", true)
         }
-        repository.ensureSiteReferences(pendingSeeds)
+        val results = repository.ensureSiteReferences(seeds.distinctBy { it.id })
+        for ((id, profit) in results) {
+            seedKeys.getValue(id).forEach { key -> links.getValue(key).put("profit_unavailable", profit == null) }
+        }
         return links
     }
 
@@ -513,7 +519,8 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             val sizes = catalog.objects("references").mapNotNull { it.optJSONObject("scope")?.optString("size_key") }.distinct().size
             update(old.copy(catalog = catalog, members = members, links = links, job = job, preview = null,
                 canResumeScan = false, updatedAt = System.currentTimeMillis(),
-                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${sizes} اندازهٔ مرجع"))
+                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${sizes} اندازه" +
+                    if (links.values.any { it.optBoolean("profit_unavailable") }) " · سود بعضی مراجع نیازمند ورود دستی است." else ""))
             storage.setScanToken(null)
         }
     }
@@ -581,6 +588,7 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
         val local = localProducts.value.filter { it.product.active }.associateBy { it.product.id }
         val proposals = state.links.filterValues { !it.optBoolean("disabled") && !it.optBoolean("confirm_recipe") }.mapNotNull { (key, link) ->
             val row = rows[key] ?: throw StudioFailure("دسته یا اندازهٔ یکی از مراجع تغییر کرده است. اتصال «${link.optString("title")}» را بررسی کنید.")
+            if (row.optBoolean("reference_excluded")) return@mapNotNull null
             val amount = local[link.getString("local_id")]?.pricing?.finalPriceToman?.toString()
                 ?: throw StudioFailure("یکی از محصولات مرجع غیرفعال یا حذف شده است.")
             val price = studioPrice(amount, state.catalog?.optInt("decimals") ?: 0)

@@ -293,28 +293,36 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         }
     }
 
-    internal suspend fun ensureSiteReferences(items: List<SiteReferenceSeed>) {
-        if (items.isEmpty()) return
-        db.withTransaction {
+    internal suspend fun ensureSiteReferences(items: List<SiteReferenceSeed>): Map<String, Long?> {
+        if (items.isEmpty()) return emptyMap()
+        return db.withTransaction {
             val normal = db.productDao().getAll().filter {
                 it.product.active && !it.product.id.startsWith(SITE_REFERENCE_PREFIX)
             }.map { it.toModel() }.filter { it.productType == "STANDARD" }
             val templates = normal.groupBy { studioShape(it.pieces) }
-            val defaultMaterials = MaterialCatalog.selectableForProduct(db.materialDao().getAll())
-                .filter { it.enabled && it.smartKind != MaterialCatalog.RELIEF_CUSTOM }.map { it.id }.toSet()
-            val profitRules = db.profitRuleDao().getAll().associate { it.pieceCount to it.fixedToman }
-            for (item in items) {
+            val selectable = MaterialCatalog.selectableForProduct(db.materialDao().getAll())
+            val glassIds = selectable.filter { it.id == "glass" || it.name.contains("شیشه") }.map { it.id }.toSet()
+            val defaultMaterials = selectable.filter { it.enabled && it.smartKind != MaterialCatalog.RELIEF_CUSTOM }.map { it.id }.toSet()
+            val rounding = db.settingsDao().get()?.roundingStepToman ?: 10_000L
+            items.associate { item ->
                 require(item.id.startsWith(SITE_REFERENCE_PREFIX))
-                if (db.productDao().get(item.id) != null) continue
-                val template = templates[studioShape(item.pieces)].orEmpty().distinctBy {
-                    listOf(it.enabledMaterialIds, it.manualProfitToman, it.profitMode, it.profitFormula, it.packagingSizeKey)
-                }.singleOrNull()
-                val count = item.pieces.sumOf { it.quantity }
-                val profit = profitRules[count] ?: profitRules.entries.filter { it.key <= count }.maxByOrNull { it.key }?.value ?: 0L
-                saveProduct(item.id, item.name, item.pieces, template?.enabledMaterialIds ?: defaultMaterials,
-                    manualProfitToman = template?.manualProfitToman ?: profit,
-                    profitMode = template?.profitMode ?: "MANUAL", profitFormula = template?.profitFormula.orEmpty(),
-                    packagingSizeKey = template?.packagingSizeKey.orEmpty())
+                val existing = db.productDao().get(item.id)?.toModel()
+                val pieces = existing?.pieces ?: item.pieces
+                val template = templates[studioShape(pieces)].orEmpty()
+                    .distinctBy { it.enabledMaterialIds to it.packagingSizeKey }.singleOrNull()
+                val fixedPackaging = studioHasThirtyByFortyLargest(pieces)
+                val ids = (existing?.enabledMaterialIds ?: template?.enabledMaterialIds ?: defaultMaterials) - glassIds +
+                    if (fixedPackaging) setOf("packaging_bundle") else emptySet()
+                val packing = if (fixedPackaging) "manual:220000" else existing?.packagingSizeKey ?: template?.packagingSizeKey.orEmpty()
+                val cost = calculate(pieces, ids, packing).costBeforeProfitToman
+                val profit = studioProfitFromStorePrice(item.sitePrice, cost, rounding)
+                saveProduct(item.id, existing?.name?.takeIf { item.keepEdited } ?: item.name, pieces, ids,
+                    active = existing?.active ?: true,
+                    manualProfitToman = if (item.keepEdited) existing?.manualProfitToman ?: profit ?: 0 else profit ?: 0,
+                    profitMode = if (item.keepEdited) existing?.profitMode ?: "MANUAL" else "MANUAL",
+                    profitFormula = if (item.keepEdited) existing?.profitFormula.orEmpty() else "",
+                    packagingSizeKey = packing)
+                item.id to profit
             }
         }
     }
@@ -796,4 +804,13 @@ internal fun studioShape(pieces: List<PieceInput>): Map<Pair<Int, Int>, Int> =
     pieces.groupingBy { minOf(it.widthCm, it.heightCm) to maxOf(it.widthCm, it.heightCm) }
         .fold(0) { count, piece -> count + piece.quantity }
 
-internal data class SiteReferenceSeed(val id: String, val name: String, val pieces: List<PieceInput>)
+internal fun studioHasThirtyByFortyLargest(pieces: List<PieceInput>): Boolean =
+    pieces.all { minOf(it.widthCm, it.heightCm) <= 30 && maxOf(it.widthCm, it.heightCm) <= 40 } &&
+        pieces.any { minOf(it.widthCm, it.heightCm) == 30 && maxOf(it.widthCm, it.heightCm) == 40 }
+
+internal fun studioProfitFromStorePrice(price: Long?, cost: Long, rounding: Long): Long? =
+    price?.takeIf { it > 0 && it >= cost && it % rounding.coerceAtLeast(1L) == 0L }?.minus(cost)
+
+internal data class SiteReferenceSeed(
+    val id: String, val name: String, val pieces: List<PieceInput>, val sitePrice: Long?, val keepEdited: Boolean
+)

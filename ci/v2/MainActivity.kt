@@ -63,7 +63,7 @@ private data class NavItem(val route:String,val icon:ImageVector,val label:Strin
 private val bottomItems=listOf(
     NavItem("home",Icons.Rounded.Home,"خانه"),
     NavItem("products",Icons.Rounded.Widgets,"محصولات"),
-    NavItem("studioPricing",Icons.Rounded.Storefront,"محصولات سایت"),
+    NavItem("studioPricing",Icons.Rounded.Storefront,"سایت"),
     NavItem("quick",Icons.Rounded.Calculate,"سریع"),
     NavItem("inventory",Icons.Rounded.Inventory2,"انبار"),
     NavItem("orders",Icons.Rounded.LocalShipping,"سفارش‌ها")
@@ -139,7 +139,7 @@ private val bottomItems=listOf(
                         selected=route==i.route,
                         onClick={if(i.route=="studioPricing") studioSuggestion=null;navigateTopLevel(i.route)},
                         icon={Icon(i.icon,i.label)},
-                        label={Text(if(i.route=="studioPricing") "فروشگاه" else i.label,maxLines=1)},
+                        label={Text(i.label,maxLines=1)},
                         colors=NavigationBarItemDefaults.colors(
                             selectedIconColor=MaterialTheme.colorScheme.onPrimaryContainer,
                             selectedTextColor=MaterialTheme.colorScheme.primary,

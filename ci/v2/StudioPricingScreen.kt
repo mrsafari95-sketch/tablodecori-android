@@ -3,11 +3,18 @@ package com.tablodecori.app.ui.screens
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.draw.clip
@@ -65,6 +72,7 @@ import com.tablodecori.app.data.StudioOfflineQueue
 import com.tablodecori.app.data.StudioRow
 import com.tablodecori.app.data.StudioState
 import com.tablodecori.app.data.objects
+import com.tablodecori.app.data.studioCards
 import com.tablodecori.app.data.studioSearchText
 import com.tablodecori.app.data.studioPrice
 import com.tablodecori.app.ui.AppCard
@@ -81,8 +89,10 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     var editModel by rememberSaveable { mutableStateOf<String?>(null) }
     val local = remember(products) { products.filter { it.product.active }.associateBy { it.product.id } }
     var referenceKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var pickSize by rememberSaveable { mutableStateOf<String?>(null) }
-    val selectedBySize = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+    var openCard by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailsKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedSection by rememberSaveable { mutableStateOf<String?>(null) }
+    var showTools by rememberSaveable { mutableStateOf(false) }
     var search by rememberSaveable { mutableStateOf("") }
     var connect by rememberSaveable { mutableStateOf(false) }
     var editorKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -91,22 +101,18 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     val referenceRows = remember(rows) { rows.filter { it.scope != null } }
     val bySize = remember(referenceRows) { referenceRows.groupBy { it.scope!!.getString("size_key") } }
     val linkedProducts = remember(state.links) { state.linkedProducts }
-    var pendingOnly by rememberSaveable { mutableStateOf(false) }
-    val pendingRefs = remember(rows, state.links, local) {
-        rows.filter { row ->
-            val link = state.links[row.key]
-            row.scope != null && (link == null || link.optBoolean("disabled") ||
-                link.optBoolean("confirm_recipe") || link.optString("local_id") !in local)
-        }.mapTo(mutableSetOf()) { it.key }
-    }
-    val searchable = remember(rows) {
-        rows.associate { it.key to studioSearchText("${it.group} ${it.label} ${it.sampleTitle} ${it.description}") }
-    }
-    val filtered = remember(bySize, search, pendingOnly, pendingRefs) {
+    val cards = remember(state.catalog, referenceRows) { studioCards(state.catalog, referenceRows) }
+    val sections = listOf("group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
+    val section = selectedSection ?: if (cards.any { it.kind == "suggested" }) "suggested" else cards.firstOrNull()?.kind
+    val filtered = remember(cards, section, search) {
         val query = studioSearchText(search)
-        bySize.mapValues { (_, choices) ->
-            choices.filter { (!pendingOnly || it.key in pendingRefs) && searchable.getValue(it.key).contains(query, ignoreCase = true) }
-        }.filterValues { it.isNotEmpty() }
+        cards.filter { it.kind == section }.mapNotNull { card ->
+            val all = query.isEmpty() || studioSearchText(card.name).contains(query, ignoreCase = true)
+            val matches = if (all) card.rows else card.rows.filter { row ->
+                studioSearchText("${row.label} ${row.sampleTitle} ${row.description}").contains(query, ignoreCase = true)
+            }
+            if (matches.isEmpty()) null else card to matches
+        }
     }
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -115,7 +121,13 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     ) {
         item {
             AppCard {
-                Text("محصولات سایت", style = MaterialTheme.typography.titleLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("محصولات سایت", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    if (state.catalog != null) TextButton(onClick = { showTools = !showTools }) {
+                        Text(if (showTools) "بستن تنظیمات" else "ابزارهای قیمت")
+                    }
+                }
+                if (state.catalog == null || showTools || !state.connected) {
                 if (vm.publicSigning) {
                     Text("برای اتصال آنلاین، نسخهٔ اندرویدی با امضای خصوصی لازم است.")
                 } else {
@@ -128,7 +140,8 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                         }
                     }
                 }
-                if (state.updatedAt > 0) {
+                }
+                if (state.updatedAt > 0 && showTools) {
                     Text("آخرین فهرست ذخیره‌شده · ${DateFormat.getDateTimeInstance().format(Date(state.updatedAt))}")
                 }
                 if (state.busy && state.scanTotal > 0) {
@@ -141,7 +154,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                         Text("اعمال تعرفه‌های بکاپ ارسالی")
                     }
                 }
-                if (state.connected && !state.inProgress) {
+                if (state.connected && !state.inProgress && (state.catalog == null || showTools || state.canResumeScan)) {
                     Button(onClick = vm::refresh, enabled = !state.busy && !sendingOffline && (!vm.hasOwnerRates || state.ownerRatesApplied)) {
                         Text(if (state.canResumeScan) "ادامهٔ دریافت محصولات" else "دریافت محصولات و ساخت مراجع")
                     }
@@ -232,7 +245,7 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
                 }
             }
         }
-        if (state.linkedProducts.isNotEmpty()) item {
+        if (showTools && state.linkedProducts.isNotEmpty()) item {
             AppCard {
                 Text("قیمت‌های محاسبه‌شده از مراجع متصل", fontWeight = FontWeight.SemiBold)
                 val foundKeys = rows.mapTo(mutableSetOf()) { it.key }
@@ -255,76 +268,74 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
             }
         }
         if (state.catalog != null) item {
-            Text("${bySize.size} اندازهٔ مرجع · ${state.catalog?.optInt("scanned") ?: 0} محصول بررسی‌شده", style = MaterialTheme.typography.titleMedium)
-            FilterChip(selected = pendingOnly, onClick = { pendingOnly = !pendingOnly },
-                label = { Text("نیازمند بررسی") })
-            OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی گروه یا ابعاد") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            if (suggestion != null && state.acceptsToman) {
-                Text("قیمت محاسبه‌شده · ${suggestion} تومان. برای استفاده، ردیف مقصد را انتخاب کنید.")
+            Text("${bySize.size} اندازهٔ مرجع · ${state.catalog?.optInt("scanned") ?: 0} محصول", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                sections.forEach { (kind, name) ->
+                    FilterChip(selected = section == kind, onClick = { selectedSection = kind; openCard = null },
+                        label = { Text("$name (${cards.count { it.kind == kind }})") })
+                }
             }
+            OutlinedTextField(search, { search = it }, label = { Text("جست‌وجوی دسته یا اندازه") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true)
         }
         if (state.catalog != null && filtered.isEmpty()) item {
-            Text(if (pendingOnly && bySize.isNotEmpty() && pendingRefs.isEmpty()) "همهٔ مراجع اتصال تأییدشده دارند." else "ردیفی با این انتخاب پیدا نشد.")
+            Text(if (search.isBlank()) "در این بخش دسته‌ای ثبت نشده است." else "دسته یا اندازه‌ای با این عبارت پیدا نشد.")
         }
-        items(filtered.keys.toList(), key = { it }) { size ->
-            val choices = filtered.getValue(size)
-            val single = bySize.getValue(size).singleOrNull()
-            val row = single ?: choices.find { it.key == selectedBySize[size] }
+        items(filtered, key = { it.first.key }) { (card, matches) ->
+            val expanded = openCard == card.key
+            val pictures = card.images.ifEmpty {
+                card.rows.filter { it.thumbnail.isNotEmpty() }.map { it.thumbnail to it.sampleTitle }.distinctBy { it.first }
+            }
             AppCard {
-                if (single == null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (row == null) StudioThumbnail(choices.first().thumbnail, choices.first().sampleTitle)
-                        Text(choices.first().label, Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                        OutlinedButton(onClick = { pickSize = size }) { Text("انتخاب دسته (${choices.size})") }
+                Row(Modifier.fillMaxWidth().clickable { openCard = if (expanded) null else card.key },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (card.kind == "suggested") "${card.rows.size} اندازه با جدول قیمت یکسان" else card.name,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("${card.products} محصول · ${card.rows.size} اندازه", style = MaterialTheme.typography.bodySmall)
                     }
+                    pictures.take(3).forEach { (image, title) -> StudioThumbnail(image, title, 32) }
+                    Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = if (expanded) "بستن دسته" else "بازکردن دسته")
                 }
-                if (row != null) {
-                    StudioRowHeading(row)
-                    Text("قیمت عادی · ${row.prices.ifBlank { "ثبت نشده" }} ${state.currency}")
-                    Text("${row.products} محصول · ${row.count} قیمت · ${row.sales} تخفیف · ${row.missing} بدون قیمت")
-                    val linkedId = linkedProducts[row.key]
-                    if (row.pieces.isEmpty() && linkedId == null) {
-                        Text("ترکیب تکه‌ها از توضیح سایت قابل استخراج نبود.", color = MaterialTheme.colorScheme.error)
-                    }
-                    if (linkedId != null) {
-                        val model = local[linkedId]
-                        Text(if (model == null) "محصول مرجع روی گوشی در دسترس نیست" else
-                            "${model.product.name} · ${model.pricing.finalPriceToman} تومان")
-                        if (state.links[row.key]?.optBoolean("confirm_recipe") == true)
-                            Text("مرجع ساخته شد. ترکیب و مبلغ را بررسی و اتصال را تأیید کنید.")
-                        if (model != null && linkedId.startsWith(SITE_REFERENCE_PREFIX)) {
-                            TextButton(onClick = { editModel = linkedId }, enabled = !state.inProgress && !state.busy) {
-                                Text("ویرایش ترکیب و هزینهٔ مرجع")
+                if (expanded) {
+                    matches.forEach { row ->
+                        HorizontalDivider()
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StudioThumbnail(row.thumbnail, row.sampleTitle, 32)
+                            Column(Modifier.weight(1f).clickable { detailsKey = row.key }) {
+                                Text(row.label, fontWeight = FontWeight.SemiBold)
+                                val price = row.prices.toLongOrNull()?.let { java.text.NumberFormat.getIntegerInstance(java.util.Locale.forLanguageTag("fa-IR")).format(it) }
+                                    ?: row.prices.ifBlank { "ثبت نشده" }
+                                Text("$price ${state.currency}", style = MaterialTheme.typography.bodySmall)
                             }
+                            TextButton(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) { Text("ویرایش قیمت") }
+                            IconButton(onClick = { detailsKey = row.key }) { Icon(Icons.Rounded.MoreVert, "جزئیات مرجع") }
                         }
-                    }
-                    TextButton(onClick = { referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
-                        Text(if (linkedId == null) "وصل کردن محصول مرجع" else "ویرایش اتصال مرجع")
-                    }
-                    Button(onClick = { editorKey = row.key }, enabled = !state.inProgress && !state.busy) {
-                        Text("تغییر قیمت همین دسته و اندازه")
                     }
                 }
             }
         }
     }
-    pickSize?.let { filtered[it] }?.let { choices ->
-        AlertDialog(onDismissRequest = { pickSize = null }, title = { Text("انتخاب دسته · ${choices.first().label}") },
-            text = {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
-                    items(choices, key = { it.key }) { choice ->
-                        OutlinedButton(onClick = { selectedBySize[choice.scope!!.getString("size_key")] = choice.key; pickSize = null },
-                            modifier = Modifier.fillMaxWidth()) {
-                            StudioThumbnail(choice.thumbnail, choice.sampleTitle)
-                            Column(Modifier.weight(1f)) {
-                                Text("${choice.group} · ${choice.sampleTitle}")
-                                Text("${choice.products} محصول · ${choice.prices} ${state.currency}")
-                            }
-                        }
-                    }
+    rows.find { it.key == detailsKey }?.let { row ->
+        val linkedId = linkedProducts[row.key]
+        AlertDialog(onDismissRequest = { detailsKey = null }, title = { Text("جزئیات مرجع") }, text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StudioRowHeading(row)
+                Text("${row.products} محصول · ${row.count} قیمت")
+                val model = linkedId?.let(local::get)
+                if (model != null) Text("${model.product.name} · ${model.pricing.finalPriceToman} تومان")
+                if (row.pieces.isEmpty() && model == null) Text("ترکیب تکه‌ها در توضیح این اندازه مشخص نشده است.")
+                if (state.links[row.key]?.optBoolean("confirm_recipe") == true) Text("ترکیب و مبلغ را بررسی و اتصال را تأیید کنید.")
+                if (model != null && linkedId?.startsWith(SITE_REFERENCE_PREFIX) == true) {
+                    TextButton(onClick = { detailsKey = null; editModel = linkedId }, enabled = !state.inProgress && !state.busy) { Text("ویرایش ترکیب و هزینهٔ مرجع") }
                 }
-            }, confirmButton = { TextButton(onClick = { pickSize = null }) { Text("بستن") } })
+                TextButton(onClick = { detailsKey = null; referenceKey = row.key }, enabled = !state.inProgress && !state.busy) {
+                    Text(if (linkedId == null) "اتصال محصول مرجع" else "ویرایش اتصال مرجع")
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { detailsKey = null }) { Text("بستن") } })
     }
     if (connect) StudioConnectDialog(onDismiss = { connect = false }, onConnect = {
         connect = false
@@ -408,7 +419,7 @@ private fun StudioDraftDialog(
 ) {
     val previous = state.drafts.find { it.getString("key") == row.key && it.getString("revision") == row.revision }
     val previousIds = previous?.optJSONArray("product_ids")
-    var amount by rememberSaveable(row.revision) { mutableStateOf(previous?.optString("price").orEmpty()) }
+    var amount by rememberSaveable(row.revision) { mutableStateOf(previous?.optString("price") ?: row.prices.takeIf { it.toBigDecimalOrNull() != null }.orEmpty()) }
     var all by rememberSaveable(row.revision) { mutableStateOf(row.grouped && previousIds == null && (row.scope != null || previous != null)) }
     var selected by rememberSaveable(row.revision) {
         mutableStateOf(ArrayList((0 until (previousIds?.length() ?: 0)).map { previousIds!!.getLong(it) }))
@@ -420,6 +431,7 @@ private fun StudioDraftDialog(
         title = { Text("${row.group} · ${row.label}") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StudioRowHeading(row)
                 OutlinedTextField(amount, { amount = it.take(26) }, label = { Text("قیمت جدید (${state.currency})") },
                     modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 if (suggestion != null && state.acceptsToman) {
@@ -524,7 +536,7 @@ private fun StudioReferenceDialog(
 private val studioThumbnails = LruCache<String, Bitmap>(80)
 
 @Composable
-private fun StudioThumbnail(address: String, title: String) {
+private fun StudioThumbnail(address: String, title: String, sizeDp: Int = 48) {
     val directory = File(LocalContext.current.cacheDir, "studio-thumbnails")
     val image by produceState<Bitmap?>(initialValue = null, key1 = address) {
         value = null
@@ -534,7 +546,7 @@ private fun StudioThumbnail(address: String, title: String) {
             }
         }
     }
-    Box(Modifier.size(48.dp).clip(MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(sizeDp.dp).clip(MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
         val bitmap = image
         if (bitmap == null) {
             Icon(Icons.Rounded.Image, contentDescription = null, tint = MaterialTheme.colorScheme.outline)

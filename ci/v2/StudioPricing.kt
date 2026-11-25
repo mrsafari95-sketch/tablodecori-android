@@ -70,6 +70,38 @@ internal fun StudioRow(json: JSONObject): StudioRow {
     )
 }
 
+internal data class StudioCard(
+    val key: String, val kind: String, val name: String, val products: Int,
+    val rows: List<StudioRow>, val images: List<Pair<String, String>>
+)
+
+internal fun studioCards(catalog: JSONObject?, references: List<StudioRow>): List<StudioCard> {
+    val byKey = references.associateBy { it.key }
+    val seen = mutableSetOf<String>()
+    val cards = catalog?.objects("cards").orEmpty().mapNotNull { card ->
+        val keys = card.getJSONArray("rows")
+        val rows = List(keys.length()) { byKey[keys.getString(it)] }.filterNotNull()
+        if (rows.isEmpty()) return@mapNotNull null
+        seen.addAll(rows.map { it.key })
+        StudioCard(card.getString("key"), card.getString("kind"), card.getString("name"), card.getInt("products"),
+            rows, card.objects("images").map { it.optString("image") to it.optString("title") })
+    }
+    // Cached catalogs from before the plugin exported cards, and previously linked scopes.
+    val extra = references.filter { it.key !in seen }.groupBy { row ->
+        val scope = requireNotNull(row.scope)
+        scope.optString("group_id").ifEmpty { scope.getJSONArray("product_ids").toString() }
+    }.map { (id, rows) ->
+        val grouped = rows.first().scope!!.optString("group_id").isNotEmpty()
+        val members = rows.flatMap { row ->
+            val ids = row.scope!!.getJSONArray("product_ids")
+            List(ids.length()) { ids.getLong(it) }
+        }.distinct().size
+        StudioCard("cached:$id", if (grouped && cards.isEmpty()) "group" else "review",
+            if (grouped) rows.first().group else "مراجع ذخیره‌شده", members, rows, emptyList())
+    }
+    return cards + extra
+}
+
 internal data class StudioState(
     val catalog: JSONObject? = null,
     val drafts: List<JSONObject> = emptyList(),
@@ -479,10 +511,10 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
             val members = old.members.filter { (key, value) -> value.optString("revision") == revisions[key] }
             mutable.update { it.copy(message = "در حال ساخت و ذخیرهٔ مراجع روی گوشی") }
             val links = createReferences(catalog, old)
-            val created = links.size - old.links.size
+            val sizes = catalog.objects("references").mapNotNull { it.optJSONObject("scope")?.optString("size_key") }.distinct().size
             update(old.copy(catalog = catalog, members = members, links = links, job = job, preview = null,
                 canResumeScan = false, updatedAt = System.currentTimeMillis(),
-                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${created} مرجع جدید"))
+                message = "فهرست ذخیره شد · ${catalog.optInt("scanned")} محصول · ${sizes} اندازهٔ مرجع"))
             storage.setScanToken(null)
         }
     }

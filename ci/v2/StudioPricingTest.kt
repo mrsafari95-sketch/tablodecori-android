@@ -27,6 +27,16 @@ class StudioPricingTest {
         assertEquals(2, studioCards(null, listOf(row("a", 1), row("b", 2))).size)
     }
 
+    @Test fun malformedCatalogEntriesDoNotPreventRenderingValidCards() {
+        val row = StudioRow("row", "rev", "دسته", "مدیوم", "100", 1, 1, 0, 0, true,
+            JSONObject("""{"size_key":"medium","group_id":"","product_ids":[1]}"""), "", "", "", emptyList())
+        val catalog = JSONObject("""{"cards":[null,{"key":"group","kind":"suggested","rows":["row","row"]},{"key":"group","rows":[]}]}""")
+        assertEquals(listOf("group"), studioCards(catalog, listOf(row)).map { it.key })
+        assertEquals(listOf("row"), studioCards(catalog, listOf(row)).single().rows.map { it.key })
+        val broken = StudioState(catalog = JSONObject("""{"references":[null,{"key":"incomplete"}],"rows":[{}]}"""))
+        assertEquals(emptyList<StudioRow>(), broken.rows)
+    }
+
     @Test fun manualProfitCanMatchOnlyARepresentableStorePrice() {
         assertEquals(170000L, studioProfitFromStorePrice(400000, 230000, 10000))
         assertNull(studioProfitFromStorePrice(230001, 230000, 10000))

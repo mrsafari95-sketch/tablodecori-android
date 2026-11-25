@@ -55,7 +55,7 @@ internal data class StudioRow(
 )
 
 internal fun JSONObject.objects(key: String): List<JSONObject> =
-    optJSONArray(key)?.let { array -> List(array.length()) { array.getJSONObject(it) } }.orEmpty()
+    optJSONArray(key)?.let { array -> (0 until array.length()).mapNotNull(array::optJSONObject) }.orEmpty()
 
 internal fun StudioRow(json: JSONObject): StudioRow {
     val sample = json.optJSONObject("sample")
@@ -80,22 +80,23 @@ internal data class StudioCard(
 internal fun studioCards(catalog: JSONObject?, references: List<StudioRow>): List<StudioCard> {
     val byKey = references.associateBy { it.key }
     val seen = mutableSetOf<String>()
-    val cards = catalog?.objects("cards").orEmpty().map { card ->
-        val keys = card.getJSONArray("rows")
-        val rows = List(keys.length()) { byKey[keys.getString(it)] }.filterNotNull()
+    val cards = catalog?.objects("cards").orEmpty().mapNotNull { card ->
+        val key = card.optString("key").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val keys = card.optJSONArray("rows")
+        val rows = (0 until (keys?.length() ?: 0)).mapNotNull { byKey[keys?.optString(it)] }.distinctBy { it.key }
         seen.addAll(rows.map { it.key })
-        StudioCard(card.getString("key"), card.getString("kind"), card.getString("name"), card.getInt("products"),
+        StudioCard(key, card.optString("kind", "review"), card.optString("name", "دستهٔ قیمت"), card.optInt("products"),
             rows, card.objects("images").map { it.optString("image") to it.optString("title") })
-    }
+    }.distinctBy { it.key }
     // Cached catalogs from before the plugin exported cards, and previously linked scopes.
     val extra = references.filter { it.key !in seen }.groupBy { row ->
         val scope = requireNotNull(row.scope)
-        scope.optString("group_id").ifEmpty { scope.getJSONArray("product_ids").toString() }
+        scope.optString("group_id").ifEmpty { scope.optJSONArray("product_ids")?.toString() ?: row.key }
     }.map { (id, rows) ->
         val grouped = rows.first().scope!!.optString("group_id").isNotEmpty()
         val members = rows.flatMap { row ->
-            val ids = row.scope!!.getJSONArray("product_ids")
-            List(ids.length()) { ids.getLong(it) }
+            val ids = row.scope?.optJSONArray("product_ids")
+            (0 until (ids?.length() ?: 0)).mapNotNull { index -> ids?.optLong(index)?.takeIf { it > 0 } }
         }.distinct().size
         StudioCard("cached:$id", if (grouped && cards.isEmpty()) "group" else "review",
             if (grouped) rows.first().group else "مراجع ذخیره‌شده", members, rows, emptyList())
@@ -122,7 +123,11 @@ internal data class StudioState(
     val busy: Boolean = false,
     val message: String = ""
 ) {
-    val rows get() = catalog?.let { (it.objects("references") + it.objects("rows")).map(::StudioRow) }.orEmpty()
+    val rows get() = catalog?.let { data ->
+        (data.objects("references") + data.objects("rows"))
+            .mapNotNull { row -> runCatching { StudioRow(row) }.getOrNull() }
+            .distinctBy { it.key }
+    }.orEmpty()
     val linkedProducts get() = links.filterValues { !it.optBoolean("disabled") }.mapValues { it.value.getString("local_id") }
     val currency get() = catalog?.optString("currency").orEmpty()
     val acceptsToman get() = catalog?.optString("currency_code") in setOf("IRT", "TOMAN") || currency.trim() == "تومان"
@@ -347,7 +352,8 @@ internal class StudioPricingViewModel(application: Application) : AndroidViewMod
                 mutable.update { it.copy(message = "اتصال به آدرس فروشگاه برقرار نشد. اینترنت گوشی را بررسی کنید.") }
             } catch (_: IOException) {
                 mutable.update { it.copy(message = "ارتباط یا ذخیره‌سازی انجام نشد. می‌توانید ادامهٔ کار را دوباره امتحان کنید.") }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                android.util.Log.e("StudioPricing", "Could not process pricing catalog", error)
                 mutable.update { it.copy(message = "پردازش اطلاعات فروشگاه انجام نشد.") }
             } finally {
                 mutable.update { it.copy(busy = false, scanned = 0, scanTotal = 0) }

@@ -245,8 +245,9 @@ class WorkshopRepository(private val db: AppDatabase, context: Context, private 
         val profits = rs.associate { it.pieceCount to it.fixedToman }
         val rounding = st?.roundingStepToman ?: 10_000L
         ps.mapNotNull { rel ->
-            val model = rel.toModel()
-            runCatching { PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey, model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)) }.getOrNull()
+            runCatching {
+                val model = rel.toModel()
+                PricedProduct(model, engine.calculate(model.pieces, pMaterials, model.enabledMaterialIds, profits, rounding, ms.filter{it.formulaMode=="CUSTOM"}.associate{it.id to it.customFormula}, model.manualProfitToman.takeIf{model.profitMode=="MANUAL"}, model.profitFormula.takeIf{model.profitMode=="FORMULA"}.orEmpty(), sizeRules, model.packagingSizeKey, model.designMaterialsCostToman.takeIf{model.productType=="RELIEF"}?:0L)) }.getOrNull()
         }
     }
 

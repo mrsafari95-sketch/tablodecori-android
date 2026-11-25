@@ -112,10 +112,10 @@ internal fun StudioPricingScreen(vm: StudioPricingViewModel, workshop: MainViewM
     val sections = listOf("references" to "مراجع قیمت", "group" to "گروه‌بندی‌شده", "suggested" to "دسته‌های پیشنهادی", "review" to "نیازمند بررسی")
     val section = selectedSection ?: "references"
     val eligibleRows = remember(referenceCards) { referenceCards.flatMap { it.rows } }
-    val readyRows = eligibleRows.filter { row ->
+    val readyRows = remember(eligibleRows, state.links, local, linkedProducts) { eligibleRows.filter { row ->
         val link = state.links[row.key]
         link?.optBoolean("store_recipe") == true && linkedProducts[row.key]?.let(local::containsKey) == true
-    }
+    } }
     val readySizes = readyRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
     val eligibleSizes = eligibleRows.mapNotNull { it.scope?.optString("size_key") }.distinct().size
     val filtered = remember(cards, referenceCards, local, linkedProducts, section, search) {
@@ -574,7 +574,9 @@ private fun StudioThumbnail(address: String, title: String, sizeDp: Int = 48) {
         value = null
         if (address.isNotBlank()) {
             value = withContext(Dispatchers.IO) {
-                studioThumbnails.get(address) ?: cachedStudioThumbnail(directory, address)?.also { studioThumbnails.put(address, it) }
+                studioThumbnails.get(address) ?: runCatching {
+                    cachedStudioThumbnail(directory, address)
+                }.getOrNull()?.also { studioThumbnails.put(address, it) }
             }
         }
     }
